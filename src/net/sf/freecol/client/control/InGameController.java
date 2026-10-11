@@ -177,6 +177,9 @@ public final class InGameController extends FreeColClientHolder {
     /** The messages in the last turn report. */
     private final List<ModelMessage> turnReportMessages = new ArrayList<>();
 
+    /** Watches the trade routes for supply lines that break down. */
+    private final SupplyWatch supplyWatch = new SupplyWatch();
+
 
     /**
      * The constructor to use.
@@ -4980,6 +4983,16 @@ public final class InGameController extends FreeColClientHolder {
 
             // Get turn report out quickly before more message display occurs.
             player.removeDisplayedModelMessages();
+            // Add warnings about supply lines that stopped covering
+            // a colony's needs.  Never let this break the turn.
+            try {
+                for (ModelMessage m : this.supplyWatch.check(player,
+                        game.getTurn().getNumber())) {
+                    player.addModelMessage(m);
+                }
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Supply watch failed", re);
+            }
             displayModelMessages(true, true);
 
             player.invalidateCanSeeTiles();

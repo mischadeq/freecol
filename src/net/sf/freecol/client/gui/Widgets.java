@@ -105,6 +105,7 @@ import net.sf.freecol.client.gui.panel.report.CompactLabourReport;
 import net.sf.freecol.client.gui.panel.report.LabourData.UnitData;
 import net.sf.freecol.client.gui.panel.report.ReportCargoPanel;
 import net.sf.freecol.client.gui.panel.report.ReportClassicColonyPanel;
+import net.sf.freecol.client.gui.panel.report.ReportColonyOverviewPanel;
 import net.sf.freecol.client.gui.panel.report.ReportCompactColonyPanel;
 import net.sf.freecol.client.gui.panel.report.ReportContinentalCongressPanel;
 import net.sf.freecol.client.gui.panel.report.ReportEducationPanel;
@@ -1465,6 +1466,16 @@ public final class Widgets {
             = this.canvas.getExistingFreeColPanel(ReportNavalPanel.class);
         if (panel == null) {
             panel = new ReportNavalPanel(this.freeColClient);
+            this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
+        }
+        return panel;
+    }
+
+    public FreeColPanel showReportColonyOverviewPanel() {
+        ReportColonyOverviewPanel panel
+            = this.canvas.getExistingFreeColPanel(ReportColonyOverviewPanel.class);
+        if (panel == null) {
+            panel = new ReportColonyOverviewPanel(this.freeColClient);
             this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
         }
         return panel;
