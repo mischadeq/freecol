@@ -60,8 +60,19 @@ Status legend: **Done** = written and seen working in the game.
     - A broken supply line is noticed at the start of the next turn,
       not at the moment the wagon is reassigned. The overview shows it
       immediately.
-- **Nothing is committed yet.** All changes are uncommitted on the
-  `colony-overview` branch.
+- **Sortable columns in the Colony Overview.** Written and compiled,
+  not yet seen in the game, not yet committed. Click a column header
+  to sort, click again to reverse. The choice is remembered while the
+  game runs.
+  - Colony: by name. Size: biggest first. Cap.: largest first.
+  - Mainly produces: grouped by main product, biggest producer first,
+    so all the cloth towns end up together.
+  - Needs: most urgent uncovered shortage first.
+  - In stock: overflowing warehouses first, then the largest stock.
+  - Building: idle first, then waiting for goods, then by turns left.
+- **Committed so far:** the Colony Overview report and the supply
+  warnings (commit 4142be33f). Neither has been tested in the game
+  beyond the first look at the overview.
 
 ## Decided
 
@@ -75,7 +86,6 @@ Status legend: **Done** = written and seen working in the game.
 ## Ideas, not started
 
 ### Colony overview
-- Sortable columns (click a header to sort by size, product, etc.).
 - A totals row for the whole empire.
 - Option to show gross production instead of net.
 - Show hammers / construction capacity as a product.

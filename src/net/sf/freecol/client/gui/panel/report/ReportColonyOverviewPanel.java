@@ -23,6 +23,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -71,6 +72,25 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
 
     private static final String PREFIX = "report.colonyOverview.";
 
+    /** Prefix of the action command of the column header buttons. */
+    private static final String SORT = "sort:";
+
+    /** The columns, in display order. */
+    private static final String[] COLUMNS = {
+        "colony", "size", "produces", "needs", "stock", "capacity",
+        "building"
+    };
+
+    /**
+     * The column the report is sorted by, or null for the order set
+     * in the preferences.  Static so that the choice is remembered
+     * while the game is running.
+     */
+    private static String sortColumn = null;
+
+    /** Is the sort order reversed? */
+    private static boolean sortReversed = false;
+
     /** Building and unit icons are fitted into a box of this size. */
     private static final Dimension BUILD_ICON_SIZE = new Dimension(48, 32);
 
@@ -80,12 +100,20 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
         final int amount;
         final Color color;
         final String toolTip;
+        /** Lower ranks are more pressing.  Used for sorting only. */
+        final int rank;
 
         Entry(GoodsType type, int amount, Color color, String toolTip) {
+            this(type, amount, color, toolTip, 0);
+        }
+
+        Entry(GoodsType type, int amount, Color color, String toolTip,
+              int rank) {
             this.type = type;
             this.amount = amount;
             this.color = color;
             this.toolTip = toolTip;
+            this.rank = rank;
         }
     }
 
@@ -237,7 +265,7 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
                 }
             }
             urgency.put(gt, turns + ((covered) ? Unit.MANY_TURNS : 0));
-            draining.add(new Entry(gt, p, c, tip));
+            draining.add(new Entry(gt, p, c, tip, urgency.get(gt)));
         }
         draining.sort(Comparator.comparingInt(e -> urgency.get(e.type)));
         result.addAll(draining);
@@ -258,7 +286,8 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
             starved.add(new Entry(e.getKey(), -e.getValue(), cPlain,
                     Messages.message(message("shortfall.description",
                                              colony, e.getKey())
-                        .addAmount("%amount%", e.getValue()))));
+                        .addAmount("%amount%", e.getValue())),
+                    2 * Unit.MANY_TURNS));
         }
         starved.sort(Comparator.comparingInt(e -> e.amount));
         result.addAll(starved);
@@ -373,12 +402,84 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
 
     // Display
 
-    private JLabel headerLabel(String suffix) {
-        JLabel l = new JLabel(Messages.message(PREFIX + "header." + suffix));
-        l.setFont(l.getFont().deriveFont(Font.BOLD));
-        l.setToolTipText(Messages.message(PREFIX + "header." + suffix
-                + ".description"));
-        return l;
+    /**
+     * Make a column header.  Clicking it sorts the report by that
+     * column, clicking it again reverses the order.
+     *
+     * @param column The column name.
+     * @return The header button.
+     */
+    private JButton headerButton(String column) {
+        String text = Messages.message(PREFIX + "header." + column);
+        JButton b = Utility.getLinkButton(text, null, SORT + column);
+        final Font font = b.getFont().deriveFont(Font.BOLD);
+        b.setFont(font);
+        if (column.equals(sortColumn)) {
+            // Mark the sorted column with an arrow if the font has one.
+            final char arrow = (sortReversed) ? '\u25B2' : '\u25BC';
+            b.setText(text + " " + ((font.canDisplay(arrow))
+                    ? String.valueOf(arrow)
+                    : (sortReversed) ? "^" : "v"));
+        }
+        b.setForeground(Color.BLACK);
+        b.setToolTipText(Messages.message(PREFIX + "header." + column
+                + ".description")
+            + " " + Messages.message(PREFIX + "header.sort"));
+        b.addActionListener(this);
+        return b;
+    }
+
+    /**
+     * Get the comparator that sorts colonies by a column.  The most
+     * interesting colonies come first: the biggest, the most urgent
+     * need, the fullest warehouse, the idle build queue.
+     *
+     * @param column The column name.
+     * @return A suitable {@code Comparator}.
+     */
+    private Comparator<Colony> getComparator(String column) {
+        switch (column) {
+        case "colony":
+            return Comparator.comparing(Colony::getName,
+                                        String.CASE_INSENSITIVE_ORDER);
+        case "size":
+            return Comparator.comparingInt(c -> -c.getUnitCount());
+        case "produces":
+            // Group by main product, biggest producer first.
+            return Comparator.comparingInt((Colony c) -> {
+                    List<Entry> l = getProduces(c);
+                    return (l.isEmpty()) ? Integer.MAX_VALUE
+                        : l.get(0).type.getIndex();
+                }).thenComparingInt(c -> {
+                    List<Entry> l = getProduces(c);
+                    return (l.isEmpty()) ? 0 : -l.get(0).amount;
+                });
+        case "needs":
+            return Comparator.comparingInt(c -> {
+                    List<Entry> l = getNeeds(c);
+                    return (l.isEmpty()) ? Integer.MAX_VALUE : l.get(0).rank;
+                });
+        case "stock":
+            // Overflowing warehouses first, then the largest stock.
+            return Comparator.comparingInt(c -> {
+                    List<Entry> l = getStock(c);
+                    if (l.isEmpty()) return Integer.MAX_VALUE;
+                    Entry e = l.get(0);
+                    return -e.amount - ((e.color == cAlarm) ? 1000000 : 0);
+                });
+        case "capacity":
+            return Comparator.comparingInt(c -> -c.getWarehouseCapacity());
+        case "building":
+            // Idle first, then blocked, then by turns to completion.
+            return Comparator.comparingInt(c -> {
+                    BuildableType build = c.getCurrentlyBuilding();
+                    if (build == null) return -2;
+                    int turns = c.getTurnsToComplete(build, null);
+                    return (turns < 0) ? -1 : turns;
+                });
+        default:
+            return null;
+        }
     }
 
     private JPanel cell() {
@@ -486,13 +587,9 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
         reportPanel.setLayout(new MigLayout("fillx, wrap 7, gap 12 6",
                 "[l][r][l][l][l][r][l, grow]", ""));
 
-        reportPanel.add(headerLabel("colony"));
-        reportPanel.add(headerLabel("size"));
-        reportPanel.add(headerLabel("produces"));
-        reportPanel.add(headerLabel("needs"));
-        reportPanel.add(headerLabel("stock"));
-        reportPanel.add(headerLabel("capacity"));
-        reportPanel.add(headerLabel("building"));
+        for (String column : COLUMNS) {
+            reportPanel.add(headerButton(column));
+        }
         reportPanel.add(new JSeparator(JSeparator.HORIZONTAL),
                         "span, growx");
 
@@ -502,8 +599,17 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
             return;
         }
 
-        for (Colony colony : this.colonies) {
-            if (getMyPlayer().getId().equals(colony.getOwner().getId())) {
+        // Sort a copy, so the order from the preferences is kept as
+        // the tie-breaker and as the fallback.
+        List<Colony> sorted = new ArrayList<>(this.colonies);
+        Comparator<Colony> comparator = (sortColumn == null) ? null
+            : getComparator(sortColumn);
+        if (comparator != null) {
+            sorted.sort((sortReversed) ? comparator.reversed() : comparator);
+        }
+
+        for (Colony colony : sorted) {
+            if (isMine(colony)) {
                 JButton b = Utility.getLinkButton(colony.getName(), null,
                                                   colony.getId());
                 b.addActionListener(this);
@@ -522,6 +628,31 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
             reportPanel.add(goodsCell(getStock(colony), false, false));
             reportPanel.add(new JLabel(Integer.toString(colony.getWarehouseCapacity())));
             reportPanel.add(buildingCell(colony));
+        }
+    }
+
+
+    // Interface ActionListener
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void actionPerformed(ActionEvent ae) {
+        final String command = ae.getActionCommand();
+        if (command != null && command.startsWith(SORT)) {
+            final String column = command.substring(SORT.length());
+            if (column.equals(sortColumn)) {
+                sortReversed = !sortReversed;
+            } else {
+                sortColumn = column;
+                sortReversed = false;
+            }
+            update();
+            reportPanel.revalidate();
+            reportPanel.repaint();
+        } else {
+            super.actionPerformed(ae);
         }
     }
 }
