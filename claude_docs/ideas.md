@@ -3,10 +3,11 @@
 Goal: make FreeCol's UI workable and give proper overviews.
 Branch: `colony-overview` on the fork `mischadeq/freecol`.
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 
 Status legend: **Done** = written and seen working in the game.
-**In progress** = being worked on now. **Idea** = not started.
+**In progress** = being worked on now. **To be tested** = written and
+committed, not yet checked in the game. **Idea** = not started.
 
 ## Done
 
@@ -26,53 +27,124 @@ Status legend: **Done** = written and seen working in the game.
 
 ## In progress
 
-- **Colony Overview polish.**
-  - Smaller, fixed-size building icons and no horizontal scrollbar
-    (written, needs a look in the game).
-  - Building column colours: red only for "nothing being built",
-    magenta for "waiting for goods" (written, needs a look in the
-    game).
-- **Supply-aware warnings** (Mischa's idea, 2026-10-11). A shortage
-  should only raise attention when no resupply is on its way in time.
-  Written and unit tested (6 tests pass), not yet seen in the game.
-  - `SupplyForecast`: walks every wagon train and ship along its trade
-    route from where it is now, and works out which goods it will
-    unload at which colony after how many turns.
-  - Colony Overview, Needs column: green when a trade route resupplies
-    in time; red when a route should deliver but has no carrier, has
-    nothing coming, or will be too late. The tooltip names the carrier,
-    the route and the arrival time.
-  - Colony Overview, Building column: "Tools arriving in 3 turns"
-    instead of "needs 20 more Tools" when enough is on its way.
-  - `SupplyWatch`: message at the start of the turn when a supply line
-    stops covering a colony: last carrier taken off the route, nothing
-    coming, next delivery too late, or a carrier delayed. Sent when the
-    situation changes, not every turn. Message type "Missing goods".
-  - Known limits:
-    - The forecast assumes carriers visit every stop in order. The
-      game lets them skip stops with no work, so times are estimates.
-    - "Delayed" compares with last turn's expectation, which is kept
-      in memory only. After loading a save the first turn has nothing
-      to compare with.
-    - A carrier that spends a turn loading counts as one turn delayed.
-      If that is too noisy, add a threshold.
-    - A delay on the very last leg into the colony is not detected.
-    - A broken supply line is noticed at the start of the next turn,
-      not at the moment the wagon is reassigned. The overview shows it
-      immediately.
-- **Sortable columns in the Colony Overview.** Written and compiled,
-  not yet seen in the game, not yet committed. Click a column header
-  to sort, click again to reverse. The choice is remembered while the
-  game runs.
-  - Colony: by name. Size: biggest first. Cap.: largest first.
-  - Mainly produces: grouped by main product, biggest producer first,
-    so all the cloth towns end up together.
-  - Needs: most urgent uncovered shortage first.
-  - In stock: overflowing warehouses first, then the largest stock.
-  - Building: idle first, then waiting for goods, then by turns left.
-- **Committed so far:** the Colony Overview report and the supply
-  warnings (commit 4142be33f). Neither has been tested in the game
-  beyond the first look at the overview.
+Nothing at the moment.
+
+## To be tested
+
+Written, but not yet tried by Mischa in a real game. Move an item to
+Done once it has been seen working.
+
+"Auto-checked" means Claude ran the real game in an automated session
+(50 AI turns, took over AI colonies in debug mode, added wagons and
+soldiers, opened every report and took screenshots) and it worked
+there. That is a smoke test, not a play test.
+
+### Not yet committed (written 2026-10-12)
+
+- [ ] **Unit groups: armies, wagon trains, fleets.**
+      - Orders menu: Form Group (Shift+G), Leave Group, Disband Group.
+      - Form Group takes all your units on the active unit's tile that
+        travel the same way (land or sea) and asks for a name. If the
+        active unit is already in a group, the others join it.
+      - One order for the whole group: go to a tile or colony, assign
+        a trade route (carriers only), fortify, sentry. A step with
+        the arrow keys also moves the members standing with the unit,
+        but only for a plain move; attacks, boarding and trading stay
+        with the unit you ordered.
+      - The info panel (bottom right) shows "Army 1 (3 units)".
+      - Groups are kept per game in your FreeCol user data folder
+        (`unitgroups/<game id>.properties`), so they survive save and
+        load. They exist on your machine only; the game rules, the AI
+        and multiplayer are untouched.
+      - Auto-checked: group shown in the info panel; a goto order
+        reached all three members; assigning one wagon to a route
+        assigned all three. Unit test for the group registry passes.
+      - Not checked at all: the Form/Leave/Disband menu items and
+        their dialogs, arrow-key moves, fortify/sentry for a group.
+      - Known limits: members move one after the other, each finding
+        its own path, so they can arrive on different turns. There is
+        no way yet to pick only some units on a tile.
+- [ ] **Logistics report** (Report menu, Shift+F7). Every trade route
+      with its stops and what each stop loads, what it delivers to
+      which colony and when (green in time, red too late or nothing
+      coming), its carriers with group, position, cargo and next
+      deliveries, and the wagon trains and ships without a route.
+      Auto-checked: renders correctly, including a route with no
+      carriers. Not seen yet: a carrier actually on its way with a
+      delivery time.
+- [ ] **Goods Overview report** (Report menu, Shift+F8). One row per
+      goods type, one column per colony, totals in front. Each cell
+      shows stock and change per turn; red for overflow or nearly
+      gone, magenta for draining or nearly full. Auto-checked: renders
+      correctly with 4 colonies. Not seen yet: many colonies (the
+      table scrolls sideways).
+- [ ] **Unit Overview report** (Report menu, Shift+F10). Every unit
+      not at work inside a colony: group, where, what it is doing,
+      moves left. Filters: All, Idle, Soldiers, Wagon trains, Ships,
+      In a group. Click a unit to select it on the map. Auto-checked:
+      renders, filters work, destinations show turns to go. Not
+      checked: clicking a unit.
+- [ ] **Colony Overview made narrower.** Only the main product is
+      named, the other two show icon and amount; three stocks instead
+      of four; tighter spacing. Auto-checked: the horizontal scrollbar
+      is gone at a 1500 pixel wide window.
+
+### Committed
+
+Quick checks (2 minutes, `java -jar FreeCol.jar --debug-run 60`, click
+Start Game, then Report > Colony Overview or Shift+F6):
+
+- [ ] **Smaller building icons.** Auto-checked: rows are even.
+- [ ] **Building column colours.** Red only for "Nothing"; magenta for
+      "needs N more ..."; dark gray when it is simply counting turns.
+      Auto-checked for "Nothing" only.
+- [ ] **Sortable columns.** Click each of the seven headers: the rows
+      reorder, an arrow appears on the sorted header, a second click
+      reverses. Close and reopen the report: the sort is remembered.
+      Auto-checked for "Mainly produces" and "Needs".
+
+Longer check (about 15 minutes, needs your own colonies and a trade
+route; start with `java -jar FreeCol.jar --debug` and use Debug > Add
+Gold to buy a wagon train):
+
+- [ ] **Supply forecast in the overview.** Colony B burns lumber
+      (colonist in the carpenter's house), a wagon on a trade route
+      loads lumber at A and unloads at B. In the overview, lumber under
+      Needs for B is green and the tooltip names the wagon, the route
+      and the arrival time.
+- [ ] **Broken supply line in the overview.** Take the wagon off the
+      route: lumber for B turns red, the tooltip says no wagon train
+      or ship is assigned.
+- [ ] **Start-of-turn message: no carrier.** End the turn after taking
+      the wagon off. A message says B relies on the route but nothing
+      is assigned to it. It does not repeat on the following turns.
+- [ ] **Start-of-turn message: nothing coming.** Wagon assigned, but A
+      has no lumber to spare.
+- [ ] **Start-of-turn message: too late.** B runs out before the wagon
+      can arrive.
+- [ ] **Start-of-turn message: delayed.** Block or hold the wagon for
+      a turn while it is on its way.
+- [ ] **Building column, goods on their way.** A colony whose build
+      waits for tools, with a carrier bringing enough: the cell reads
+      "Tools arriving in N turns".
+
+The supply warnings pass their unit tests (all four message kinds),
+and the start-of-turn check ran in the automated game without errors,
+but no supply message has been seen on screen yet.
+
+Known limits of the supply warnings (by design, not bugs):
+
+- The forecast assumes carriers visit every stop in order. The game
+  lets them skip stops with no work, so times are estimates.
+- "Delayed" compares with last turn's expectation, which is kept in
+  memory only. After loading a save the first turn has nothing to
+  compare with.
+- A carrier that spends a turn loading counts as one turn delayed. If
+  that is too noisy, add a threshold.
+- A delay on the very last leg into the colony is not detected.
+- A broken supply line is noticed at the start of the next turn, not
+  at the moment the wagon is reassigned. The overview shows it
+  immediately.
 
 ## Decided
 
@@ -85,40 +157,33 @@ Status legend: **Done** = written and seen working in the game.
 
 ## Ideas, not started
 
-### Colony overview
-- A totals row for the whole empire.
-- Option to show gross production instead of net.
-- Show hammers / construction capacity as a product.
+### Unit groups, next steps
+- Choose which units on a tile join a group, instead of all of them.
+- Show the group on the map (a banner or number on the unit).
+- Keep a group together: the faster members wait for the slowest.
+- "Attack with the group" as an explicit order.
+- A list of groups with a button to jump to each.
 
-### Logistics and wagon trains
-- Logistics view: every trade route, the wagons and ships on it, and
-  what they actually moved recently.
-- Wagon "trains": several wagons handled as one for assignment, so a
-  train of four goes onto a route in one action.
+### Logistics, next steps
 - Suggested routes: link a colony that needs a good to one with a
   surplus, straight from the overview.
 - Better trade route setup dialog (the current one is clunky).
+- Open the trade route editor from the Logistics report.
+- What each route actually moved over the last turns.
 - Check the wagon limit in the base rules. The `shippableWagons` mod's
   copy of the wagon definition limits wagon trains to fewer than the
   number of colonies. If the base rules have it too, a small companion
   rules mod could lift it.
 
-### Armies and unit groups
-- Client-side groups: name a group, select it as one, give one move
-  order that every member follows. Units stay separate for the engine,
-  so rules, AI, saves and multiplayer are untouched. (Chosen over true
-  stacks, which would need server, combat and AI changes.)
-- The same grouping code should power wagon trains.
-- A "form group" order button. The `plantForest` mod shows how to add
-  an order button with its four image states.
+### Colony overview
+- A totals row for the whole empire.
+- Option to show gross production instead of net.
+- Show hammers / construction capacity as a product.
 
 ### Other overviews
-- Empire-wide goods view: where goods are, which warehouses are about
-  to overflow, where the shortages are.
-- Unit overview: filterable list of all units, idle units, what each
-  wagon and ship is doing, click to jump to it.
 - Turn messages: group and filter end-of-turn reports, click to go to
   the colony concerned.
+- Goods Overview: freeze the first columns when scrolling sideways.
 
 ### Colony screen and map
 - Colony screen: show what a tile or building would yield before

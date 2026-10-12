@@ -53,7 +53,10 @@ import net.sf.freecol.client.gui.action.EndTurnAction;
 import net.sf.freecol.client.gui.action.EuropeAction;
 import net.sf.freecol.client.gui.action.ExecuteGotoOrdersAction;
 import net.sf.freecol.client.gui.action.FindSettlementAction;
+import net.sf.freecol.client.gui.action.DisbandGroupAction;
+import net.sf.freecol.client.gui.action.FormGroupAction;
 import net.sf.freecol.client.gui.action.FortifyAction;
+import net.sf.freecol.client.gui.action.LeaveGroupAction;
 import net.sf.freecol.client.gui.action.GotoAction;
 import net.sf.freecol.client.gui.action.GotoTileAction;
 import net.sf.freecol.client.gui.action.LoadAction;
@@ -67,6 +70,9 @@ import net.sf.freecol.client.gui.action.RenameAction;
 import net.sf.freecol.client.gui.action.ReportCargoAction;
 import net.sf.freecol.client.gui.action.ReportColonyAction;
 import net.sf.freecol.client.gui.action.ReportColonyOverviewAction;
+import net.sf.freecol.client.gui.action.ReportLogisticsAction;
+import net.sf.freecol.client.gui.action.ReportGoodsOverviewAction;
+import net.sf.freecol.client.gui.action.ReportUnitOverviewAction;
 import net.sf.freecol.client.gui.action.ReportContinentalCongressAction;
 import net.sf.freecol.client.gui.action.ReportEducationAction;
 import net.sf.freecol.client.gui.action.ReportExplorationAction;
@@ -267,6 +273,12 @@ public class InGameMenuBar extends FreeColMenuBar {
 
         menu.addSeparator();
 
+        menu.add(getMenuItem(FormGroupAction.id));
+        menu.add(getMenuItem(LeaveGroupAction.id));
+        menu.add(getMenuItem(DisbandGroupAction.id));
+
+        menu.addSeparator();
+
         menu.add(getMenuItem(ClearOrdersAction.id));
         menu.add(getMenuItem(RenameAction.id));
         menu.add(getMenuItem(DisbandUnitAction.id));
@@ -285,6 +297,9 @@ public class InGameMenuBar extends FreeColMenuBar {
         menu.add(getMenuItem(ReportLabourAction.id));
         menu.add(getMenuItem(ReportColonyAction.id));
         menu.add(getMenuItem(ReportColonyOverviewAction.id));
+        menu.add(getMenuItem(ReportLogisticsAction.id));
+        menu.add(getMenuItem(ReportGoodsOverviewAction.id));
+        menu.add(getMenuItem(ReportUnitOverviewAction.id));
         menu.add(getMenuItem(ReportForeignAction.id));
         menu.add(getMenuItem(ReportIndianAction.id));
         menu.add(getMenuItem(ReportContinentalCongressAction.id));

@@ -106,6 +106,9 @@ import net.sf.freecol.client.gui.panel.report.LabourData.UnitData;
 import net.sf.freecol.client.gui.panel.report.ReportCargoPanel;
 import net.sf.freecol.client.gui.panel.report.ReportClassicColonyPanel;
 import net.sf.freecol.client.gui.panel.report.ReportColonyOverviewPanel;
+import net.sf.freecol.client.gui.panel.report.ReportGoodsOverviewPanel;
+import net.sf.freecol.client.gui.panel.report.ReportLogisticsPanel;
+import net.sf.freecol.client.gui.panel.report.ReportUnitOverviewPanel;
 import net.sf.freecol.client.gui.panel.report.ReportCompactColonyPanel;
 import net.sf.freecol.client.gui.panel.report.ReportContinentalCongressPanel;
 import net.sf.freecol.client.gui.panel.report.ReportEducationPanel;
@@ -1466,6 +1469,36 @@ public final class Widgets {
             = this.canvas.getExistingFreeColPanel(ReportNavalPanel.class);
         if (panel == null) {
             panel = new ReportNavalPanel(this.freeColClient);
+            this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
+        }
+        return panel;
+    }
+
+    public FreeColPanel showReportLogisticsPanel() {
+        ReportLogisticsPanel panel
+            = this.canvas.getExistingFreeColPanel(ReportLogisticsPanel.class);
+        if (panel == null) {
+            panel = new ReportLogisticsPanel(this.freeColClient);
+            this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
+        }
+        return panel;
+    }
+
+    public FreeColPanel showReportGoodsOverviewPanel() {
+        ReportGoodsOverviewPanel panel
+            = this.canvas.getExistingFreeColPanel(ReportGoodsOverviewPanel.class);
+        if (panel == null) {
+            panel = new ReportGoodsOverviewPanel(this.freeColClient);
+            this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
+        }
+        return panel;
+    }
+
+    public FreeColPanel showReportUnitOverviewPanel() {
+        ReportUnitOverviewPanel panel
+            = this.canvas.getExistingFreeColPanel(ReportUnitOverviewPanel.class);
+        if (panel == null) {
+            panel = new ReportUnitOverviewPanel(this.freeColClient);
             this.canvas.showFreeColPanel(panel, PopupPosition.CENTERED, true);
         }
         return panel;

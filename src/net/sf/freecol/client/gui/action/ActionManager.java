@@ -146,6 +146,9 @@ public class ActionManager extends OptionGroup {
         add(new ReportContinentalCongressAction(freeColClient));
         add(new ReportColonyAction(freeColClient));
         add(new ReportColonyOverviewAction(freeColClient));
+        add(new ReportLogisticsAction(freeColClient));
+        add(new ReportGoodsOverviewAction(freeColClient));
+        add(new ReportUnitOverviewAction(freeColClient));
         add(new ReportEducationAction(freeColClient));
         add(new ReportExplorationAction(freeColClient));
         add(new ReportForeignAction(freeColClient));
@@ -174,6 +177,9 @@ public class ActionManager extends OptionGroup {
         add(new ToggleViewModeAction(freeColClient));
         add(new TradeRouteAction(freeColClient));
         add(new UnloadAction(freeColClient));
+        add(new FormGroupAction(freeColClient));
+        add(new LeaveGroupAction(freeColClient));
+        add(new DisbandGroupAction(freeColClient));
         add(new WaitAction(freeColClient));
         add(new ZoomInAction(freeColClient));
         add(new ZoomOutAction(freeColClient));

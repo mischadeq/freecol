@@ -65,7 +65,7 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
     /** How many goods to show in each of the goods columns. */
     private static final int MAX_PRODUCES = 3;
     private static final int MAX_NEEDS = 4;
-    private static final int MAX_STOCK = 4;
+    private static final int MAX_STOCK = 3;
 
     /** Stock at or above this percentage of capacity gets a warning. */
     private static final int NEARLY_FULL_PERCENT = 90;
@@ -483,7 +483,7 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
     }
 
     private JPanel cell() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         p.setOpaque(false);
         return p;
     }
@@ -492,7 +492,8 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
      * Make a cell full of goods entries.
      *
      * @param entries The entries to show.
-     * @param showName Show the goods name as well as the icon.
+     * @param showName Show the name of the first goods as well as
+     *     its icon.
      * @param signed Show a plus sign on positive amounts.
      * @return The cell.
      */
@@ -505,12 +506,16 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
             p.add(none);
             return p;
         }
+        boolean first = true;
         for (Entry e : entries) {
             String amount = (signed && e.amount > 0) ? "+" + e.amount
                 : Integer.toString(e.amount);
-            String text = (showName)
+            // Only the first entry is named, to keep the table narrow
+            // enough to fit.  The others have their name in a tooltip.
+            String text = (showName && first)
                 ? Messages.getName(e.type) + " " + amount
                 : amount;
+            first = false;
             JLabel l = new JLabel(text,
                 new ImageIcon(lib.getSmallerGoodsTypeImage(e.type)),
                 JLabel.LEADING);
@@ -584,7 +589,7 @@ public final class ReportColonyOverviewPanel extends ReportPanel {
 
     private void update() {
         reportPanel.removeAll();
-        reportPanel.setLayout(new MigLayout("fillx, wrap 7, gap 12 6",
+        reportPanel.setLayout(new MigLayout("fillx, wrap 7, gap 8 6",
                 "[l][r][l][l][l][r][l, grow]", ""));
 
         for (String column : COLUMNS) {

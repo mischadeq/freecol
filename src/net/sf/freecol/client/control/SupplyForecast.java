@@ -79,12 +79,19 @@ public final class SupplyForecast {
         public final int turns;
         /** The amount expected to be unloaded. */
         public final int amount;
+        /** The colony the goods are unloaded at. */
+        public final Colony colony;
+        /** The goods unloaded. */
+        public final GoodsType goodsType;
 
-        Delivery(Unit unit, TradeRoute route, int turns, int amount) {
+        Delivery(Unit unit, TradeRoute route, int turns, int amount,
+                 Colony colony, GoodsType goodsType) {
             this.unit = unit;
             this.route = route;
             this.turns = turns;
             this.amount = amount;
+            this.colony = colony;
+            this.goodsType = goodsType;
         }
     }
 
@@ -119,10 +126,13 @@ public final class SupplyForecast {
     public static final class Target {
         public final Colony colony;
         public final GoodsType goodsType;
+        /** A route that is set up to make this delivery. */
+        public final TradeRoute route;
 
-        Target(Colony colony, GoodsType goodsType) {
+        Target(Colony colony, GoodsType goodsType, TradeRoute route) {
             this.colony = colony;
             this.goodsType = goodsType;
+            this.route = route;
         }
     }
 
@@ -135,6 +145,9 @@ public final class SupplyForecast {
 
     /** The colony and goods type behind each key of {@code routes}. */
     private final Map<String, Target> targets = new HashMap<>();
+
+    /** Expected deliveries, by the identifier of the carrier. */
+    private final Map<String, List<Delivery>> byUnit = new HashMap<>();
 
     /** The number of carriers assigned to each route. */
     private final Map<TradeRoute, Integer> carriers = new HashMap<>();
@@ -187,7 +200,7 @@ public final class SupplyForecast {
                 final String k = key(colony, gt);
                 if (!this.routes.containsKey(k)) {
                     this.routes.put(k, route);
-                    this.targets.put(k, new Target(colony, gt));
+                    this.targets.put(k, new Target(colony, gt, route));
                 }
             }
         }
@@ -246,11 +259,15 @@ public final class SupplyForecast {
                 if (amount <= 0 || !(here instanceof Colony)) continue;
                 final String k = key((Colony)here, gt);
                 if (!seen.add(k)) continue;
+                final Delivery d = new Delivery(unit, route, turns, amount,
+                                                (Colony)here, gt);
                 this.deliveries.computeIfAbsent(k, x -> new ArrayList<>())
-                    .add(new Delivery(unit, route, turns, amount));
+                    .add(d);
+                this.byUnit.computeIfAbsent(unit.getId(),
+                    x -> new ArrayList<>()).add(d);
                 if (!this.routes.containsKey(k)) {
                     this.routes.put(k, route);
-                    this.targets.put(k, new Target((Colony)here, gt));
+                    this.targets.put(k, new Target((Colony)here, gt, route));
                 }
             }
 
@@ -275,6 +292,20 @@ public final class SupplyForecast {
      */
     public List<Target> getTargets() {
         return new ArrayList<>(this.targets.values());
+    }
+
+    /**
+     * Get what one carrier is expected to deliver on its next round.
+     *
+     * @param unit The carrier {@code Unit}.
+     * @return A list of {@code Delivery}s, soonest first.
+     */
+    public List<Delivery> getDeliveries(Unit unit) {
+        List<Delivery> result = new ArrayList<>();
+        final List<Delivery> list = this.byUnit.get(unit.getId());
+        if (list != null) result.addAll(list);
+        result.sort((a, b) -> Integer.compare(a.turns, b.turns));
+        return result;
     }
 
     /**

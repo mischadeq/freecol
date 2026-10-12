@@ -180,6 +180,12 @@ public final class InGameController extends FreeColClientHolder {
     /** Watches the trade routes for supply lines that break down. */
     private final SupplyWatch supplyWatch = new SupplyWatch();
 
+    /** The player's named groups of units (armies, wagon trains). */
+    private final UnitGroups unitGroups = new UnitGroups();
+
+    /** True while an order is being passed on to the rest of a group. */
+    private boolean inGroupOrder = false;
+
 
     /**
      * The constructor to use.
@@ -2741,6 +2747,23 @@ public final class InGameController extends FreeColClientHolder {
         boolean ret = askAssignTradeRoute(unit, tradeRoute);
         if (ret) {
             fireChanges(unitWas);
+            // The rest of a wagon train or fleet joins the same route.
+            List<Unit> followers = groupFollowers(unit);
+            if (!followers.isEmpty()) {
+                inGroupOrder = true;
+                try {
+                    for (Unit u : followers) {
+                        if (!u.isCarrier() || u.isNaval() != unit.isNaval()
+                            || u.isDamaged()) continue;
+                        UnitWas was = new UnitWas(u);
+                        if (askAssignTradeRoute(u, tradeRoute)) {
+                            fireChanges(was);
+                        }
+                    }
+                } finally {
+                    inGroupOrder = false;
+                }
+            }
             updateGUI(null, false);
         }
         return ret;
@@ -2941,6 +2964,27 @@ public final class InGameController extends FreeColClientHolder {
             && unit.getState() == state;
         if (ret) {
             fireChanges(unitWas);
+            // Fortify and sentry orders apply to the group members
+            // standing on the same tile.
+            if (state == UnitState.FORTIFYING || state == UnitState.SENTRY) {
+                List<Unit> followers = groupFollowers(unit);
+                if (!followers.isEmpty()) {
+                    inGroupOrder = true;
+                    try {
+                        for (Unit u : followers) {
+                            if (u.getTile() != unit.getTile()
+                                || u.isOnCarrier()
+                                || !u.checkSetState(state)) continue;
+                            UnitWas was = new UnitWas(u);
+                            if (askServer().changeState(u, state)) {
+                                fireChanges(was);
+                            }
+                        }
+                    } finally {
+                        inGroupOrder = false;
+                    }
+                }
+            }
             updateGUI(null, false);
         }
         return ret;
@@ -3642,10 +3686,12 @@ public final class InGameController extends FreeColClientHolder {
 
         // FIXME: should follow path directly rather than delegating
         UnitWas unitWas = new UnitWas(unit);
-        boolean ret = askSetDestination(unit, path.getLastNode().getLocation());
+        final Location destination = path.getLastNode().getLocation();
+        boolean ret = askSetDestination(unit, destination);
         if (ret) {
             moveToDestination(unit, null);
             fireChanges(unitWas);
+            groupGoto(unit, destination);
             updateGUI(null, false);
         }
         return ret;
@@ -4033,6 +4079,12 @@ public final class InGameController extends FreeColClientHolder {
         if (!askClearGotoOrders(unit)) return;
 
         final Tile oldTile = unit.getTile();
+        // Group members standing with the unit will try to follow it.
+        List<Unit> together = new ArrayList<>();
+        for (Unit u : groupFollowers(unit)) {
+            if (u.getTile() == oldTile && !u.isOnCarrier()
+                && !u.isInColony()) together.add(u);
+        }
         UnitWas unitWas = new UnitWas(unit);
         ColonyWas colonyWas = (unit.getColony() == null) ? null
             : new ColonyWas(unit.getColony());
@@ -4040,6 +4092,30 @@ public final class InGameController extends FreeColClientHolder {
         moveDirection(unit, direction, true);
 
         fireChanges(unitWas, colonyWas);
+        // Only follow a plain move onto the neighbouring tile.  Attacks,
+        // boarding, trading and the like stay with the unit that was
+        // given the order.
+        if (!together.isEmpty() && !unit.isDisposed()
+            && unit.getTile() != null && unit.getTile() != oldTile
+            && unit.getTile() == oldTile.getNeighbourOrNull(direction)) {
+            inGroupOrder = true;
+            try {
+                for (Unit u : together) {
+                    if (u.isDisposed() || u.getTile() != oldTile
+                        || u.getMovesLeft() <= 0
+                        || u.getMoveType(direction) != Unit.MoveType.MOVE) {
+                        continue;
+                    }
+                    UnitWas was = new UnitWas(u);
+                    if (askClearGotoOrders(u)) {
+                        moveDirection(u, direction, false);
+                        fireChanges(was);
+                    }
+                }
+            } finally {
+                inGroupOrder = false;
+            }
+        }
         updateGUI(null, false);
 
         if (unit.getTile() != oldTile && !unit.couldMove()
@@ -4883,9 +4959,168 @@ public final class InGameController extends FreeColClientHolder {
                 }
             }
             fireChanges(unitWas);
+            groupGoto(unit, destination);
             updateGUI(null, false);
         }
         return ret;
+    }
+
+    // Unit groups
+
+    /**
+     * Get the player's unit groups.
+     *
+     * @return The {@code UnitGroups}.
+     */
+    public UnitGroups getUnitGroups() {
+        return this.unitGroups;
+    }
+
+    /**
+     * Get the other group members that should follow an order given
+     * to a unit.
+     *
+     * @param unit The {@code Unit} that received the order.
+     * @return A list of {@code Unit}s, empty if the unit is in no
+     *     group or the order is already being passed on.
+     */
+    private List<Unit> groupFollowers(Unit unit) {
+        if (this.inGroupOrder || unit == null
+            || !getMyPlayer().owns(unit)) return Collections.emptyList();
+        return this.unitGroups.getCompanions(unit);
+    }
+
+    /**
+     * Send the rest of a unit's group to the destination the unit
+     * was just given.  Each member finds its own way there.
+     *
+     * @param leader The {@code Unit} that received the order.
+     * @param destination The destination {@code Location}.
+     */
+    private void groupGoto(Unit leader, Location destination) {
+        List<Unit> followers = groupFollowers(leader);
+        if (followers.isEmpty()) return;
+        this.inGroupOrder = true;
+        try {
+            for (Unit u : followers) {
+                // Leave alone: units busy on a trade route, units
+                // aboard a carrier (they go where it goes), units
+                // working inside a colony, and units in Europe.
+                if (u.getTradeRoute() != null || u.isOnCarrier()
+                    || u.isInColony() || !u.hasTile()
+                    || u.isNaval() != leader.isNaval()) continue;
+                UnitWas was = new UnitWas(u);
+                if (!askSetDestination(u, destination)) continue;
+                if (destination instanceof Europe && u.getTile() != null
+                    && u.getTile().isDirectlyHighSeasConnected()) {
+                    moveTowardEurope(u, (Europe)destination);
+                } else {
+                    moveToDestination(u, null);
+                }
+                fireChanges(was);
+            }
+        } finally {
+            this.inGroupOrder = false;
+        }
+    }
+
+    /**
+     * Form a group from the units standing with a unit, or add them
+     * to the group the unit is already in.
+     *
+     * Called from FormGroupAction.
+     *
+     * @param unit The {@code Unit} to form a group around.
+     * @return True if a group was formed or extended.
+     */
+    public boolean formGroup(Unit unit) {
+        final Player player = getMyPlayer();
+        if (unit == null || !player.owns(unit)) return false;
+        final Tile tile = unit.getTile();
+        if (tile == null || unit.isOnCarrier() || unit.isInColony()) {
+            showInformationPanel(unit, StringTemplate
+                .template("group.notHere"));
+            return false;
+        }
+
+        // Everything of ours on the tile that travels the same way.
+        List<Unit> units = new ArrayList<>();
+        boolean allCarriers = true;
+        for (Unit u : tile.getUnitList()) {
+            if (!player.owns(u) || u.isNaval() != unit.isNaval()) continue;
+            units.add(u);
+            allCarriers &= u.isCarrier();
+        }
+        if (units.size() < 2) {
+            showInformationPanel(unit, StringTemplate
+                .template("group.needTwo"));
+            return false;
+        }
+
+        String name = this.unitGroups.getGroupName(unit);
+        if (name == null) {
+            name = this.unitGroups.suggestName(getGame(),
+                Messages.message((unit.isNaval()) ? "group.default.fleet"
+                    : (allCarriers) ? "group.default.train"
+                    : "group.default.army"));
+        }
+        name = getGUI().modalInputDialog(tile, StringTemplate
+            .template("group.form.text")
+            .addAmount("%number%", units.size()),
+            name, "ok", "cancel");
+        if (name == null) return false; // Cancelled
+        name = name.trim();
+        if (name.isEmpty()) {
+            showInformationPanel(null, "info.enterSomeText");
+            return false;
+        }
+
+        this.unitGroups.addToGroup(getGame(), name, units);
+        showInformationPanel(unit, StringTemplate.template("group.formed")
+            .addName("%name%", name)
+            .addAmount("%number%", this.unitGroups
+                .getMembers(getGame(), player, name).size()));
+        updateGUI(null, false);
+        return true;
+    }
+
+    /**
+     * Take a unit out of its group.
+     *
+     * Called from LeaveGroupAction.
+     *
+     * @param unit The {@code Unit} to remove from its group.
+     * @return True if the unit was in a group.
+     */
+    public boolean leaveGroup(Unit unit) {
+        if (unit == null) return false;
+        final String name = this.unitGroups.leaveGroup(unit);
+        if (name == null) return false;
+        showInformationPanel(unit, StringTemplate.template("group.left")
+            .addStringTemplate("%unit%",
+                unit.getLabel(Unit.UnitLabelType.NATIONAL))
+            .addName("%name%", name));
+        updateGUI(null, false);
+        return true;
+    }
+
+    /**
+     * Dissolve the group a unit is in.  The units themselves are not
+     * affected.
+     *
+     * Called from DisbandGroupAction.
+     *
+     * @param unit A {@code Unit} in the group to dissolve.
+     * @return True if a group was dissolved.
+     */
+    public boolean disbandGroup(Unit unit) {
+        final String name = this.unitGroups.getGroupName(unit);
+        if (name == null
+            || !this.unitGroups.disband(getGame(), name)) return false;
+        showInformationPanel(unit, StringTemplate.template("group.disbanded")
+            .addName("%name%", name));
+        updateGUI(null, false);
+        return true;
     }
 
     /**

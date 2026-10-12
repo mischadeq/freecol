@@ -438,6 +438,19 @@ public final class InfoPanel extends FreeColPanel
         textLabel = new JLabel(text);
         textLabel.setFont(this.font);
         panel.add(textLabel);
+
+        // Show the group (army, wagon train) the unit belongs to.
+        final String group = igc().getUnitGroups().getGroupName(unit);
+        if (group != null) {
+            textLabel = new JLabel(Messages.message(StringTemplate
+                    .template("infoPanel.group")
+                    .addName("%name%", group)
+                    .addAmount("%number%", igc().getUnitGroups()
+                        .getMembers(unit.getGame(), unit.getOwner(), group)
+                        .size())));
+            textLabel.setFont(this.font);
+            panel.add(textLabel);
+        }
         
         if (unit.isCarrier()) {
             List<JLabel> labels = new ArrayList<>();
