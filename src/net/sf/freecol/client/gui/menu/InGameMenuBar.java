@@ -57,6 +57,7 @@ import net.sf.freecol.client.gui.action.DisbandGroupAction;
 import net.sf.freecol.client.gui.action.FormGroupAction;
 import net.sf.freecol.client.gui.action.FortifyAction;
 import net.sf.freecol.client.gui.action.LeaveGroupAction;
+import net.sf.freecol.client.gui.action.RushGroupAction;
 import net.sf.freecol.client.gui.action.GotoAction;
 import net.sf.freecol.client.gui.action.GotoTileAction;
 import net.sf.freecol.client.gui.action.LoadAction;
@@ -276,6 +277,7 @@ public class InGameMenuBar extends FreeColMenuBar {
         menu.add(getMenuItem(FormGroupAction.id));
         menu.add(getMenuItem(LeaveGroupAction.id));
         menu.add(getMenuItem(DisbandGroupAction.id));
+        menu.add(getMenuItem(RushGroupAction.id));
 
         menu.addSeparator();
 

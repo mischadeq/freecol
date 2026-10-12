@@ -39,7 +39,30 @@ Done once it has been seen working.
 soldiers, opened every report and took screenshots) and it worked
 there. That is a smoke test, not a play test.
 
-### Not yet committed (written 2026-10-12)
+### Not yet committed (written 2026-10-12, second round)
+
+- [ ] **Groups march together; Rush to Destination.** A normal go-to
+      order for a group now keeps it together: the slowest member moves
+      first each turn and the faster ones go no further than its tile.
+      Orders > Rush to Destination (Shift+R) lets every member go at
+      full speed, so the fastest arrive first; the info panel then
+      shows "(rushing)". The next normal go-to order makes the group
+      march together again. Auto-checked: after the first go-to order
+      all four members of a test army ended the turn on the same tile;
+      the Rush menu item is present. Not checked: several turns of
+      marching, and the rush itself moving units ahead.
+- [ ] **Map on the Logistics page.** A map strip at the top, zoomed to
+      the area the trade routes cover. Each route in its own colour as
+      a dashed line through its stops with an arrow for the direction;
+      the route names below get the same colour. Wagon trains and
+      ships as circles at their real position, with the path they will
+      take to their next stop, the goods they carry and the turns to
+      get there. Hover for details; click to close the report and look
+      at that spot on the main map. Auto-checked: renders and fills the
+      strip. Not checked: a carrier on its way (path and turns), hover,
+      click.
+
+### Committed in 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
       - Orders menu: Form Group (Shift+G), Leave Group, Disband Group.
@@ -115,6 +138,13 @@ Gold to buy a wagon train):
 - [ ] **Broken supply line in the overview.** Take the wagon off the
       route: lumber for B turns red, the tooltip says no wagon train
       or ship is assigned.
+- [x] **Start-of-turn messages appear in the real game.** Auto-checked
+      on 2026-10-12: after ending a turn the game produced "St. John's
+      relies on trade route Test run for Lumber, but none of its
+      carriers will bring any ..." and "Charlesbourg Royal relies on
+      trade route Back haul for Lumber, but no wagon train or ship is
+      assigned to that route any more ...". Still worth seeing on
+      screen yourself.
 - [ ] **Start-of-turn message: no carrier.** End the turn after taking
       the wagon off. A message says B relies on the route but nothing
       is assigned to it. It does not repeat on the following turns.
@@ -160,7 +190,6 @@ Known limits of the supply warnings (by design, not bugs):
 ### Unit groups, next steps
 - Choose which units on a tile join a group, instead of all of them.
 - Show the group on the map (a banner or number on the unit).
-- Keep a group together: the faster members wait for the slowest.
 - "Attack with the group" as an explicit order.
 - A list of groups with a button to jump to each.
 

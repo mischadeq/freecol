@@ -180,6 +180,7 @@ public class ActionManager extends OptionGroup {
         add(new FormGroupAction(freeColClient));
         add(new LeaveGroupAction(freeColClient));
         add(new DisbandGroupAction(freeColClient));
+        add(new RushGroupAction(freeColClient));
         add(new WaitAction(freeColClient));
         add(new ZoomInAction(freeColClient));
         add(new ZoomOutAction(freeColClient));

@@ -61,6 +61,15 @@ public final class UnitGroups {
     /** Unit identifiers by group name, in creation order. */
     private final Map<String, List<String>> groups = new LinkedHashMap<>();
 
+    /**
+     * Groups whose members are rushing to their destination, each at
+     * its own speed, instead of marching together.
+     */
+    private final java.util.Set<String> rushing = new java.util.HashSet<>();
+
+    /** Property key prefix for the rushing flag. */
+    private static final String RUSH = "rush.";
+
     /** The game the groups were loaded for. */
     private UUID loaded = null;
 
@@ -111,6 +120,7 @@ public final class UnitGroups {
         final UUID uuid = (game == null) ? null : game.getUUID();
         if (uuid == null || uuid.equals(this.loaded)) return;
         this.groups.clear();
+        this.rushing.clear();
         this.loaded = uuid;
         final File file = getFile(uuid);
         if (file == null || !file.isFile()) return;
@@ -124,6 +134,10 @@ public final class UnitGroups {
         // Keys are "<index>.<name>" so that creation order is kept.
         Map<Integer, String> order = new TreeMap<>();
         for (String key : props.stringPropertyNames()) {
+            if (key.startsWith(RUSH)) {
+                this.rushing.add(key.substring(RUSH.length()));
+                continue;
+            }
             int dot = key.indexOf('.');
             if (dot <= 0) continue;
             try {
@@ -152,6 +166,9 @@ public final class UnitGroups {
         for (Map.Entry<String, List<String>> e : this.groups.entrySet()) {
             props.setProperty(index++ + "." + e.getKey(),
                               String.join(",", e.getValue()));
+            if (this.rushing.contains(e.getKey())) {
+                props.setProperty(RUSH + e.getKey(), "true");
+            }
         }
         try {
             File dir = file.getParentFile();
@@ -302,7 +319,10 @@ public final class UnitGroups {
                 empty.add(e.getKey());
             }
         }
-        for (String name : empty) this.groups.remove(name);
+        for (String name : empty) {
+            this.groups.remove(name);
+            this.rushing.remove(name);
+        }
     }
 
     /**
@@ -329,7 +349,38 @@ public final class UnitGroups {
     public synchronized boolean disband(Game game, String name) {
         sync(game);
         if (this.groups.remove(name) == null) return false;
+        this.rushing.remove(name);
         save();
         return true;
+    }
+
+    /**
+     * Are the members of a group rushing to their destination, each at
+     * its own speed?  If not, they march together at the pace of the
+     * slowest member.
+     *
+     * @param game The current {@code Game}.
+     * @param name The name of the group.
+     * @return True if the group is rushing.
+     */
+    public synchronized boolean isRushing(Game game, String name) {
+        sync(game);
+        return name != null && this.rushing.contains(name);
+    }
+
+    /**
+     * Set whether a group is rushing to its destination.
+     *
+     * @param game The current {@code Game}.
+     * @param name The name of the group.
+     * @param rush True to rush, false to march together.
+     */
+    public synchronized void setRushing(Game game, String name,
+                                        boolean rush) {
+        sync(game);
+        if (name == null || !this.groups.containsKey(name)) return;
+        boolean changed = (rush) ? this.rushing.add(name)
+            : this.rushing.remove(name);
+        if (changed) save();
     }
 }

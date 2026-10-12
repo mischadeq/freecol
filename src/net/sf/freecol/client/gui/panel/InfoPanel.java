@@ -443,7 +443,9 @@ public final class InfoPanel extends FreeColPanel
         final String group = igc().getUnitGroups().getGroupName(unit);
         if (group != null) {
             textLabel = new JLabel(Messages.message(StringTemplate
-                    .template("infoPanel.group")
+                    .template((igc().getUnitGroups()
+                            .isRushing(unit.getGame(), group))
+                        ? "infoPanel.group.rushing" : "infoPanel.group")
                     .addName("%name%", group)
                     .addAmount("%number%", igc().getUnitGroups()
                         .getMembers(unit.getGame(), unit.getOwner(), group)

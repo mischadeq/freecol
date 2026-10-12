@@ -1076,6 +1076,9 @@ public final class InGameController extends FreeColClientHolder {
         // gets processed first.  setNextGoingToUnit will fail harmlessly
         // if it is not a going-to unit so this is safe.
         if (active != null) player.setNextGoingToUnit(active);
+        // The slowest member of each group marching together goes
+        // before the others, so they can keep up with it this turn.
+        for (Unit slowest : groupPacers()) player.setNextGoingToUnit(slowest);
 
         // Process all units.
         while (player.hasNextGoingToUnit()) {
@@ -1170,6 +1173,7 @@ public final class InGameController extends FreeColClientHolder {
         final Player player = getMyPlayer();
         Location destination = unit.getDestination();
         PathNode path;
+        Tile pace;
         boolean ret;
         if (!requireOurTurn()
             || unit.isAtSea()
@@ -1182,6 +1186,16 @@ public final class InGameController extends FreeColClientHolder {
             ret = true; // also invalid, but trade route check needed first
         } else if (!changeState(unit, UnitState.ACTIVE)) {
             ret = true; // another error case
+        } else if ((pace = groupPaceTile(unit, destination)) != null) {
+            // Marching with a slower group member: go no further
+            // than its tile, and wait there when already with it.
+            PathNode pacePath = (unit.getTile() == pace) ? null
+                : unit.findPath(pace);
+            if (pacePath != null) movePath(unit, pacePath);
+            if (!unit.isDisposed() && unit.getMovesLeft() > 0) {
+                changeState(unit, UnitState.SKIPPED);
+            }
+            ret = true;
         } else if ((path = unit.findPath(destination)) == null) {
             // No path to destination. Give the player a chance to do
             // something about it, but default to skipping this unit as
@@ -5000,6 +5014,9 @@ public final class InGameController extends FreeColClientHolder {
     private void groupGoto(Unit leader, Location destination) {
         List<Unit> followers = groupFollowers(leader);
         if (followers.isEmpty()) return;
+        // A new order: march together again.
+        this.unitGroups.setRushing(getGame(),
+            this.unitGroups.getGroupName(leader), false);
         this.inGroupOrder = true;
         try {
             for (Unit u : followers) {
@@ -5022,6 +5039,138 @@ public final class InGameController extends FreeColClientHolder {
         } finally {
             this.inGroupOrder = false;
         }
+    }
+
+    /**
+     * Get the members of a unit's group that are travelling with it
+     * to the same destination over land or sea.
+     *
+     * @param unit The {@code Unit} to start from.
+     * @param destination The destination {@code Location}.
+     * @return A list of fellow travellers, including the unit, or an
+     *     empty list if the group is rushing or the unit is in none.
+     */
+    private List<Unit> getMarchingMembers(Unit unit, Location destination) {
+        final String name = this.unitGroups.getGroupName(unit);
+        if (name == null || destination == null
+            || this.unitGroups.isRushing(getGame(), name)) {
+            return Collections.emptyList();
+        }
+        List<Unit> result = new ArrayList<>();
+        for (Unit u : this.unitGroups.getMembers(getGame(), getMyPlayer(),
+                                                 name)) {
+            if (u.getDestination() == destination && u.hasTile()
+                && !u.isOnCarrier() && !u.isInColony()
+                && u.getTradeRoute() == null) result.add(u);
+        }
+        return (result.size() < 2) ? Collections.emptyList() : result;
+    }
+
+    /**
+     * Find the member of a marching group that will take longest to
+     * reach the destination.  Members with no way there are ignored.
+     *
+     * @param members The marching members.
+     * @param destination The destination {@code Location}.
+     * @return The slowest {@code Unit}, or null if none can get there.
+     */
+    private static Unit getSlowest(List<Unit> members, Location destination) {
+        Unit slowest = null;
+        int most = -1;
+        for (Unit u : members) {
+            int turns = u.getTurnsToReach(destination);
+            if (turns >= Unit.MANY_TURNS) continue;
+            if (turns > most) {
+                most = turns;
+                slowest = u;
+            }
+        }
+        return slowest;
+    }
+
+    /**
+     * Where may a unit marching with its group go this turn?
+     *
+     * @param unit The {@code Unit} about to move.
+     * @param destination Its destination.
+     * @return The tile of the slowest member if this unit would
+     *     otherwise get ahead of it, or null to move normally.
+     */
+    private Tile groupPaceTile(Unit unit, Location destination) {
+        if (unit.isNaval() && !unit.hasTile()) return null;
+        final List<Unit> members = getMarchingMembers(unit, destination);
+        if (members.isEmpty()) return null;
+        final Unit slowest = getSlowest(members, destination);
+        if (slowest == null || slowest == unit) return null;
+        // Already level with the slowest: no need to hold back.
+        if (unit.getTurnsToReach(destination)
+            >= slowest.getTurnsToReach(destination)) return null;
+        return slowest.getTile();
+    }
+
+    /**
+     * Get the slowest member of every group that is marching
+     * together, so that they can move first.
+     *
+     * @return A list of {@code Unit}s.
+     */
+    private List<Unit> groupPacers() {
+        List<Unit> result = new ArrayList<>();
+        final Player player = getMyPlayer();
+        for (String name : this.unitGroups.getGroupNames(getGame())) {
+            if (this.unitGroups.isRushing(getGame(), name)) continue;
+            List<Unit> members = this.unitGroups.getMembers(getGame(),
+                                                            player, name);
+            if (members.isEmpty()) continue;
+            Location destination = members.get(0).getDestination();
+            if (destination == null) continue;
+            List<Unit> marching = getMarchingMembers(members.get(0),
+                                                     destination);
+            Unit slowest = getSlowest(marching, destination);
+            if (slowest != null && slowest.goingToDestination()) {
+                result.add(slowest);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Let the members of a unit's group rush to their destination,
+     * each at its own speed, so that the fastest arrive first.  The
+     * next ordinary order makes them march together again.
+     *
+     * Called from RushGroupAction.
+     *
+     * @param unit A {@code Unit} in the group.
+     * @return True if the group is now rushing.
+     */
+    public boolean rushGroup(Unit unit) {
+        if (!requireOurTurn() || unit == null) return false;
+        final String name = this.unitGroups.getGroupName(unit);
+        final Location destination = unit.getDestination();
+        if (name == null || destination == null) return false;
+        this.unitGroups.setRushing(getGame(), name, true);
+
+        // Send everyone on the way now, as far as they can get.
+        this.inGroupOrder = true;
+        try {
+            for (Unit u : this.unitGroups.getMembers(getGame(),
+                                                     getMyPlayer(), name)) {
+                if (u.getDestination() != destination) continue;
+                if (u.getState() == UnitState.SKIPPED) {
+                    changeState(u, UnitState.ACTIVE);
+                }
+                if (u.goingToDestination()) {
+                    UnitWas was = new UnitWas(u);
+                    moveToDestination(u, null);
+                    fireChanges(was);
+                }
+            }
+        } finally {
+            this.inGroupOrder = false;
+        }
+        updateGUI(null, false);
+        return true;
     }
 
     /**
