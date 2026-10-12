@@ -148,6 +148,7 @@
     $("turnState").textContent = s.myTurn ? "Your turn" : "Other players' turn";
 
     startAnimations(prev, s);
+    if (!$("log").hidden && drawerTab === "rel") loadRelations(false);
     // New turn: prices and Congress change, refresh an open Colopedia.
     if (pedia && pediaTurn !== s.turn && !$("pedia").hidden && !$("log").hidden) renderPedia();
 
@@ -158,6 +159,9 @@
     const aj = JSON.stringify(s.alerts);
     if (aj !== lastAlertsJson) { lastAlertsJson = aj; renderAlerts(s.alerts); }
     renderLegend(s.routes);
+    if (s.marketRev !== marketRev) { marketRev = s.marketRev; loadMarket(); }
+    // The nation figures need the server, so only ask during our turn.
+    if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
     if (view.auto) fitView();
   }
 
@@ -204,6 +208,7 @@
       return;
     }
     box.innerHTML = colonies.map(card).join("");
+    renderNetwork(colonies);
     box.querySelectorAll(".card h3").forEach((h) => {
       h.addEventListener("click", () => {
         const c = colonies.find((k) => k.id === h.parentNode.dataset.id);
@@ -240,6 +245,27 @@
       ? c.incoming.map((d) => '<span class="it" title="' + esc(d.unit + ", " + d.route) + '">' +
           gi(d.g) + d.n + ' <span class="m">in ' + turns(d.t) + "</span></span>").join("")
       : "";
+    const g = c.gov;
+    let liberty = "";
+    if (g) {
+      // One pip per colonist: rebels gold, tories grey, tories past the
+      // limit red; at the limit an empty red pip marks the next one.
+      let pips = "";
+      for (let i = 0; i < g.rebels; i++) pips += '<i class="pip reb"></i>';
+      for (let i = 0; i < g.tories; i++) pips += '<i class="pip ' + (i >= g.limit ? "bad" : "tor") + '"></i>';
+      if (g.tories === g.limit && g.sol < g.good) pips += '<i class="pip edge" title="One more tory: −1 on all production"></i>';
+      const gain = g.made - g.use;
+      const toGood = (c.advice || []).find((a) => a.kind === "toGood");
+      liberty = '<div class="liberty" title="' + esc((toGood ? toGood.text + " " : "") +
+          g.rebels + " rebels, " + g.tories + " tories; " + g.limit + " tories allowed") + '">' +
+        '<span class="pips">' + pips + "</span>" +
+        '<span class="bells ' + (gain > 0 ? "ok" : "bad") + '">' + gi("model.goods.bells", "Bells") +
+        g.made + '<span class="m">/' + g.use + "</span></span>" +
+        (g.toGood > 0 ? '<span class="m">' + g.toGood + " to " + g.good + "%</span>" : "") + "</div>";
+    }
+    const chips = (c.advice || []).filter((a) => a.brief).map((a) =>
+      '<span class="chip2 ' + a.lvl + '" title="' + esc(a.text) + '">' + (a.g ? gi(a.g) : "") +
+      esc(a.brief) + "</span>").join("");
     return '<div class="card" data-id="' + esc(c.id) + '">' +
       '<h3>' + esc(c.name) + ' <span class="m">' + c.size + ' colonists · store ' + c.cap +
       '</span><span class="sol" title="Sons of Liberty">SoL ' + c.sol + '%</span></h3>' +
@@ -249,7 +275,141 @@
       '<span class="k">Stock</span>' + stock +
       '<span class="k">Building</span>' + build +
       (incoming ? '<span class="k">Arriving</span><div class="items">' + incoming + "</div>" : "") +
+      (liberty ? '<span class="k">Liberty</span>' + liberty : "") +
+      (chips ? '<span class="k">Advice</span><div class="chips">' + chips + "</div>" : "") +
       "</div></div>";
+  }
+
+  // ---------------------------------------------------------------- network
+
+  // Colonies placed as on the map, arrows for what trade routes carry
+  // between them, coloured by whether the supplier keeps up.
+  const NET_C = { ok: "#7d8794", none: "#f2a93b", short: "#ff5d61" };
+  const NET_RANK = { ok: 0, none: 1, short: 2 };
+
+  function renderNetwork(colonies) {
+    const svg = $("net");
+    const W = svg.getBoundingClientRect().width || 700;
+    const nodes = {}, edges = {};
+    colonies.forEach((c) => { nodes[c.id] = { c, px: cx(c.x, c.y), py: cy(c.x, c.y) * 2, r: 15 + Math.min(12, c.size) }; });
+    // Places outside the colonies (Europe) sit in a column on the right.
+    const outside = [];
+    colonies.forEach((c) => (c.sends || []).forEach((d) => {
+      const to = d.toId || ("@" + d.to);
+      if (!nodes[to] && !outside.includes(to)) outside.push(to);
+      const k = c.id + ">" + to;
+      (edges[k] = edges[k] || { from: c.id, to, goods: [] }).goods.push(d);
+    }));
+    const ids = Object.keys(nodes);
+    $("netSec").hidden = !Object.keys(edges).length;
+    if (!Object.keys(edges).length) return;
+    // Fit the map positions into the box, same scale both ways.
+    const xs = ids.map((i) => nodes[i].px), ys = ids.map((i) => nodes[i].py);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    // Each axis stretched on its own: the layout keeps north, south,
+    // east and west, and uses the whole box.
+    const padX = 110, padY = 46, right = outside.length ? 150 : 0;
+    const H = Math.max(260, Math.min(440, 140 + ids.length * 50));
+    const bw = W - 2 * padX - right, bh = H - 2 * padY;
+    const place = (v, a, b, size) => (b - a < 0.3) ? size / 2 : (v - a) / (b - a) * size;
+    ids.forEach((i) => {
+      const n = nodes[i];
+      n.X = padX + place(n.px, x0, x1, bw);
+      n.Y = padY + place(n.py, y0, y1, bh);
+    });
+    outside.forEach((o, k) => {
+      nodes[o] = { name: o.slice(1), X: W - 70, Y: padY + (k + 0.5) * (H - 2 * padY) / outside.length, r: 18, outside: true };
+    });
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.style.height = H + "px";
+
+    let s = '<defs>' + Object.keys(NET_C).map((st) =>
+      '<marker id="ah-' + st + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
+      '<path d="M0,0 L10,5 L0,10 z" fill="' + NET_C[st] + '"/></marker>').join("") + "</defs>";
+    const labels = [];
+    for (const k of Object.keys(edges)) {
+      const e = edges[k], a = nodes[e.from], b = nodes[e.to];
+      const st = e.goods.reduce((w, d) => NET_RANK[d.st] > NET_RANK[w] ? d.st : w, "ok");
+      const dx = b.X - a.X, dy = b.Y - a.Y, len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      // Bend every arrow to its left, so A→B and B→A do not overlap.
+      const bend = Math.min(60, len * 0.22);
+      const mx = (a.X + b.X) / 2 - uy * bend, my = (a.Y + b.Y) / 2 + ux * bend;
+      const sx = a.X + ux * a.r, sy = a.Y + uy * a.r, ex = b.X - ux * (b.r + 3), ey = b.Y - uy * (b.r + 3);
+      s += '<path d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " Q" + mx.toFixed(1) + "," + my.toFixed(1) + " " +
+        ex.toFixed(1) + "," + ey.toFixed(1) + '" fill="none" stroke="' + NET_C[st] + '" stroke-width="' + (st === "ok" ? 2 : 2.5) +
+        '"' + (st === "none" ? ' stroke-dasharray="6 4"' : "") + ' marker-end="url(#ah-' + st + ')"/>';
+      // Label on the curve's middle: an icon per goods, the shortfall it covers.
+      const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex, ly = 0.25 * sy + 0.5 * my + 0.25 * ey;
+      labels.push({ x: lx, y: ly, e, nx: -uy, ny: ux });
+    }
+    // Labels must not cover each other or a colony: push each one
+    // outwards, away from its arrow's other side, until it is clear.
+    const placed = Object.keys(nodes).map((i) => ({ x: nodes[i].X - nodes[i].r, y: nodes[i].Y - nodes[i].r,
+      w: 2 * nodes[i].r, h: 2 * nodes[i].r }));
+    const hit = (r) => placed.some((p) => r.x < p.x + p.w && p.x < r.x + r.w && r.y < p.y + p.h && p.y < r.y + r.h);
+    for (const l of labels) {
+      l.items = l.e.goods.map((d) => ({ d, w: 20 + (d.need > 0 ? 26 : 0) }));
+      l.w = l.items.reduce((t, i) => t + i.w, 0) + 6;
+      for (let k = 0; k < 20; k++) {
+        const r = { x: l.x - l.w / 2 - 3, y: l.y - 15, w: l.w + 6, h: 30 };
+        if (!hit(r)) { placed.push(r); break; }
+        l.x += l.nx * 8; l.y += l.ny * 8;
+      }
+    }
+    for (const l of labels) {
+      const items = l.items, w = l.w;
+      let x = l.x - w / 2 + 3;
+      s += '<rect x="' + (l.x - w / 2) + '" y="' + (l.y - 12) + '" width="' + w + '" height="24" rx="12" fill="#1b2027" stroke="#2f3742"/>';
+      for (const it of items) {
+        const d = it.d;
+        s += '<g class="netg"><title>' + esc(goodsName(d.g) + " → " + d.to + " (" + d.route + ")" +
+            (d.need > 0 ? ": " + d.to + " lacks " + d.need + " a turn" : "") +
+            (d.st === "short" ? "; the supplier makes too little" : d.st === "none" ? "; nothing to send" : "")) + "</title>" +
+          '<image href="' + goodsUrl(d.g) + '" x="' + x + '" y="' + (l.y - 9) + '" width="18" height="18"/>' +
+          (d.need > 0 ? '<text x="' + (x + 20) + '" y="' + (l.y + 4) + '" font-size="11" fill="' +
+            (d.st === "ok" ? "#e8e3d8" : NET_C[d.st]) + '">' + d.need + "/t</text>" : "") + "</g>";
+        x += it.w;
+      }
+    }
+    // Nodes on top.
+    for (const id of Object.keys(nodes)) {
+      const n = nodes[id];
+      if (n.outside) {
+        s += '<rect x="' + (n.X - 34) + '" y="' + (n.Y - 14) + '" width="68" height="28" rx="6" fill="#222832" stroke="#5a6573"/>' +
+          '<text x="' + n.X + '" y="' + (n.Y + 4) + '" text-anchor="middle" font-size="12" fill="#e8e3d8">' + esc(n.name) + "</text>";
+        continue;
+      }
+      const c = n.c, g = c.gov || { sol: 0, tories: 0, limit: 99, bonus: 0 };
+      const ring = g.bonus < 0 ? "#ff5d61" : (g.tories >= g.limit && g.sol < (g.good || 50)) ? "#f2a93b" : "#5a6573";
+      // Rebels as a gold arc around the node.
+      const arc = (pct) => {
+        if (pct <= 0) return "";
+        if (pct >= 100) return '<circle cx="' + n.X + '" cy="' + n.Y + '" r="' + (n.r + 4) + '" fill="none" stroke="#e0ac48" stroke-width="3"/>';
+        const a1 = -Math.PI / 2 + 2 * Math.PI * pct / 100, R = n.r + 4;
+        return '<path d="M' + n.X + "," + (n.Y - R) + " A" + R + "," + R + " 0 " + (pct > 50 ? 1 : 0) + " 1 " +
+          (n.X + R * Math.cos(a1)).toFixed(1) + "," + (n.Y + R * Math.sin(a1)).toFixed(1) + '" fill="none" stroke="#e0ac48" stroke-width="3"/>';
+      };
+      const stuck = (c.advice || []).filter((a) => a.kind === "deadEnd");
+      s += '<g class="netnode" data-x="' + c.x + '" data-y="' + c.y + '"><title>' + esc(c.name + ": " + c.size +
+          " colonists, rebels " + g.sol + "%" + (g.bonus < 0 ? ", tory penalty" : "")) + "</title>" +
+        '<circle cx="' + n.X + '" cy="' + n.Y + '" r="' + n.r + '" fill="#222832" stroke="' + ring + '" stroke-width="2"/>' +
+        arc(g.sol) +
+        '<text x="' + n.X + '" y="' + (n.Y + 5) + '" text-anchor="middle" font-size="14" font-weight="600" fill="#e8e3d8">' + c.size + "</text>" +
+        '<text x="' + (n.X + n.r + 8) + '" y="' + (n.Y + 5) + '" font-size="13" fill="#e8e3d8">' + esc(c.name) + "</text>";
+      // Goods that arrive and go no further pile up beside the node.
+      stuck.forEach((a, k) => {
+        const bx = n.X + n.r + 8 + k * 22, by = n.Y + 12;
+        s += '<g><title>' + esc(a.text) + '</title><rect x="' + (bx - 2) + '" y="' + (by - 2) + '" width="22" height="22" rx="4" fill="#2b2216" stroke="#f2a93b"/>' +
+          '<image href="' + goodsUrl(a.g) + '" x="' + bx + '" y="' + by + '" width="18" height="18"/></g>';
+      });
+      s += "</g>";
+    }
+    svg.innerHTML = s;
+    svg.querySelectorAll(".netnode").forEach((el) => el.addEventListener("click", () => {
+      const x = +el.dataset.x, y = +el.dataset.y;
+      pulse(x, y); centreOn(x, y); flashColonyAt(x, y);
+    }));
   }
 
   function flashColonyAt(x, y) {
@@ -288,11 +448,379 @@
       (up ? "#49c487" : "#ff5d61") + '" stroke-width="1.8" points="' + pts + '"/></svg>';
   }
 
+  // ---------------------------------------------------------------- market
+
+  const SELL_C = "#b5832a", BUY_C = "#5a93e6"; // Validated for the dark surface
+  let market = null, marketRev = null, selG = store.get("fc.marketGoods");
+
+  async function loadMarket() {
+    try {
+      const r = await fetch("/api/market", { cache: "no-store" });
+      const m = await r.json();
+      if (!m.goods) return;
+      market = m;
+      renderMarket();
+    } catch (e) { /* Try again with the next change */ }
+  }
+
+  function turnLabel(t) {
+    const y = market && market.turns[String(t)];
+    return y ? y + " (turn " + t + ")" : "turn " + t;
+  }
+
+  function renderMarket() {
+    const m = market;
+    if (!m.goods.length) {
+      $("marketSummary").innerHTML = '<span class="m">No prices yet.</span>';
+      return;
+    }
+    $("marketSummary").innerHTML =
+      '<span><span class="lbl">Tax</span> <b>' + m.tax + "%</b> <span class=\"m\">on sales only</span></span>" +
+      '<span><span class="lbl">Taxes paid</span> <b>' + m.taxesPaid.toLocaleString() + "</b></span>" +
+      '<span><span class="lbl">Trade balance</span> <b class="' + (m.balance >= 0 ? "up" : "down") + '">' +
+      signed(m.balance) + '</b> <span class="m">sales after tax minus purchases</span></span>';
+    if (!selG || !m.goods.some((g) => g.g === selG)) {
+      const best = m.goods.slice().sort((a, b) => Math.abs(b.sales) - Math.abs(a.sales))[0];
+      selG = best.g;
+    }
+    // Table, also the accessible view of the chart.
+    $("marketTable").innerHTML =
+      '<div class="mrow mh"><span></span><span>Goods</span><span class="num">Sell</span><span class="num">Buy</span>' +
+      '<span class="num" title="Change in the sell price over the last 10 turns">10-turn</span>' +
+      '<span class="num" title="Net amount you sold (negative: bought)">You sold</span><span class="num">Tax paid</span></div>' +
+      m.goods.map((g) => {
+        const old = g.hist.filter((h) => h[0] >= m.turn - 10)[0] || g.hist[0];
+        const d = g.sell - old[2];
+        return '<div class="mrow' + (g.g === selG ? " sel" : "") + '" data-g2="' + esc(g.g) + '">' + gi(g.g) +
+          "<span>" + esc(g.name) + (g.boycott ? ' <span class="tag alarm">boycott</span>' : "") + "</span>" +
+          '<span class="num">' + g.sell + '</span><span class="num">' + g.buy + "</span>" +
+          '<span class="num ' + (d > 0 ? "up" : d < 0 ? "down" : "m") + '">' + (d === 0 ? "\u2013" : signed(d)) + "</span>" +
+          '<span class="num">' + (g.sales || '<span class="m">0</span>') + '</span><span class="num">' +
+          (g.taxes || '<span class="m">0</span>') + "</span></div>";
+      }).join("");
+    $("marketTable").querySelectorAll(".mrow[data-g2]").forEach((el) => el.addEventListener("click", () => {
+      selG = el.dataset.g2;
+      store.set("fc.marketGoods", selG);
+      renderMarket();
+    }));
+    drawPriceChart(m.goods.find((g) => g.g === selG));
+  }
+
+  function drawPriceChart(g) {
+    const svg = $("mchart");
+    $("mchartHead").innerHTML = gi(g.g) + " <b>" + esc(g.name) + "</b>" +
+      '<span class="mleg"><i style="background:' + SELL_C + '"></i>You sell for</span>' +
+      '<span class="mleg"><i class="dash" style="border-color:' + BUY_C + '"></i>You buy for</span>';
+    const W = svg.getBoundingClientRect().width || 600, H = 220;
+    const pad = { l: 34, r: 74, t: 12, b: 26 };
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("aria-label", "Price of " + g.name + " in Europe by turn");
+    const h = g.hist;
+    const t0 = h[0][0], t1 = Math.max(h[h.length - 1][0], market.turn, t0 + 1);
+    const ymax = Math.max(4, ...h.map((p) => Math.max(p[1], p[2]))) * 1.15;
+    const X = (t) => pad.l + (t - t0) / (t1 - t0) * (W - pad.l - pad.r);
+    const Y = (v) => H - pad.b - v / ymax * (H - pad.t - pad.b);
+    // A price holds until it changes: draw steps, extended to this turn.
+    const step = (i) => {
+      let d = "";
+      h.forEach((p, k) => {
+        d += (k === 0 ? "M" : "H" + X(p[0]).toFixed(1) + "V") + (k === 0 ? X(p[0]).toFixed(1) + "," : "") + Y(p[i]).toFixed(1);
+      });
+      return d + "H" + X(t1).toFixed(1);
+    };
+    let s = "";
+    // Round tick steps: 1, 2 or 5 times a power of ten.
+    const raw = ymax / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const stepV = [1, 2, 5, 10].map((f) => f * mag).find((v) => v >= raw);
+    for (let v = 0; v <= ymax; v += stepV) {
+      s += '<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#2f3742" stroke-width="1"/>' +
+        '<text x="' + (pad.l - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" fill="#98a2ad" font-size="11">' + v + "</text>";
+    }
+    const xt = Math.min(6, t1 - t0);
+    for (let k = 0; k <= xt; k++) {
+      const t = Math.round(t0 + (t1 - t0) * k / xt);
+      const lab = (market.turns[String(t)] || "turn " + t);
+      s += '<text x="' + X(t) + '" y="' + (H - 8) + '" text-anchor="middle" fill="#98a2ad" font-size="11">' + esc(lab) + "</text>";
+    }
+    s += '<path d="' + step(1) + '" fill="none" stroke="' + BUY_C + '" stroke-width="2" stroke-dasharray="6 4"/>';
+    s += '<path d="' + step(2) + '" fill="none" stroke="' + SELL_C + '" stroke-width="2"/>';
+    // Direct labels at the right end.
+    const last = h[h.length - 1];
+    let yb = Y(last[1]), ys = Y(last[2]);
+    if (Math.abs(yb - ys) < 14) { if (yb < ys) yb = ys - 14; else ys = yb - 14; }
+    s += '<text x="' + (X(t1) + 6) + '" y="' + (ys + 4) + '" fill="#e8e3d8" font-size="12">sell ' + last[2] + "</text>";
+    s += '<text x="' + (X(t1) + 6) + '" y="' + (yb + 4) + '" fill="#e8e3d8" font-size="12">buy ' + last[1] + "</text>";
+    s += '<line id="mcross" x1="0" x2="0" y1="' + pad.t + '" y2="' + (H - pad.b) + '" stroke="#98a2ad" stroke-width="1" visibility="hidden"/>';
+    s += '<rect x="' + pad.l + '" y="' + pad.t + '" width="' + (W - pad.l - pad.r) + '" height="' + (H - pad.t - pad.b) +
+      '" fill="transparent" id="mhit"/>';
+    if (h.length === 1) {
+      s += '<text x="' + ((pad.l + W - pad.r) / 2) + '" y="' + (pad.t + 16) + '" text-anchor="middle" fill="#98a2ad" font-size="12">' +
+        "History builds up turn by turn while you play</text>";
+    }
+    svg.innerHTML = s;
+    const hit = svg.querySelector("#mhit"), cross = svg.querySelector("#mcross"), tip = $("mtip");
+    hit.addEventListener("mousemove", (e) => {
+      const r = svg.getBoundingClientRect();
+      const mx = (e.clientX - r.left) * W / r.width;
+      const t = Math.round(t0 + (mx - pad.l) / (W - pad.l - pad.r) * (t1 - t0));
+      let p = h[0];
+      for (const q of h) if (q[0] <= t) p = q;
+      cross.setAttribute("x1", X(t)); cross.setAttribute("x2", X(t));
+      cross.setAttribute("visibility", "visible");
+      tip.innerHTML = "<b>" + esc(turnLabel(t)) + '</b><div class="row">Sell ' + p[2] + " \u00b7 buy " + p[1] + "</div>";
+      tip.hidden = false;
+      tip.style.left = Math.min(r.width - tip.offsetWidth - 4, (e.clientX - r.left) + 12) + "px";
+      tip.style.top = "8px";
+    });
+    hit.addEventListener("mouseleave", () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); });
+  }
+
+  // ---------------------------------------------------------------- nations
+
+  // Columns in display order.  low: a lower value is better.
+  const NAT_COLS = [
+    { m: "colonies",  grp: "Expansion", label: "Colonies", tip: "Number of colonies" },
+    { m: "colonists", grp: "Expansion", label: "Colonists", tip: "Colonists working in their colonies, counted on the map" },
+    { m: "avgSize",   grp: "Expansion", label: "Per colony", tip: "Average colonists per colony", div: 10 },
+    { m: "units",     grp: "Expansion", label: "Units", tip: "All units: colonists in and outside colonies, soldiers, ships, wagons" },
+    { m: "gold",      grp: "Economy",   label: "Gold", tip: "Gold in the treasury" },
+    { m: "tax",       grp: "Economy",   label: "Tax", tip: "Tax rate in Europe (lower is better)", low: true, pct: true },
+    { m: "military",  grp: "Military",  label: "Army", tip: "Land strength: the attack power of soldiers, dragoons and artillery" },
+    { m: "naval",     grp: "Military",  label: "Navy", tip: "Sea strength: the attack power of the ships" },
+    { m: "sol",       grp: "Politics",  label: "Rebels", tip: "Share of colonists that supports independence", pct: true },
+    { m: "fathers",   grp: "Politics",  label: "Fathers", tip: "Founding Fathers in Congress" }
+  ];
+  const NAT_GRPS = ["Expansion", "Economy", "Military", "Politics"];
+  const ME_C = "#b5832a", OTHER_C = "#69737f";
+  let nations = null, natTurn = null, natBusy = false;
+  let natSel = store.get("fc.natMeasure") || "colonists";
+
+  async function loadNations(turn) {
+    if (natBusy) return;
+    natBusy = true;
+    try {
+      const r = await fetch("/api/nations", { cache: "no-store" });
+      const n = await r.json();
+      if (n.nations) { nations = n; natTurn = turn; renderNations(); }
+    } catch (e) { /* Try again next poll */ }
+    natBusy = false;
+  }
+
+  function natIndex(m) { return nations.measures.indexOf(m); }
+  function natVal(n, c) { const v = n.v[natIndex(c.m)]; return v < 0 ? null : (c.div ? v / c.div : v); }
+  function natFmt(c, v) {
+    if (v == null) return "";
+    if (c.div) return v.toFixed(1);
+    return v.toLocaleString() + (c.pct ? "%" : "");
+  }
+  function ordinal(n) { return "#" + n; }
+
+  // Competition ranking ("1, 2, 2, 4") of the nations that have a value.
+  function natRanks(c) {
+    const vals = nations.nations.map((n) => natVal(n, c));
+    return vals.map((v) => v == null ? null :
+      1 + vals.filter((w) => w != null && (c.low ? w < v : w > v)).length);
+  }
+
+  function renderNations() {
+    const N = nations.nations;
+    const ranks = {};
+    for (const c of NAT_COLS) ranks[c.m] = natRanks(c);
+    // A group score is the average rank over its measures; the
+    // groups are then ranked on that.
+    const grpRank = {};
+    for (const g of NAT_GRPS) {
+      const cols = NAT_COLS.filter((c) => c.grp === g);
+      const avg = N.map((n, i) => {
+        const r = cols.map((c) => ranks[c.m][i]).filter((x) => x != null);
+        return r.length ? r.reduce((a, b) => a + b, 0) / r.length : null;
+      });
+      const counted = avg.filter((a) => a != null).length;
+      grpRank[g] = avg.map((a) => a == null ? null :
+        { r: 1 + avg.filter((b) => b != null && b < a - 1e-9).length, of: counted });
+    }
+    const meI = N.findIndex((n) => n.me);
+
+    // Summary: where do I stand?
+    const ahead = [], behind = [];
+    for (const c of NAT_COLS) {
+      const r = ranks[c.m][meI], of = ranks[c.m].filter((x) => x != null).length;
+      if (r == null || of < 2) continue;
+      if (ranks[c.m].every((x) => x == null || x === 1)) continue; // All level
+      if (r === 1) ahead.push(c.label.toLowerCase());
+      else behind.push("<b>" + c.label.toLowerCase() + "</b> (#" + r + " of " + of + ")");
+    }
+    const others = N.filter((n) => !n.me);
+    const otherAvg = others.length
+      ? others.reduce((a, n) => a + n.v[natIndex("colonists")], 0) /
+        Math.max(1, others.reduce((a, n) => a + n.knownColonies, 0)) : 0;
+    const me = N[meI];
+    $("natSummary").innerHTML = NAT_GRPS.map((g) => {
+      const x = grpRank[g][meI];
+      return '<span class="nchip"><span class="lbl">' + g + "</span> " +
+        (x ? "<b>" + ordinal(x.r) + '</b> <span class="m">of ' + x.of + "</span>" : '<span class="m">?</span>') + "</span>";
+    }).join("") +
+      '<div class="nline">' +
+      (me && me.knownColonies ? "Your colonies average <b>" + (me.v[natIndex("colonists")] / me.knownColonies).toFixed(1) +
+        "</b> colonists, the others <b>" + otherAvg.toFixed(1) + "</b>. " : "") +
+      (ahead.length ? "Ahead in <b>" + ahead.join(", ") + "</b>. " : "") +
+      (behind.length ? "Behind in " + behind.join(", ") + "." : "") +
+      "</div>";
+
+    // Table
+    const maxOf = {};
+    for (const c of NAT_COLS) maxOf[c.m] = Math.max(0, ...N.map((n) => natVal(n, c) || 0));
+    const maxSize = Math.max(1, ...N.map((n) => n.sizes[0] || 0));
+    let h = '<table><thead><tr class="grp"><th></th>';
+    for (const g of NAT_GRPS) {
+      h += '<th colspan="' + (NAT_COLS.filter((c) => c.grp === g).length + (g === "Expansion" ? 1 : 0)) + '">' + g + "</th>";
+    }
+    h += '</tr><tr><th class="nname">Nation</th>';
+    for (const c of NAT_COLS) {
+      h += '<th class="num' + (c.m === natSel ? " sel" : "") + '" data-m="' + c.m + '" title="' + esc(c.tip) + '">' + c.label + "</th>";
+      if (c.m === "avgSize") h += '<th title="Their colonies by number of colonists, biggest first">Sizes</th>';
+    }
+    h += "</tr></thead><tbody>";
+    const order = N.map((n, i) => i).sort((a, b) => {
+      const c = NAT_COLS.find((x) => x.m === natSel);
+      const ra = ranks[c.m][a], rb = ranks[c.m][b];
+      return (ra == null) - (rb == null) || ra - rb || N[a].name.localeCompare(N[b].name);
+    });
+    for (const i of order) {
+      const n = N[i];
+      h += '<tr class="' + (n.me ? "me" : "") + (n.met ? "" : " unmet") + '"><td class="nname">' +
+        '<i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) +
+        (n.me ? ' <span class="m">(you)</span>' : n.met ? "" : ' <span class="m">not met</span>') + "</td>";
+      for (const c of NAT_COLS) {
+        const v = natVal(n, c), r = ranks[c.m][i];
+        if (v == null) {
+          const why = ["sol", "fathers", "tax"].includes(c.m) ? "Needs Jan de Witt in your Congress" : "Not known";
+          h += '<td class="num m" title="' + why + '">?</td>';
+        } else {
+          const w = maxOf[c.m] > 0 ? Math.round(100 * (c.low ? 1 : v / maxOf[c.m])) : 0;
+          const level = ranks[c.m].every((x) => x == null || x === 1);
+          h += '<td class="num' + (c.m === natSel ? " sel" : "") + '"><span class="rk' + (r === 1 && !level ? " first" : "") + '">' + (level ? "" : r) + "</span>" +
+            natFmt(c, v) + (c.low ? "" : '<span class="bar"><i style="width:' + w + "%;background:" + (n.me ? ME_C : OTHER_C) + '"></i></span>') + "</td>";
+        }
+        if (c.m === "avgSize") {
+          h += '<td class="sizes" title="' + esc(n.sizes.length ? n.sizes.join(", ") : "none known") + '"><div class="szs">' +
+            n.sizes.slice(0, 24).map((s) => '<i style="height:' + Math.max(2, Math.round(22 * s / maxSize)) + "px;background:" +
+              (n.me ? ME_C : OTHER_C) + '"></i>').join("") + "</div></td>";
+        }
+      }
+      h += "</tr>";
+    }
+    h += "</tbody></table>";
+    $("natTable").innerHTML = h;
+    $("natTable").querySelectorAll("th[data-m]").forEach((th) => th.addEventListener("click", () => {
+      natSel = th.dataset.m;
+      store.set("fc.natMeasure", natSel);
+      renderNations();
+    }));
+
+    $("natNote").innerHTML = "Click a column to sort and chart it. The small number is the rank. " +
+      "Other nations' figures come from the game's Foreign Affairs report" +
+      (nations.deWitt ? "." : "; their rebels, fathers and tax need Jan de Witt in your Congress.") +
+      " Colonists and sizes are counted in the colonies you can see on the map. Army and navy are strength scores, not head counts.";
+    drawNationChart();
+  }
+
+  function drawNationChart() {
+    const c = NAT_COLS.find((x) => x.m === natSel);
+    const k = natIndex(c.m), svg = $("nchart");
+    $("nchartHead").innerHTML = "<b>" + esc(c.label) + '</b> <span class="m">' + esc(c.tip) + "</span>" +
+      '<span class="mleg"><i style="background:' + ME_C + '"></i>You</span>' +
+      '<span class="mleg"><i style="background:' + OTHER_C + '"></i>Others</span>';
+    const turns = Object.keys(nations.history).map(Number).sort((a, b) => a - b);
+    const series = nations.nations.map((n) => ({
+      n, pts: turns.map((t) => {
+        const row = nations.history[String(t)][n.id];
+        const v = row ? row[k] : -1;
+        return v < 0 ? null : [t, c.div ? v / c.div : v];
+      }).filter((p) => p)
+    })).filter((s) => s.pts.length);
+    const W = svg.getBoundingClientRect().width || 600, H = 200;
+    const pad = { l: 44, r: 110, t: 12, b: 26 };
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("aria-label", c.label + " of each nation by turn");
+    if (!series.length) { svg.innerHTML = ""; return; }
+    const t0 = turns[0], t1 = Math.max(turns[turns.length - 1], t0 + 1);
+    const ymax = Math.max(c.div ? 2 : 4, ...series.flatMap((s) => s.pts.map((p) => p[1]))) * 1.15;
+    const X = (t) => pad.l + (t - t0) / (t1 - t0) * (W - pad.l - pad.r);
+    const Y = (v) => H - pad.b - v / ymax * (H - pad.t - pad.b);
+    let s = "";
+    const raw = ymax / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const stepV = [1, 2, 5, 10].map((f) => f * mag).find((v) => v >= raw);
+    for (let v = 0; v <= ymax; v += stepV) {
+      s += '<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#2f3742" stroke-width="1"/>' +
+        '<text x="' + (pad.l - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" fill="#98a2ad" font-size="11">' +
+        (stepV < 1 ? v.toFixed(1) : Math.round(v).toLocaleString()) + "</text>";
+    }
+    const xt = Math.min(6, t1 - t0);
+    for (let q = 0; q <= xt; q++) {
+      const t = Math.round(t0 + (t1 - t0) * q / xt);
+      s += '<text x="' + X(t) + '" y="' + (H - 8) + '" text-anchor="' + (q === xt ? "end" : q === 0 ? "start" : "middle") +
+        '" fill="#98a2ad" font-size="11">' + esc(nations.turns[String(t)] || "turn " + t) + "</text>";
+    }
+    // Others first, so my line is drawn on top.
+    const ordered = series.filter((x) => !x.n.me).concat(series.filter((x) => x.n.me));
+    const labels = [];
+    for (const x of ordered) {
+      const d = x.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+      const col = x.n.me ? ME_C : OTHER_C;
+      s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (x.n.me ? 2.5 : 1.5) + '"/>';
+      if (x.pts.length === 1) s += '<circle cx="' + X(x.pts[0][0]) + '" cy="' + Y(x.pts[0][1]) + '" r="3" fill="' + col + '"/>';
+      const last = x.pts[x.pts.length - 1];
+      // Nations ending on the same value share one label.
+      const same = labels.find((l) => !l.me && !x.n.me && Math.abs(l.y0 - Y(last[1])) < 1 && l.x === X(last[0]));
+      if (same) same.names.push(x.n.name);
+      else labels.push({ y0: Y(last[1]), y: Y(last[1]), x: X(last[0]), names: [x.n.name], me: x.n.me });
+    }
+    // Spread the end labels so they do not overlap, and keep them inside.
+    labels.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 13);
+    const over = labels.length ? labels[labels.length - 1].y - (H - pad.b) : 0;
+    if (over > 0) for (const l of labels) l.y -= over;
+    for (const l of labels) {
+      s += '<text x="' + (l.x + 6) + '" y="' + (l.y + 4) + '" fill="' + (l.me ? "#e8e3d8" : "#98a2ad") + '" font-size="12"' +
+        (l.me ? ' font-weight="600"' : "") + ">" + (l.names.length > 1 ? "<title>" + esc(l.names.join(", ")) + "</title>" : "") +
+        esc(l.names.length > 1 ? l.names.length + " others" : l.names[0]) + "</text>";
+    }
+    s += '<line id="ncross" x1="0" x2="0" y1="' + pad.t + '" y2="' + (H - pad.b) + '" stroke="#98a2ad" stroke-width="1" visibility="hidden"/>';
+    s += '<rect x="' + pad.l + '" y="' + pad.t + '" width="' + (W - pad.l - pad.r) + '" height="' + (H - pad.t - pad.b) + '" fill="transparent" id="nhit"/>';
+    if (turns.length === 1) {
+      s += '<text x="' + ((pad.l + W - pad.r) / 2) + '" y="' + (pad.t + 16) + '" text-anchor="middle" fill="#98a2ad" font-size="12">' +
+        "The trend builds up turn by turn while you play</text>";
+    }
+    svg.innerHTML = s;
+    const hit = svg.querySelector("#nhit"), cross = svg.querySelector("#ncross"), tip = $("ntip");
+    hit.addEventListener("mousemove", (e) => {
+      const r = svg.getBoundingClientRect();
+      const mx = (e.clientX - r.left) * W / r.width;
+      const want = t0 + (mx - pad.l) / (W - pad.l - pad.r) * (t1 - t0);
+      let t = turns[0];
+      for (const q of turns) if (Math.abs(q - want) < Math.abs(t - want)) t = q;
+      cross.setAttribute("x1", X(t)); cross.setAttribute("x2", X(t));
+      cross.setAttribute("visibility", "visible");
+      const rows = series.map((x) => {
+        const p = x.pts.find((q) => q[0] === t);
+        return p ? { name: x.n.name, v: p[1], me: x.n.me } : null;
+      }).filter((x) => x).sort((a, b) => c.low ? a.v - b.v : b.v - a.v);
+      tip.innerHTML = "<b>" + esc(nations.turns[String(t)] || "turn " + t) + "</b>" + rows.map((x) =>
+        '<div class="row' + (x.me ? " me" : "") + '">' + esc(x.name) + " <b>" + natFmt(c, x.v) + "</b></div>").join("");
+      tip.hidden = false;
+      tip.style.left = Math.min(r.width - tip.offsetWidth - 4, (e.clientX - r.left) + 12) + "px";
+      tip.style.top = "8px";
+    });
+    hit.addEventListener("mouseleave", () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); });
+  }
+
   // ---------------------------------------------------------------- log
 
   function logClass(e) {
     if (e.kind === "turn") return "turn";
     if (e.kind === "load" || e.kind === "unload" || e.kind === "arrive") return e.kind;
+    if (e.kind === "natives") return "natives";
     if (/missing_goods|warning|combat|unit_lost|demands|government_efficiency/.test(e.kind)) return "warn";
     if (e.kind === "lost") return "alarm";
     return "";
@@ -332,7 +860,7 @@
       if (e.goods && e.goods.length) {
         html += ' <span class="g">' + e.goods.map((g) =>
           '<span class="' + (g[1] < 0 ? "neg" : "pos") + '">' + gi(g[0]) +
-          (g[1] < 0 ? "−" + -g[1] : "+" + g[1]) + "</span>").join("") + "</span>";
+          (g[1] === 0 ? "" : g[1] < 0 ? "−" + -g[1] : "+" + g[1]) + "</span>").join("") + "</span>";
       }
       li.innerHTML = html;
       if (e.x >= 0) li.addEventListener("click", () => { pulse(e.x, e.y); centreOn(e.x, e.y); });
@@ -350,7 +878,7 @@
   }
 
   // The sidebar has two tabs: the log and the Colopedia.
-  let drawerTab = store.get("fc.tab") === "pedia" ? "pedia" : "log";
+  let drawerTab = ["pedia", "rel"].includes(store.get("fc.tab")) ? store.get("fc.tab") : "log";
 
   function setDrawer(open, tab) {
     if (tab) drawerTab = tab;
@@ -358,12 +886,15 @@
     document.body.classList.toggle("logOpen", open);
     $("logList").hidden = drawerTab !== "log";
     $("pedia").hidden = drawerTab !== "pedia";
+    $("rel").hidden = drawerTab !== "rel";
     document.querySelectorAll(".dtab").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === drawerTab));
     $("logToggle").classList.toggle("on", open && drawerTab === "log");
     $("pediaToggle").classList.toggle("on", open && drawerTab === "pedia");
+    $("relToggle").classList.toggle("on", open && drawerTab === "rel");
     if (open && drawerTab === "log") { unread = 0; showUnread(); }
     if (open && drawerTab === "pedia") renderPedia();
+    if (open && drawerTab === "rel") loadRelations(true);
     store.set("fc.logOpen", open ? "1" : "0");
     store.set("fc.tab", drawerTab);
     setTimeout(resize, 220);
@@ -371,6 +902,93 @@
   function toggleDrawer(tab) {
     const showing = !$("log").hidden && drawerTab === tab;
     setDrawer(!showing, tab);
+  }
+
+  // ---------------------------------------------------------------- relations
+
+  let relLoaded = 0, relJson = "";
+
+  async function loadRelations(force) {
+    if (!force && performance.now() - relLoaded < 5000) return;
+    relLoaded = performance.now();
+    try {
+      const r = await fetch("/api/relations", { cache: "no-store" });
+      const t = await r.text();
+      if (t !== relJson) { relJson = t; renderRelations(JSON.parse(t)); }
+    } catch (e) { /* Try again later */ }
+  }
+
+  const MOOD = { happy: "ok", content: "ok", displeased: "warn", angry: "alarm", hateful: "alarm" };
+  const STANCE = { peace: "ok", alliance: "info", ceaseFire: "warn", war: "alarm", uncontacted: "m" };
+  function badge(text, cls) { return '<span class="tag ' + (cls || "m") + '">' + esc(text) + "</span>"; }
+  function swatch(c) { return '<i class="sw" style="background:' + esc(c) + '"></i>'; }
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+
+  function renderRelations(d) {
+    const box = $("rel");
+    if (!d.home) { box.innerHTML = '<p class="m">No game loaded.</p>'; return; }
+    const h = d.home;
+    let html = "<h4>Homefront</h4>";
+    const status = h.playerType === "colonial" ? "Colony of the Crown"
+      : h.playerType === "rebel" ? "At war for independence" : cap(h.playerType);
+    html += '<div class="pe"><div class="peh"><b>' + esc(h.nation) + "</b> " + badge(status, h.playerType === "colonial" ? "m" : "warn") +
+      '<span class="price">score ' + h.score + "</span></div><dl>" +
+      row("King's tax", h.tax + "%") +
+      row("Rebels", h.sol + '% <span class="m">(Sons of Liberty across your colonies; 50%+ to declare independence)</span>') +
+      row("Colonies", h.colonies + " with " + h.colonists + " colonists") +
+      row("Congress", h.fathers + " fathers" + (h.father ? ", next: <b>" + esc(h.father) + "</b>, " + h.fatherBells + " bells to go" : "")) +
+      row("Immigration", h.immigration + " / " + h.immigrationRequired + ' crosses <div class="track"><div class="fill" style="width:' +
+        Math.min(100, Math.round(100 * h.immigration / Math.max(1, h.immigrationRequired))) + '%"></div></div>') +
+      row("Europe", (h.docks ? h.docks + " waiting on the docks, " : "") + (h.shipsInEurope ? h.shipsInEurope + " ship(s) in port, " : "") +
+        (h.toEurope ? h.toEurope + " sailing to Europe, " : "") + (h.toAmerica ? h.toAmerica + " sailing to America, " : "") +
+        (h.recruitPrice >= 0 ? "recruiting costs " + h.recruitPrice : "")) +
+      row("Boycotts", h.boycotts.length ? h.boycotts.map((b) => '<span class="it">' + gi(b[0]) + "pay " + b[1] + " to lift</span>").join(" ")
+        : '<span class="m">none</span>') +
+      row("King's army", h.ref.length ? h.ref.map((r) => esc(r[0])).join(", ") : '<span class="m">unknown</span>') +
+      "</dl></div>";
+
+    html += "<h4>European nations</h4>";
+    html += d.europeans.map((e) =>
+      '<div class="pe"><div class="peh">' + swatch(e.color) + "<b>" + esc(e.name) + "</b> " +
+      (e.met ? badge(e.stanceName || e.stance, STANCE[e.stance]) : badge("not met yet", "m")) +
+      (e.rebel ? badge("rebels", "warn") : "") +
+      '<span class="price">' + e.colonies.length + " known " + (e.colonies.length === 1 ? "colony" : "colonies") + "</span></div>" +
+      (e.colonies.length ? '<p class="m">' + e.colonies.map(esc).join(", ") + "</p>" : "") + "</div>").join("") ||
+      '<p class="m">No other Europeans.</p>';
+
+    html += "<h4>Native tribes</h4>";
+    html += d.tribes.map((t) => {
+      const skills = (t.skills || []).slice(0, 4).map((s) => esc(s[0])).join(", ");
+      const rows = t.settlements.map((s) =>
+        '<div class="set' + (s.x >= 0 ? " link" : "") + '" data-x="' + s.x + '" data-y="' + s.y + '">' +
+        '<div class="sn">' + (s.capital ? '<span title="Capital">\u2605</span> ' : "") + esc(s.name) +
+        " " + badge(s.alarmName, MOOD[s.alarm] || "m") +
+        (s.mission ? badge(s.mission === "ours" ? "\u271d our mission" : "\u271d " + s.mission + " mission", s.mission === "ours" ? "ok" : "m") : "") +
+        "</div>" +
+        '<div class="sd"><span class="m">Teaches</span> ' + (s.skill ? esc(s.skill) : '<span class="m">? visit to find out</span>') +
+        ' \u00b7 <span class="m">Wants</span> ' + (s.wanted.length ? s.wanted.map((g, i) =>
+          '<span class="it" title="' + ["pays +50%", "pays +25%", "pays +10%"][i] + '">' + gi(g) + "</span>").join("") +
+          (s.wantedSince >= 0 ? ' <span class="m" title="Wanted goods change over time; a visit updates them">(as of turn ' + s.wantedSince + ")</span>" : "")
+          : '<span class="m">? visit to find out</span>') +
+        ' \u00b7 <span class="m">Most hated:</span> ' + (s.hated ? esc(s.hated) : "none") + "</div></div>").join("");
+      return '<div class="pe"><div class="peh">' + swatch(t.color) + "<b>" + esc(t.name) + "</b> " +
+        badge(t.stanceName || t.stance, STANCE[t.stance]) + (t.worst ? badge("mood: " + t.worst, MOOD[t.worst]) : "") +
+        '<span class="price">' + esc(t.settlementType || "") + "</span></div>" +
+        '<p class="m">' + cap(t.aggression) + " aggression \u00b7 " +
+        ({ low: "few", average: "a fair number of", high: "many" }[t.number] || t.number) + " settlements" +
+        (skills ? " \u00b7 usually teach: " + skills : "") + "</p>" +
+        (rows || '<p class="m">None of their settlements found yet.</p>') + "</div>";
+    }).join("") || '<p class="m">You have not met any tribe yet.</p>';
+    if (d.unmet) html += '<p class="m">' + d.unmet + (d.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>";
+    html += '<p class="m">Wanted goods: the first pays 50% more, the second 25%, the third 10%. Click an icon for the Colopedia, a settlement to show it on the map. See also claude_docs/tribes.md.</p>';
+
+    const keep = box.scrollTop;
+    box.innerHTML = html;
+    box.scrollTop = keep;
+    box.querySelectorAll(".set.link").forEach((el) => el.addEventListener("click", () => {
+      const x = +el.dataset.x, y = +el.dataset.y;
+      pulse(x, y); centreOn(x, y);
+    }));
   }
 
   // ---------------------------------------------------------------- colopedia
@@ -879,8 +1497,18 @@
       if (s.mine || view.S >= 30) label(s.name, x, y + r + 2, s.mine ? "#fff" : "#cfd5dc", s.mine);
       const col = s.mine && state.colonies.find((c) => c.x === s.x && c.y === s.y);
       hits.push({ x, y, r: r + 4, colony: col || null,
-        html: col ? colonyTip(col) : "<b>" + esc(s.name) + "</b>" });
+        html: col ? colonyTip(col) : settlementTip(s) });
     }
+  }
+
+  function settlementTip(s) {
+    let h = "<b>" + (s.capital ? "\u2605 " : "") + esc(s.name) + '</b> <span class="m">' + esc(s.owner || "") + "</span>";
+    if (s.colony) return h;
+    h += '<div class="row">Teaches: ' + (s.skill ? esc(s.skill) : '<span class="m">unknown, visit to find out</span>') + "</div>";
+    h += '<div class="row">Wants: ' + (s.wanted && s.wanted.length
+      ? s.wanted.map((g) => gi(g) + " " + esc(goodsName(g))).join(", ")
+      : '<span class="m">unknown, visit to find out</span>') + "</div>";
+    return h + '<div class="row m">Relations tab (R) for mood and missions</div>';
   }
 
   function colonyTip(c) {
@@ -1082,6 +1710,7 @@
 
   $("logToggle").addEventListener("click", () => toggleDrawer("log"));
   $("pediaToggle").addEventListener("click", () => toggleDrawer("pedia"));
+  $("relToggle").addEventListener("click", () => toggleDrawer("rel"));
   $("logClose").addEventListener("click", () => setDrawer(false));
   document.querySelectorAll(".dtab").forEach((b) =>
     b.addEventListener("click", () => setDrawer(true, b.dataset.tab)));
@@ -1107,12 +1736,13 @@
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
+    if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });
   const pushQuery = window.matchMedia("(min-width: 900px)");
   const setPush = () => document.body.classList.toggle("push", pushQuery.matches);
   setPush();
   if (pushQuery.addEventListener) pushQuery.addEventListener("change", setPush);
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", () => { resize(); if (market) renderMarket(); if (nations) drawNationChart(); if (state) renderNetwork(state.colonies); });
 
   resize();
   setDrawer(store.get("fc.logOpen") === "1");

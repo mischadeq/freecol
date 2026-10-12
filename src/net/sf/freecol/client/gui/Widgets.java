@@ -1190,7 +1190,22 @@ public final class Widgets {
      * @return The amount selected.
      */
     public int showSelectAmountDialog(GoodsType goodsType, int available, int defaultAmount, boolean needToPay) {
-        final FreeColDialog<Integer> dialog = SelectGoodsAmountDialog.create(freeColClient, goodsType, available, defaultAmount, needToPay);
+        return showSelectAmountDialog(goodsType, available, defaultAmount, needToPay, false);
+    }
+
+    /**
+     * Show a dialog allowing selecting an amount of goods, with the
+     * price when trading with the market in Europe.
+     *
+     * @param goodsType The {@code GoodsType} to select an amount of.
+     * @param available The amount of goods available.
+     * @param defaultAmount The amount to select to start with.
+     * @param needToPay If true, this is a purchase from the market.
+     * @param sale If true, this is a sale to the market.
+     * @return The amount selected.
+     */
+    public int showSelectAmountDialog(GoodsType goodsType, int available, int defaultAmount, boolean needToPay, boolean sale) {
+        final FreeColDialog<Integer> dialog = SelectGoodsAmountDialog.create(freeColClient, goodsType, available, defaultAmount, needToPay, sale);
         final Integer result = this.canvas.displayModalDialog(dialog);
         return (result == null) ? -1 : result;
     }

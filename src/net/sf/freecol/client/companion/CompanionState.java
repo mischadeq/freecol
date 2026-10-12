@@ -37,6 +37,7 @@ import java.util.Set;
 import javax.imageio.ImageIO;
 
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.control.ColonyAdvisor;
 import net.sf.freecol.client.control.InGameController;
 import net.sf.freecol.client.control.SupplyForecast;
 import net.sf.freecol.client.control.SupplyWatch;
@@ -50,6 +51,7 @@ import net.sf.freecol.common.model.BuildableType;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.FreeColGameObject;
 import net.sf.freecol.common.model.Game;
+import net.sf.freecol.common.model.IndianSettlement;
 import net.sf.freecol.common.model.Goods;
 import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.Location;
@@ -58,6 +60,7 @@ import net.sf.freecol.common.model.PathNode;
 import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.ProductionInfo;
 import net.sf.freecol.common.model.Settlement;
+import net.sf.freecol.common.model.Specification;
 import net.sf.freecol.common.model.StringTemplate;
 import net.sf.freecol.common.model.Tile;
 import net.sf.freecol.common.model.TileType;
@@ -65,6 +68,7 @@ import net.sf.freecol.common.model.TradeRoute;
 import net.sf.freecol.common.model.TradeRouteStop;
 import net.sf.freecol.common.model.Unit;
 import net.sf.freecol.common.model.WorkLocation;
+import net.sf.freecol.common.option.GameOptions;
 
 
 /**
@@ -155,6 +159,8 @@ final class CompanionState {
 
         buildMap(game, player);
         j.put("mapRev", this.mapRev);
+        CompanionMarket.record(game, player);
+        j.put("marketRev", CompanionMarket.getRev());
         header(j, game, player);
 
         final List<TradeRoute> routes = new ArrayList<>(player.getTradeRoutes());
@@ -311,6 +317,9 @@ final class CompanionState {
         this.lastDestinations.clear();
         this.lastDestinations.putAll(dests);
 
+        // What native settlements want, and changes to it.
+        CompanionRelations.observe(game, player);
+
         // Colonies founded or lost.
         Map<String, String> cols = new HashMap<>();
         for (Colony c : player.getColonyList()) {
@@ -419,6 +428,7 @@ final class CompanionState {
     private void colonies(Json j, Player player, List<Colony> colonies,
                           List<GoodsType> goodsTypes, SupplyForecast forecast,
                           List<String[]> alerts) {
+        final ColonyAdvisor advisor = new ColonyAdvisor(player);
         j.key("colonies").arr();
         for (Colony colony : colonies) {
             final Tile tile = colony.getTile();
@@ -447,6 +457,8 @@ final class CompanionState {
             // Needs: goods running down, then inputs in short supply.
             List<Object[]> needs = new ArrayList<>();
             for (GoodsType gt : goodsTypes) {
+                // Bells are not stored: the advice covers them.
+                if (!gt.isStorable()) continue;
                 int p = colony.getAdjustedNetProductionOf(gt);
                 if (p >= 0) continue;
                 int stock = colony.getGoodsCount(gt);
@@ -542,6 +554,7 @@ final class CompanionState {
             j.endArr();
 
             build(j, colony, forecast, alerts);
+            advice(j, colony, advisor, alerts);
 
             // Deliveries on their way.
             List<SupplyForecast.Delivery> incoming = new ArrayList<>();
@@ -563,6 +576,65 @@ final class CompanionState {
             }
             j.endArr();
             j.end();
+        }
+        j.endArr();
+    }
+
+    /**
+     * The colony's place in the supply network, and advice on how it
+     * could do better without breaking that network.
+     */
+    private void advice(Json j, Colony colony, ColonyAdvisor advisor,
+                        List<String[]> alerts) {
+        j.key("sends").arr();
+        for (ColonyAdvisor.Duty d : advisor.getDuties(colony)) {
+            j.obj().put("g", d.goods.getId())
+                .put("to", Messages.message(d.toLabel))
+                .put("toId", (d.to == null) ? null : d.to.getId())
+                .put("need", d.need).put("st", advisor.getStatus(d))
+                .put("route", d.route.getName()).end();
+        }
+        j.endArr();
+
+        // Liberty: rebels, tories and the bells behind them.
+        final Specification spec = colony.getSpecification();
+        final GoodsType bells = spec.getGoodsType("model.goods.bells");
+        final int size = colony.getUnitCount();
+        final int sol = colony.getSonsOfLiberty();
+        final int good = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
+        final int use = colony.getConsumptionOf(bells);
+        final int net = colony.getNetProductionOf(bells);
+        j.key("gov").obj().put("sol", sol)
+            .put("rebels", size - Colony.calculateToryCount(size, sol))
+            .put("tories", Colony.calculateToryCount(size, sol))
+            .put("limit", spec.getInteger(GameOptions.BAD_GOVERNMENT_LIMIT))
+            .put("bonus", colony.getProductionBonus())
+            .put("made", net + use).put("use", use)
+            .put("good", good)
+            .put("toGood", Math.max(0, (int)Math.ceil(good / 100.0
+                * Colony.LIBERTY_PER_REBEL * size) - colony.getLiberty()))
+            .end();
+        j.key("gets").arr();
+        for (ColonyAdvisor.Duty d : advisor.getSupplies(colony)) {
+            j.obj().put("g", d.goods.getId())
+                .put("from", d.from.getName())
+                .put("need", d.need).put("route", d.route.getName()).end();
+        }
+        j.endArr();
+        j.key("advice").arr();
+        for (ColonyAdvisor.Advice a : advisor.advise(colony)) {
+            final String lvl = a.level.name().toLowerCase(java.util.Locale.ROOT);
+            final String text = Messages.message(a.text);
+            j.obj().put("lvl", lvl).put("kind", a.kind).put("text", text)
+                .put("brief", (a.brief == null) ? null
+                    : Messages.message(a.brief))
+                .put("g", (a.goods == null) ? null : a.goods.getId()).end();
+            if (a.level == ColonyAdvisor.Level.ALARM
+                || a.kind.startsWith("role")) {
+                alerts.add(alert(lvl, colony.getName() + ": " + text,
+                    colony.getTile(),
+                    (a.goods == null) ? null : a.goods.getId()));
+            }
         }
         j.endArr();
     }
@@ -907,6 +979,11 @@ final class CompanionState {
             {
                 settlements.add(t.getSettlement());
                 rev = 31 * rev + t.getSettlement().getName().hashCode();
+                if (t.getSettlement() instanceof IndianSettlement) {
+                    final IndianSettlement is = (IndianSettlement)t.getSettlement();
+                    rev = 31 * rev + String.valueOf(is.getLearnableSkill()).hashCode()
+                        + is.getWantedGoods().hashCode();
+                }
             }
         }
         rev = 31 * rev + palette.hashCode() + owners.size();
@@ -939,7 +1016,21 @@ final class CompanionState {
             j.obj().put("x", s.getTile().getX()).put("y", s.getTile().getY())
                 .put("name", s.getName()).put("c", c)
                 .put("mine", s.getOwner() == player)
-                .put("colony", s instanceof Colony).end();
+                .put("owner", (s.getOwner() == null) ? ""
+                    : Messages.message(s.getOwner().getNationLabel()))
+                .put("colony", s instanceof Colony);
+            if (s instanceof IndianSettlement) {
+                final IndianSettlement is = (IndianSettlement)s;
+                j.put("capital", is.isCapital())
+                    .put("skill", (is.getLearnableSkill() == null) ? null
+                        : Messages.getName(is.getLearnableSkill()));
+                j.key("wanted").arr();
+                for (GoodsType gt : is.getWantedGoods()) {
+                    if (gt != null) j.val(gt.getId());
+                }
+                j.endArr();
+            }
+            j.end();
         }
         j.endArr();
         this.mapJson = j.end().toString();

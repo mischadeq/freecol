@@ -37,6 +37,7 @@ import javax.swing.SpinnerNumberModel;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.gui.FontLibrary;
 import net.sf.freecol.client.gui.DialogHandler;
 import net.sf.freecol.client.gui.label.GoodsLabel;
 import net.sf.freecol.client.gui.panel.FreeColButton.ButtonStyle;
@@ -74,6 +75,9 @@ public final class WarehouseDialog extends FreeColPanel {
 
         final JPanel panel = new MigPanel(new MigLayout("fill, wrap 1", "", ""));
         panel.add(Utility.localizedHeader(Messages.nameKey("warehouseDialog"), Utility.FONTSPEC_TITLE), "align center");
+        // What the numbers in each box mean, said once.
+        panel.add(Utility.localizedTextArea("warehouseDialog.legend", 60),
+                  "align center");
         panel.add(scrollPane, "grow, gap 0 0");
         
         final JButton okButton = Utility.localizedButton("ok").withButtonStyle(ButtonStyle.IMPORTANT);
@@ -149,7 +153,8 @@ public final class WarehouseDialog extends FreeColPanel {
 
         public WarehouseGoodsPanel(FreeColClient freeColClient, Colony colony,
                                    GoodsType goodsType) {
-            super("WarehouseGoodsPanelUI", new MigLayout("wrap 2", "", ""));
+            super("WarehouseGoodsPanelUI",
+                  new MigLayout("gapy 2", "[][right][]", ""));
 
             final boolean enhancedTradeRoutes = colony.getSpecification()
                 .getBoolean(GameOptions.ENHANCED_TRADE_ROUTES);
@@ -168,8 +173,11 @@ public final class WarehouseDialog extends FreeColPanel {
             Goods goods = new Goods(colony.getGame(), colony, goodsType,
                                     colony.getGoodsCount(goodsType));
             GoodsLabel goodsLabel = new GoodsLabel(freeColClient, goods);
-            goodsLabel.setHorizontalAlignment(JLabel.LEADING);
-            add(goodsLabel, "span 1 2");
+            goodsLabel.setHorizontalAlignment(JLabel.CENTER);
+            // The amount under the icon, apart from the numbers to set.
+            goodsLabel.setHorizontalTextPosition(JLabel.CENTER);
+            goodsLabel.setVerticalTextPosition(JLabel.BOTTOM);
+            int row = 0;
 
             // low level settings
             SpinnerNumberModel lowLevelModel
@@ -177,7 +185,10 @@ public final class WarehouseDialog extends FreeColPanel {
             lowLevel = new JSpinner(lowLevelModel);
             Utility.localizeToolTip(lowLevel,
                 "warehouseDialog.lowLevel.shortDescription");
-            add(lowLevel);
+            add(label("warehouseDialog.lowLevel",
+                      "warehouseDialog.lowLevel.shortDescription"),
+                "cell 1 " + row);
+            add(lowLevel, "cell 2 " + row++);
 
             // high level settings
             SpinnerNumberModel highLevelModel
@@ -185,7 +196,10 @@ public final class WarehouseDialog extends FreeColPanel {
             highLevel = new JSpinner(highLevelModel);
             Utility.localizeToolTip(highLevel,
                 "warehouseDialog.highLevel.shortDescription");
-            add(highLevel);
+            add(label("warehouseDialog.highLevel",
+                      "warehouseDialog.highLevel.shortDescription"),
+                "cell 1 " + row);
+            add(highLevel, "cell 2 " + row++);
 
             if (enhancedTradeRoutes) { // import level settings
                 int importInit = exportData.getEffectiveImportLevel(capacity);
@@ -195,7 +209,10 @@ public final class WarehouseDialog extends FreeColPanel {
                 importLevel = new JSpinner(importLevelModel);
                 Utility.localizeToolTip(importLevel,
                     "warehouseDialog.importLevel.shortDescription");
-                add(importLevel);
+                add(label("warehouseDialog.importLevel",
+                          "warehouseDialog.importLevel.shortDescription"),
+                    "cell 1 " + row);
+                add(importLevel, "cell 2 " + row++);
             } else {
                 importLevel = null;
             }
@@ -208,7 +225,6 @@ public final class WarehouseDialog extends FreeColPanel {
             if (!colony.hasAbility(Ability.EXPORT)) {
                 export.setEnabled(false);
             }
-            add(export);
 
             // export level settings
             SpinnerNumberModel exportLevelModel
@@ -217,9 +233,23 @@ public final class WarehouseDialog extends FreeColPanel {
             exportLevel = new JSpinner(exportLevelModel);
             Utility.localizeToolTip(exportLevel,
                 "warehouseDialog.exportLevel.shortDescription");
-            add(exportLevel);
+            add(label("warehouseDialog.exportLevel",
+                      "warehouseDialog.exportLevel.shortDescription"),
+                "cell 1 " + row);
+            add(exportLevel, "cell 2 " + row++);
+            // The custom house sells what is above the same level.
+            add(export, "cell 1 " + row + " 2 1");
+            add(goodsLabel, "cell 0 0 1 " + row + ", aligny center");
 
             setSize(getPreferredSize());
+        }
+
+        /** A small label for a number, with the same tool tip. */
+        private JLabel label(String key, String tip) {
+            JLabel l = Utility.localizedLabel(key);
+            l.setFont(FontLibrary.getScaledFont("normal-plain-tiny"));
+            Utility.localizeToolTip(l, tip);
+            return l;
         }
 
         public void saveSettings() {

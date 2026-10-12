@@ -2530,6 +2530,24 @@ public class GUI extends FreeColClientHolder {
                                       boolean needToPay) { return -1; }
 
     /**
+     * Show a dialog allowing selecting an amount of goods, with the
+     * price shown when the goods are sold to the market in Europe.
+     *
+     * @param goodsType The {@code GoodsType} to select an amount of.
+     * @param available The amount of goods available.
+     * @param defaultAmount The amount to select to start with.
+     * @param needToPay If true, this is a purchase from the market.
+     * @param sale If true, this is a sale to the market.
+     * @return The amount selected.
+     */
+    public int showSelectAmountDialog(GoodsType goodsType, int available,
+                                      int defaultAmount, boolean needToPay,
+                                      boolean sale) {
+        return showSelectAmountDialog(goodsType, available, defaultAmount,
+                                      needToPay);
+    }
+
+    /**
      * Show a dialog allowing the user to select a destination for
      * a given unit.
      *

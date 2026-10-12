@@ -305,6 +305,9 @@
         <!-- Serve the companion page for a second monitor. -->
         <booleanOption id="model.option.companionPage"
                        defaultValue="true"/>
+        <!-- Routine colony messages go to the companion page while it is open. -->
+        <booleanOption id="model.option.companionRoutine"
+                       defaultValue="true"/>
         <!-- The port the companion page is served on (this computer only). -->
         <integerOption id="model.option.companionPort"
                        defaultValue="8765" minimumValue="1024" maximumValue="65535"/>

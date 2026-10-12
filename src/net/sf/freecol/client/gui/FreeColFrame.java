@@ -102,7 +102,17 @@ public class FreeColFrame extends JFrame {
 
         // Use default bounds if not windowed or (possibly deliberately)
         // invalid bounds specified
-        if (!windowed || bounds==null || bounds.width<=0 || bounds.height<=0) {
+        if (this.borderless) {
+            // Leave the taskbar free: otherwise Windows draws it over
+            // the bottom of the game (the order buttons) whenever
+            // another monitor has the focus.
+            final Rectangle screen = gd.getDefaultConfiguration().getBounds();
+            final Insets si = Toolkit.getDefaultToolkit()
+                .getScreenInsets(gd.getDefaultConfiguration());
+            bounds = new Rectangle(screen.x + si.left, screen.y + si.top,
+                screen.width - si.left - si.right,
+                screen.height - si.top - si.bottom);
+        } else if (!windowed || bounds==null || bounds.width<=0 || bounds.height<=0) {
             bounds = gd.getDefaultConfiguration().getBounds();
             if (windowed) {
                 Insets screenInsets = Toolkit.getDefaultToolkit()

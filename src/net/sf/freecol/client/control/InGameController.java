@@ -892,6 +892,62 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Find the automatic save made at the start of a turn of this game.
+     * Every turn is saved as "Autosave-<game>_<nation>_<year>"; the
+     * fixed "last-turn" file is the fallback for the current turn.
+     *
+     * @param back 0 for the start of this turn, 1 for the turn before.
+     * @return The save {@code File}, or null if there is none.
+     */
+    private File getTurnStartSave(int back) {
+        final Game game = getGame();
+        if (game == null || getMyPlayer() == null) return null;
+        final ClientOptions options = getClientOptions();
+        final String prefix = options.getText(ClientOptions.AUTO_SAVE_PREFIX);
+        final int number = game.getTurn().getNumber() - back;
+        if (number < 1) return null;
+        final String gid = Integer.toHexString(game.getUUID().hashCode());
+        final String name = (prefix + "-" + gid + "_"
+            + Messages.message(getMyPlayer().getNationLabel()) + "_"
+            + new Turn(number).getSaveGameSuffix() + "."
+            + FreeCol.FREECOL_SAVE_EXTENSION).replaceAll(" ", "_");
+        File file = FreeColDirectories.getAutosaveFile(name);
+        if (file != null && file.exists()) return file;
+        if (back == 0) {
+            file = FreeColDirectories.getAutosaveFile(prefix + "-"
+                + options.getText(ClientOptions.LAST_TURN_NAME) + "."
+                + FreeCol.FREECOL_SAVE_EXTENSION);
+            if (file != null && file.exists()) return file;
+        }
+        return null;
+    }
+
+    /**
+     * Go back to the start of this turn, or of the turn before, by
+     * loading the automatic save made at that moment.  The game itself
+     * has no undo, so this is the safety net for mistakes such as
+     * disbanding the wrong unit or sending one the wrong way.
+     *
+     * Called from RestartTurnAction.
+     *
+     * @param back 0 for the start of this turn, 1 for the turn before.
+     */
+    public void restartTurn(int back) {
+        final File file = getTurnStartSave(back);
+        if (file == null) {
+            getGUI().showInformationPanel("restartTurn.noSave");
+            return;
+        }
+        final Turn turn = new Turn(getGame().getTurn().getNumber() - back);
+        if (!getGUI().modalConfirmDialog(null,
+                StringTemplate.template("restartTurn.confirm")
+                    .addStringTemplate("%date%", turn.getLabel()),
+                (javax.swing.ImageIcon)null,
+                "restartTurn.yes", "restartTurn.no", false)) return;
+        startGameFile(file);
+    }
+
+    /**
      * Saves the game to the given file.
      *
      * @param file The {@code File}.
@@ -988,13 +1044,22 @@ public final class InGameController extends FreeColClientHolder {
         final List<ModelMessage> messages = new ArrayList<>();
         List<ModelMessage> todo = (allMessages) ? player.getModelMessages()
             : player.getNewModelMessages();
+        // Routine colony messages go to the companion page while it is
+        // open: its log keeps them, its colony cards show the cause.
+        final boolean toPage = co.getBoolean(ClientOptions.COMPANION_ROUTINE)
+            && net.sf.freecol.client.companion.CompanionServer.isPageOpen();
+        int moved = 0;
 
         for (ModelMessage m : todo) {
             final String key = m.getOptionName();
             try {
                 if ((key == null || co.getBoolean(key))
                     && !continueIgnoreMessage(m.getIgnoredMessageKey(), thisTurn)) {
-                    messages.add(m);
+                    if (toPage && isRoutine(m)) {
+                        moved++;
+                    } else {
+                        messages.add(m);
+                    }
                 }
             } catch (RuntimeException rte) {
                 logger.warning("Bogus ModelMessage with key<" + key
@@ -1004,6 +1069,13 @@ public final class InGameController extends FreeColClientHolder {
         }
 
         reapIgnoredMessages(thisTurn);
+
+        // Say where the rest went, but only in a report shown anyway.
+        if (moved > 0 && !messages.isEmpty() && endOfTurn) {
+            messages.add(new ModelMessage(ModelMessage.MessageType.DEFAULT,
+                    "companion.report.moved", player)
+                .addAmount("%number%", moved));
+        }
 
         if (!messages.isEmpty()) {
             Runnable uiTask;
@@ -1016,6 +1088,25 @@ public final class InGameController extends FreeColClientHolder {
             getGUI().invokeNowOrWait(uiTask);
         }
         return !messages.isEmpty();
+    }
+
+    /**
+     * Is a message routine colony news, that the companion page shows
+     * better: goods missing or overflowing, rebels and production
+     * bonus, market prices, trade route goods and arrivals?
+     *
+     * @param m The {@code ModelMessage} to check.
+     * @return True if the message may go to the companion page.
+     */
+    static boolean isRoutine(ModelMessage m) {
+        switch (m.getMessageType()) {
+        case MISSING_GOODS: case WAREHOUSE_CAPACITY: case GOODS_MOVEMENT:
+        case MARKET_PRICES: case GOVERNMENT_EFFICIENCY: case SONS_OF_LIBERTY:
+        case UNIT_ARRIVED:
+            return true;
+        default:
+            return false;
+        }
     }
 
     /**
@@ -3972,7 +4063,16 @@ public final class InGameController extends FreeColClientHolder {
             // User aborted.
             return;
         }
+        startGameFile(file);
+    }
 
+    /**
+     * Stop the current game and start the one saved in a file.
+     *
+     * @param file The save {@code File} to load.
+     */
+    private void startGameFile(File file) {
+        final FreeColClient fcc = getFreeColClient();
         if (fcc.isLoggedIn()) {
             fcc.getConnectController().requestLogout(LogoutReason.LOGIN);
         }
@@ -4429,6 +4529,17 @@ public final class InGameController extends FreeColClientHolder {
                     transform(nt.getUnitToSettlement(), alwaysTrue(),
                               goodsMapper));
                 if (nti != null) {
+                    // Give all of it, or just a part.
+                    final Goods whole = nti.getGoods();
+                    if (whole.getAmount() > 1) {
+                        int amount = getGUI().showSelectAmountDialog(
+                            whole.getType(), whole.getAmount(),
+                            whole.getAmount(), false);
+                        if (amount <= 0) break;
+                        if (amount < whole.getAmount()) {
+                            nti = nti.withAmount(amount);
+                        }
+                    }
                     nt.setItem(nti);
                     askServer().nativeTrade(NativeTradeAction.GIFT, nt);
                     return;
@@ -5415,6 +5526,14 @@ public final class InGameController extends FreeColClientHolder {
 
             // Get turn report out quickly before more message display occurs.
             player.removeDisplayedModelMessages();
+            // Note the prices in Europe for the companion page's history.
+            try {
+                net.sf.freecol.client.companion.CompanionMarket.record(game,
+                                                                      player);
+                net.sf.freecol.client.companion.CompanionServer.recordTurn();
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Price record failed", re);
+            }
             // Add warnings about supply lines that stopped covering
             // a colony's needs.  Never let this break the turn.
             try {

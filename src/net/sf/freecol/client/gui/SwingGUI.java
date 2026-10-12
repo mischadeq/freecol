@@ -2760,6 +2760,18 @@ public class SwingGUI extends GUI {
      * {@inheritDoc}
      */
     @Override
+    public int showSelectAmountDialog(GoodsType goodsType, int available,
+                                      int defaultAmount, boolean needToPay,
+                                      boolean sale) {
+        return this.widgets.showSelectAmountDialog(goodsType, available,
+                                                   defaultAmount, needToPay,
+                                                   sale);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public Location showSelectDestinationDialog(Unit unit) {
         return this.widgets.showSelectDestinationDialog(unit,
             getPopupPosition(unit.getTile()));

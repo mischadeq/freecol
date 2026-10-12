@@ -394,6 +394,29 @@ public class NativeTrade extends FreeColGameObject {
     }
 
     /**
+     * Remove a gift from the unit list of items.  A gift may be part
+     * of the goods: the rest stays on offer.
+     *
+     * @param nti The {@code NativeTradeItem} given away.
+     */
+    public void removeGiftFromUnit(NativeTradeItem nti) {
+        final NativeTradeItem whole = find(this.unitToSettlement,
+                                           nti.partMatcher());
+        if (whole == null) {
+            removeFromUnit(nti);
+            return;
+        }
+        final int rest = whole.getGoods().getAmount()
+            - nti.getGoods().getAmount();
+        final int i = this.unitToSettlement.indexOf(whole);
+        if (rest > 0) {
+            this.unitToSettlement.set(i, whole.withAmount(rest));
+        } else {
+            this.unitToSettlement.remove(i);
+        }
+    }
+
+    /**
      * Is another native trade compatible with this one?
      *
      * @param nt The other {@code NativeTrade}.

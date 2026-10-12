@@ -247,3 +247,108 @@ body.logOpen.push #mapSec { margin-right: var(--log-w); }
 .tag.warn { color: var(--warn); }
 img.gi[data-g] { cursor: help; }
 .pediaBody a { color: var(--info); }
+
+/* Relations */
+.rel[hidden] { display: none; }
+.rel { flex: 1; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.5); }
+.tag.alarm { color: var(--alarm); }
+.tag.info { color: var(--info); }
+.tag.m { color: var(--muted); }
+.set { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; font-size: 12px; }
+.set.link { cursor: pointer; }
+.set.link:hover .sn { color: var(--gold); }
+.set .sn { font-size: 13px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.set .sd { margin-top: 2px; }
+.pe dd .track { height: 5px; background: #2b323c; border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.pe dd .fill { height: 100%; background: var(--gold); }
+
+.loglist li.natives { border-left-color: #b07cff; }
+
+/* Europe market */
+.msum { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 8px; font-size: 14px; }
+.msum .up, .mrow .up { color: var(--ok); }
+.msum .down, .mrow .down { color: var(--alarm); }
+.mchart { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.mhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mleg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-left: 12px; }
+.mleg i { width: 18px; height: 3px; display: inline-block; border-radius: 2px; }
+.mleg i.dash { height: 0; border-top: 2px dashed; background: none; }
+.mwrap { position: relative; }
+#mchart { width: 100%; height: 220px; display: block; margin-top: 6px; }
+.mtable { margin-top: 8px; display: grid; gap: 2px; }
+.mrow {
+  display: grid; grid-template-columns: 22px 1fr 50px 50px 64px 76px 70px; gap: 8px; align-items: center;
+  padding: 4px 8px; border-radius: 6px; background: var(--panel); cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.mrow:hover { background: var(--panel2); }
+.mrow.sel { outline: 1px solid var(--gold); }
+.mrow.mh { background: none; cursor: default; color: var(--muted); font-size: 12px; }
+.mrow .num { text-align: right; }
+
+/* Nations ranking */
+.natsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 8px; }
+.nchip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+.nchip .lbl { color: var(--muted); margin-right: 4px; }
+.nline { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+.nline b { color: var(--text); font-weight: 600; }
+.ntable { overflow-x: auto; margin-bottom: 8px; }
+.ntable table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ntable th { color: var(--muted); font-weight: 400; font-size: 12px; padding: 3px 6px; text-align: left; white-space: nowrap; }
+.ntable th.num { text-align: right; }
+.ntable th[data-m] { cursor: pointer; }
+.ntable th[data-m]:hover { color: var(--text); }
+.ntable th.sel { color: var(--gold); }
+.ntable tr.grp th { text-transform: uppercase; letter-spacing: .06em; font-size: 10px; border-bottom: 1px solid var(--line); text-align: center; }
+.ntable td { padding: 5px 6px; border-top: 1px solid var(--line); white-space: nowrap; }
+.ntable td.num { text-align: right; position: relative; min-width: 62px; }
+.ntable td.num.sel { background: rgba(224, 172, 72, .06); }
+.ntable tr.me td { background: rgba(181, 131, 42, .12); }
+.ntable tr.me td.nname { box-shadow: inset 3px 0 0 #b5832a; font-weight: 600; }
+.ntable tr.unmet td { color: var(--muted); }
+.ntable .nname { min-width: 120px; }
+.ntable .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; vertical-align: 0; }
+.ntable .rk { float: left; font-size: 10px; color: var(--muted); border: 1px solid transparent; border-radius: 999px; min-width: 16px; padding: 0 3px; text-align: center; line-height: 14px; margin-top: 1px; }
+.ntable .rk.first { color: var(--gold); border-color: var(--gold); }
+.ntable .bar { display: block; height: 3px; margin-top: 3px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
+.ntable .bar i { display: block; height: 100%; }
+.ntable .szs { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
+.ntable .szs i { width: 5px; border-radius: 1px; flex: none; }
+#nchart { width: 100%; height: 200px; display: block; margin-top: 6px; }
+.tip .row.me { color: var(--gold); }
+.note { font-size: 12px; margin: 8px 0 0; }
+
+/* Colony advice */
+.advice { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.advice li { padding: 2px 0 2px 8px; border-left: 3px solid var(--line); color: var(--muted); }
+.advice li.alarm { border-left-color: var(--alarm); color: var(--text); }
+.advice li.warn { border-left-color: var(--warn); color: var(--text); }
+.advice li img.gi { width: 16px; height: 16px; vertical-align: -3px; }
+
+/* Supply network */
+#net { width: 100%; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+#net .netnode { cursor: pointer; }
+#net .netnode:hover circle { stroke: var(--gold); }
+.netleg { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.netleg span { display: inline-flex; align-items: center; gap: 6px; }
+.netleg i { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+.netleg i.dash { height: 0; border-top: 2px dashed; background: none; }
+.netleg .stuckkey { width: 12px; height: 12px; border: 1px solid #f2a93b; border-radius: 3px; background: #2b2216; }
+.netleg .ringkey { width: 12px; height: 12px; border: 3px solid #e0ac48; border-radius: 50%; border-right-color: transparent; }
+
+/* Liberty gauge and advice chips */
+.liberty { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.pips { display: inline-flex; gap: 3px; }
+.pip { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #5a6573; }
+.pip.reb { background: var(--gold); }
+.pip.bad { background: var(--alarm); }
+.pip.edge { background: none; border: 1.5px dashed var(--alarm); width: 8px; height: 8px; }
+.bells { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.bells.bad { color: var(--alarm); }
+.bells img.gi { width: 16px; height: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip2 { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 8px 1px 4px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); cursor: help; white-space: nowrap; }
+.chip2.alarm { border-color: var(--alarm); color: var(--text); }
+.chip2.warn { border-color: var(--warn); color: var(--text); }
+.chip2 img.gi { width: 16px; height: 16px; }

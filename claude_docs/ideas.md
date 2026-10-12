@@ -131,6 +131,73 @@ there. That is a smoke test, not a play test.
       default: a window without borders over the whole screen instead.
       Restart after changing. Not testable in the sandbox (no full
       screen there): Mischa to check.
+- [ ] **Undo: Game > Restart This Turn / Go Back One Turn.** FreeCol
+      has no undo (the server decides everything), but it already saves
+      at the start of every turn (Autosave-<game>_<nation>_<year>.fsg).
+      These two menu items reload that save after a confirmation, for
+      mistakes like disbanding the wrong unit. Sandbox-checked: Restart
+      This Turn reloads the game at the start of the turn; with no save
+      for a turn it says so.
+- [ ] **Borderless full screen leaves the taskbar free.** Windows drew
+      its taskbar over the bottom of the borderless game (hiding the
+      order buttons) when the other monitor had the focus. The game now
+      fills the screen above the taskbar. Mischa to check.
+- [ ] **Prices in the amount dialog (Europe).** When buying from or
+      selling to the market in Europe (Shift+drag), the dialog shows the
+      price as you type: "Cost: 20 × 3 = 60 gold, gold afterwards ..."
+      (no tax on purchases) or "Sale: ... tax 10% = ..., you receive ...
+      gold afterwards ...", and warns about boycotts. Same formulas as
+      the server (ServerPlayer.buyInEurope / sellInEurope).
+      Sandbox-checked (screenshots of both).
+- [ ] **Treasury line on the Europe screen**, next to the buttons: gold,
+      tax, taxes paid so far this game, trade balance (sales after tax
+      minus purchases), from the market's own records. Updates every
+      second. Sandbox-checked.
+- [ ] **Europe market section on the companion page**: tax, taxes paid
+      and trade balance; a price chart per goods (you sell for / you
+      buy for, step lines, hover for the turn, colours validated for the
+      dark background, buy line dashed); a table of all goods with sell
+      and buy price, change over 10 turns, how much you sold, tax paid.
+      Click a row to chart it. The game does not keep old prices, so
+      they are recorded each turn to companion/prices-<game>.csv in the
+      FreeCol user folder: the history starts with this version and
+      grows as you play. Sandbox-checked with seeded history.
+- [ ] **Relations tab on the companion page** (R, or the Relations
+      button). Homefront: tax, rebels %, colonies, Congress (next father
+      and bells to go), immigration (crosses), Europe (docks, ships,
+      recruit price), boycotts with the cost to lift, the King's army.
+      European nations: met or not, stance, known colonies. Native
+      tribes you have met: stance, worst mood, tribe profile from the
+      rules (settlements, aggression, usual skills), and per known
+      settlement: capital, mood, skill taught, the three wanted goods
+      (+50/+25/+10%), missions, most hated nation. Click a settlement to
+      show it on the map. Only what the game lets you know.
+      Sandbox-checked with Mischa's save (Tupi, English, French).
+      Wanted goods change over time, so each settlement shows "as of
+      turn N" (when this session last saw them change), the log gets a
+      line "<settlement> now wants ..." when they change, and hovering a
+      native settlement on the map shows its skill and wanted goods.
+      Not yet seen live: a change being logged (needs a visit).
+- [ ] **claude_docs/tribes.md**: the eight tribes, from the rules and
+      the trade code: settlements, temper, region, richness, skills with
+      odds, what they sell, how prices work, mood, haggling odds,
+      teaching rules (capitals teach repeatedly), missionary vs scout vs
+      soldier.
+- [ ] **claude_docs/freecol-advisor-prompt.md**: a prompt to paste into
+      Claude Haiku 5.5 (or a Project) to ask FreeCol questions. Contains
+      the verified core rules, the tribe guide, our extra tools, and
+      tables of buildings, units and founding fathers generated from the
+      rule files.
+- [ ] **Fix: asking natives for a lower price when buying failed.**
+      Reported by Mischa (90 furs at an Iroquois village). FreeCol bug,
+      not ours: the haggle offer is sent with the price unset, it
+      overwrites the server's copy of the trade, and the server then
+      found nothing buyable ("Can not buy"). Selling already skipped
+      that check while haggling; buying now does the same
+      (server/control/InGameController.nativeTrade). Unit test
+      NativeTradeHaggleTest fails without the fix with the exact error
+      from Mischa's log, passes with it. Natives may still refuse to
+      haggle further, that is the normal rule.
 - [ ] **Fix: wagons on an edited route counted as "no carrier".**
       FreeCol's own TradeRoute.getAssignedUnits() compares route objects
       by identity, and after a route is edited the client keeps two
@@ -138,6 +205,96 @@ there. That is a smoke test, not a play test.
       companion page now match carriers by route id instead. Found in the
       sandbox: the game warned "no wagon train is assigned" for a route
       with two wagons. Unit test added.
+- [ ] **Companion page: nations ranking.** A section under Colonies
+      that puts the European nations side by side: expansion (colonies,
+      colonists, colonists per colony, a bar per colony by size, units),
+      economy (gold, tax), military (army and navy strength) and politics
+      (rebels %, fathers). Each cell has its rank and a bar; the chips on
+      top give your rank per group, and a line says where you are ahead
+      and behind. Click a column to sort by it and see its trend over the
+      turns (you in gold, the others grey). Figures come from the same
+      server query as the Foreign Affairs report (rebels, fathers and tax
+      of others need Jan de Witt), colony sizes from the map. Recorded
+      each turn to companion/nations-<game>-<player>.csv. Files:
+      CompanionNations.java (new), CompanionServer (/api/nations),
+      client InGameController (record at turn start), page files.
+- [ ] **Gift part of a load to the natives.** Choosing a gift now asks
+      how much to give (all of it by default) instead of always handing
+      over the whole hold. The server values the part itself, from its
+      own copy of the trade, so a client can not inflate the value, and
+      the rest stays on offer. Files: NativeTradeItem (partMatcher,
+      withAmount), NativeTrade (removeGiftFromUnit), server
+      InGameController and NativeAIPlayer (match a part), client
+      InGameController (amount dialog). Unit test NativeTradeGiftTest.
+- [ ] **Colony advice that keeps the supply network intact** (Mischa:
+      warn when a colony is suboptimal, but Arnhem must keep feeding
+      Nijmegen). Each colony card on the companion page gets a Network
+      row (what it sends where along which route, and how much the
+      receiver is short per turn) and an Advice list: a supplier that
+      cannot cover the shortfall it is meant to cover, the tory penalty
+      or being at its edge, nobody in the town hall (who could move
+      there, or that nobody can be spared), bells made versus bells the
+      colonists use (each colonist past the second uses one a turn, so
+      one colonist in the town hall often wins no rebels at all), swaps
+      of two colonists that only gain, experts with a free place in their
+      own trade, goods a route brings that go no further (Nijmegen's
+      coats), goods nothing uses, muskets and horses with no soldier.
+      Every move or swap is checked first: it may not bring anything
+      below what the colony's routes must deliver, and may not turn a
+      surplus into a shortage. Grain counts as food. Only advice; nothing
+      is moved. Bells no longer show as "runs out in 0 turns". Files:
+      client/control/ColonyAdvisor.java (new), CompanionState, page
+      files, messages. Unit test ColonyAdvisorTest (duty from a route,
+      the food supply can not be cut, the farmer is never sent to the
+      town hall, a swap that only gains is found).
+- [ ] **Companion page says more with less** (Mischa: "a load of
+      text"). A Supply network graph above the colonies: colonies placed
+      as on the map, an arrow per route connection with the goods on it
+      and how much the receiver lacks per turn; grey keeps up, red the
+      supplier makes too little, dashed amber nothing to send; a gold
+      arc for rebels, an amber or red ring at or past the tory limit, a
+      goods box beside a colony where deliveries pile up. Click a colony
+      to find it on the map and its card. On the cards the Network row
+      and the advice sentences became a Liberty gauge (a pip per
+      colonist: rebels gold, tories grey, past the limit red, a dashed
+      red pip when the next tory brings the penalty; bells made/used;
+      bells to 50%) and short chips with the full advice on hover.
+- [ ] **High balling or low balling in the trade dialog.** When trading
+      with a computer nation, the middle of the Trade Negotiation dialog
+      says what the deal is worth to them and whether the gold asked is
+      High balling (with the counter offer they will make, or that they
+      will refuse because they do not have it), Fair, or Low balling
+      (with what they would pay). It follows the computer's own rules
+      (EuropeanAIPlayer.acceptDiplomaticTrade), with our prices standing
+      in for theirs. Unit test TradeAppraisalTest checks it against the
+      real computer player. Found on the way: the computer counts goods
+      it gives you as a gain, and its counter offer is the gold asked
+      minus half the deal's value, often more than the deal is worth;
+      both left as they are, the estimate follows them.
+- [ ] **Fix: the Trade Negotiation dialog was cut off on the right**
+      (the right column and the Send button). The window was sized
+      before the wrapped texts in the middle were laid out; it is now
+      sized again once they are. The texts in the middle wrap narrower.
+- [ ] **Routine colony messages go to the companion page** (Mischa: too
+      many warnings in the turn report, move them to the page, do not
+      crowd both). While the page is open in a browser (it asked for the
+      state in the last 30 seconds), messages about missing or
+      overflowing goods, rebels and production, market prices, trade
+      route goods and arrivals stay out of the turn report and appear in
+      the page's log; the colony cards already show their cause. When
+      the report opens anyway, one line says how many went to the page.
+      Combat, demands, losses, buildings finished and other news stay in
+      the game. Option: Routine colony messages on the companion page
+      (on by default). Tested on Mischa's save: the report went from four
+      lines to the emigrant plus "3 routine colony messages are in the
+      companion page's log". Unit test RoutineMessagesTest.
+- [ ] **Warehouse dialog explains its numbers** (Mischa: "I just see 10
+      90 50"). Each box now labels them Low %, High % and Keep (and
+      Import with enhanced trade routes), with the amount in store under
+      the icon instead of beside the numbers; one line under the title
+      says what they mean: Low and High are warnings as a share of the
+      warehouse, Keep is an amount that stays, trade routes and the
+      custom house take only what is above it. Tool tips say the same.
 
 ### Committed in 0893f2ac5 / 860678de9
 

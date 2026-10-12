@@ -106,6 +106,34 @@ public final class CompanionServer {
         }
     }
 
+    /** When the page last asked for the game state. */
+    private static volatile long lastPoll = 0L;
+
+    /** The page asks every second or so; this long without means closed. */
+    private static final long OPEN_MILLIS = 30_000L;
+
+    /**
+     * Is the companion page open in a browser right now?
+     *
+     * @return True if the page asked for the game state recently.
+     */
+    public static boolean isPageOpen() {
+        return System.currentTimeMillis() - lastPoll < OPEN_MILLIS;
+    }
+
+    /**
+     * Record per-turn figures for the page's history charts, if the
+     * page is running.  Called at the start of each turn.
+     */
+    public static synchronized void recordTurn() {
+        if (instance == null) return;
+        try {
+            CompanionNations.record(instance.fcc);
+        } catch (RuntimeException re) {
+            logger.log(Level.WARNING, "Nation record failed", re);
+        }
+    }
+
     /**
      * Get the address of the page.
      *
@@ -130,6 +158,7 @@ public final class CompanionServer {
             if (!"GET".equals(ex.getRequestMethod())) {
                 send(ex, 405, "text/plain", "Read only".getBytes());
             } else if ("/api/state".equals(path)) {
+                lastPoll = System.currentTimeMillis();
                 final long since = parseSince(ex.getRequestURI().getRawQuery());
                 String json;
                 try {
@@ -137,6 +166,39 @@ public final class CompanionServer {
                 } catch (Exception e) {
                     // The game is busy, the page asks again shortly.
                     json = "{\"busy\":true}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/nations".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionNations.build(this.fcc, this.fcc.getGame(),
+                                                 this.fcc.getMyPlayer(), true));
+                } catch (Exception e) {
+                    json = "{}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/market".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionMarket.build(this.fcc.getGame(),
+                                                this.fcc.getMyPlayer()));
+                } catch (Exception e) {
+                    json = "{}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/relations".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionRelations.build(this.fcc.getGame(),
+                                                   this.fcc.getMyPlayer()));
+                } catch (Exception e) {
+                    json = "{}";
                 }
                 send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
             } else if ("/api/colopedia".equals(path)) {

@@ -940,7 +940,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
             return NativeTradeAction.ACK_SELL_HAGGLE;
 
         case GIFT:
-            ours = find(nt.getUnitToSettlement(), nt.getItem().goodsMatcher());
+            ours = find(nt.getUnitToSettlement(), nt.getItem().partMatcher());
             if (ours == null) return NativeTradeAction.NAK_INVALID;
             return (is.canAdd(nt.getItem().getGoods()))
                 ? NativeTradeAction.ACK_GIFT

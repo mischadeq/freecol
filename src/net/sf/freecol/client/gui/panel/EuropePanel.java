@@ -36,6 +36,7 @@ import javax.swing.ComponentInputMap;
 import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
@@ -610,6 +611,12 @@ public final class EuropePanel extends PortPanel {
 
     private MarketPanel marketPanel;
 
+    /** Gold, tax and taxes paid, next to the buttons. */
+    private JLabel treasury = new JLabel();
+
+    /** Keeps the treasury line up to date while the panel is shown. */
+    private javax.swing.Timer treasuryTimer;
+
     private TransactionLog log;
 
     private JButton exitButton, trainButton, purchaseButton,
@@ -746,12 +753,16 @@ public final class EuropePanel extends PortPanel {
         add(cargoScroll, "height 10%:, grow");
         add(marketScroll, "span, height 10%:, grow");
 
-        add(recruitButton, "span, split 6");
+        add(recruitButton, "span, split 7");
         add(purchaseButton);
         add(trainButton);
         add(unloadButton);
         add(sailButton);
+        add(treasury, "growx, gapleft 20");
         add(exitButton, "tag ok");
+        updateTreasury();
+        treasuryTimer = new javax.swing.Timer(1000, ae -> updateTreasury());
+        treasuryTimer.start();
 
         // Select a unit, preferring most recently added
         Unit u = europe.getLastUnit();
@@ -785,6 +796,32 @@ public final class EuropePanel extends PortPanel {
         marketPanel.initialize();
         europeanDocksPanel.initialize();
         log.initialize();
+    }
+
+    /**
+     * Show the player's gold, the tax rate, the taxes paid on sales so
+     * far this game and the trade balance (sales after tax minus
+     * purchases), from the market's own records.
+     */
+    private void updateTreasury() {
+        final Player player = getMyPlayer();
+        if (treasury == null || player == null || player.getMarket() == null) {
+            return;
+        }
+        final Market market = player.getMarket();
+        int taxes = 0, balance = 0;
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            taxes += market.getIncomeBeforeTaxes(gt)
+                - market.getIncomeAfterTaxes(gt);
+            balance += market.getIncomeAfterTaxes(gt);
+        }
+        treasury.setText(Messages.message(StringTemplate
+                .template("europePanel.treasury")
+                .addAmount("%gold%", player.getGold())
+                .addName("%tax%", player.getTax() + "%")
+                .addAmount("%taxes%", taxes)
+                .addName("%balance%", ((balance > 0) ? "+" : "") + balance)));
+        treasury.setToolTipText(Messages.message("europePanel.treasury.tip"));
     }
 
     /**
@@ -900,6 +937,10 @@ public final class EuropePanel extends PortPanel {
     @Override
     public void removeNotify() {
         super.removeNotify();
+        if (treasuryTimer != null) {
+            treasuryTimer.stop();
+            treasuryTimer = null;
+        }
 
         removeAll();
         toAmericaPanel = null;

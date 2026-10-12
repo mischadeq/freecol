@@ -319,9 +319,26 @@ public final class DefaultTransferHandler extends TransferHandler {
      */
     private int getAmount(GoodsType goodsType, int available,
                           int defaultAmount, boolean needToPay) {
+        return getAmount(goodsType, available, defaultAmount, needToPay,
+                         false);
+    }
+
+    /**
+     * Displays an input dialog box where the user should specify a
+     * goods transfer amount, with the price when selling in Europe.
+     *
+     * @param goodsType The {@code GoodsType} to transfer.
+     * @param available The amount of goods available.
+     * @param defaultAmount The default amount of goods to offer.
+     * @param needToPay If true limit by available funds.
+     * @param sale If true the goods are sold to the market.
+     * @return The selected amount of goods.
+     */
+    private int getAmount(GoodsType goodsType, int available,
+                          int defaultAmount, boolean needToPay, boolean sale) {
         return this.freeColClient.getGUI()
             .showSelectAmountDialog(goodsType, available, defaultAmount,
-                                    needToPay);
+                                    needToPay, sale);
     }
 
     /**
@@ -417,7 +434,10 @@ public final class DefaultTransferHandler extends TransferHandler {
                 }
                 goods.setAmount(origAmount);
             }
-            final int amount = getAmount(goods.getType(), goods.getAmount(), defaultAmount, false);
+            // Dropping on the market in Europe is a sale: show the price.
+            final boolean sale = comp.getClass().getName()
+                .endsWith("EuropePanel$MarketPanel");
+            final int amount = getAmount(goods.getType(), goods.getAmount(), defaultAmount, false, sale);
             if (amount <= 0) {
                 return importFail(comp, "weird goods amount (" + amount + ")");
             }

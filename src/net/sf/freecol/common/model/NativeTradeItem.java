@@ -163,6 +163,39 @@ public class NativeTradeItem extends GoodsTradeItem {
         return matchKeyEquals(this.getGoods(), NativeTradeItem::getGoods);
     }
 
+    /**
+     * Get a predicate that matches the item this item is a part of:
+     * the same goods type in the same place, at least as many.  A gift
+     * may be a part of the goods the unit carries.
+     *
+     * @return A suitable {@code Predicate}.
+     */
+    public Predicate<NativeTradeItem> partMatcher() {
+        final Goods g = this.getGoods();
+        return nti -> g.getAmount() > 0
+            && nti.getGoods().getType() == g.getType()
+            && nti.getGoods().getLocation() == g.getLocation()
+            && nti.getGoods().getAmount() >= g.getAmount();
+    }
+
+    /**
+     * Get a copy of this item with fewer goods, its price scaled
+     * to match.
+     *
+     * @param amount The amount of goods.
+     * @return The new {@code NativeTradeItem}.
+     */
+    public NativeTradeItem withAmount(int amount) {
+        final Goods g = this.getGoods();
+        NativeTradeItem nti = new NativeTradeItem(g.getGame(), getSource(),
+            getDestination(),
+            new Goods(g.getGame(), g.getLocation(), g.getType(), amount));
+        nti.price = (!priceIsValid() || g.getAmount() <= 0) ? this.price
+            : Math.max(1, (int)((long)this.price * amount / g.getAmount()));
+        nti.haggleCount = this.haggleCount;
+        return nti;
+    }
+
 
     // Override FreeColObject
 

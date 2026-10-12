@@ -419,6 +419,13 @@ public class ClientOptions extends OptionGroup {
     public static final String COMPANION_PAGE
         = "model.option.companionPage";
 
+    /**
+     * Routine colony messages go to the companion page instead of the
+     * turn report, while the page is open.
+     */
+    public static final String COMPANION_ROUTINE
+        = "model.option.companionRoutine";
+
     /** The local port the companion page is served on. */
     public static final String COMPANION_PORT
         = "model.option.companionPort";

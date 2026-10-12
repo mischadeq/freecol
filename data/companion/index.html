@@ -27,6 +27,7 @@
     <span id="chipIdle" class="chip" title="Units waiting for orders">
       <span class="sym">&#9711;</span> <span id="nIdle">0</span> idle</span>
     <span id="turnState" class="chip quiet"></span>
+    <button id="relToggle" class="chip logbtn" title="Tribes, nations and the homefront (R)">Relations</button>
     <button id="pediaToggle" class="chip logbtn" title="Rules, tips and the game's encyclopedia (C)">Colopedia</button>
     <button id="logToggle" class="chip logbtn" title="Show or hide the log (L)">
       Log <span id="unread" class="unread" hidden>0</span></button>
@@ -46,13 +47,43 @@
       <h2>Alerts</h2>
       <ul id="alerts" class="alerts"></ul>
     </section>
+    <section id="netSec" hidden>
+      <h2>Supply network <span class="sub">what your trade routes carry; the number is how much the receiver lacks per turn</span></h2>
+      <svg id="net" role="img" aria-label="Supply network between your colonies"></svg>
+      <div class="netleg">
+        <span><i style="background:#7d8794"></i>keeps up</span>
+        <span><i style="background:#ff5d61"></i>supplier makes too little</span>
+        <span><i class="dash" style="border-color:#f2a93b"></i>nothing to send</span>
+        <span><b class="stuckkey"></b>piles up, goes no further</span>
+        <span><b class="ringkey"></b>rebels</span>
+      </div>
+    </section>
     <section>
-      <h2>Colonies</h2>
+      <h2>Colonies <span class="sub">advice never cuts a supply line; hover a chip for the details</span></h2>
       <div id="colonies" class="cards"></div>
+    </section>
+    <section id="nationsSec">
+      <h2>Nations ranking <span class="sub">the European colonies side by side; #1 is best</span></h2>
+      <div id="natSummary" class="natsum"></div>
+      <div id="natTable" class="ntable"></div>
+      <div class="mchart">
+        <div id="nchartHead" class="mhead"></div>
+        <div class="mwrap"><svg id="nchart" role="img"></svg><div id="ntip" class="tip" hidden></div></div>
+      </div>
+      <p id="natNote" class="note m"></p>
     </section>
     <section>
       <h2>Empire goods <span class="sub">in all colonies, change per turn</span></h2>
       <div id="goods" class="goods"></div>
+    </section>
+    <section id="marketSec">
+      <h2>Europe market <span class="sub">price per unit; selling a lot of something lowers its price</span></h2>
+      <div id="marketSummary" class="msum"></div>
+      <div class="mchart">
+        <div id="mchartHead" class="mhead"></div>
+        <div class="mwrap"><svg id="mchart" role="img"></svg><div id="mtip" class="tip" hidden></div></div>
+      </div>
+      <div id="marketTable" class="mtable"></div>
     </section>
   </main>
 
@@ -60,11 +91,13 @@
     <div class="drawerHead">
       <div class="dtabs">
         <button class="dtab" data-tab="log">Log</button>
+        <button class="dtab" data-tab="rel">Relations</button>
         <button class="dtab" data-tab="pedia">Colopedia</button>
       </div>
       <button id="logClose" class="x" title="Hide the sidebar">&times;</button>
     </div>
     <ol id="logList" class="loglist"></ol>
+    <div id="rel" class="pediaBody rel" hidden></div>
     <div id="pedia" class="pedia" hidden>
       <div class="pediaTop">
         <input id="pediaSearch" type="search" placeholder="Search goods, buildings, units, fathers" autocomplete="off">

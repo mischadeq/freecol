@@ -73,6 +73,8 @@ import net.sf.freecol.client.gui.action.ReportColonyAction;
 import net.sf.freecol.client.gui.action.ReportColonyOverviewAction;
 import net.sf.freecol.client.gui.action.UnitBadgeLegendAction;
 import net.sf.freecol.client.gui.action.OpenCompanionAction;
+import net.sf.freecol.client.gui.action.PreviousTurnAction;
+import net.sf.freecol.client.gui.action.RestartTurnAction;
 import net.sf.freecol.client.gui.action.ReportLogisticsAction;
 import net.sf.freecol.client.gui.action.ReportGoodsOverviewAction;
 import net.sf.freecol.client.gui.action.ReportUnitOverviewAction;
@@ -174,6 +176,8 @@ public class InGameMenuBar extends FreeColMenuBar {
         menu.add(getMenuItem(NewAction.id));
         menu.add(getMenuItem(OpenAction.id));
         menu.add(getMenuItem(SaveAction.id));
+        menu.add(getMenuItem(RestartTurnAction.id));
+        menu.add(getMenuItem(PreviousTurnAction.id));
 
         menu.addSeparator();
 

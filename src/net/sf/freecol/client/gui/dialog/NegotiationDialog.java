@@ -49,6 +49,7 @@ import javax.swing.SpinnerNumberModel;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.control.TradeAppraisal;
 import net.sf.freecol.client.gui.DialogHandler;
 import net.sf.freecol.client.gui.FontLibrary;
 import net.sf.freecol.client.gui.panel.FreeColButton;
@@ -120,6 +121,12 @@ public final class NegotiationDialog extends FreeColPanel {
 
     private static final int HUGE_DEMAND = 100000;
 
+    /**
+     * Width of the texts in the middle, in em.  Wider texts made the
+     * dialog wider than its window, cutting off the right side.
+     */
+    private static final int SUMMARY_COLUMNS = 15;
+
     private static final String ADD = "add";
     private static final String CLEAR = "clear";
 
@@ -142,6 +149,9 @@ public final class NegotiationDialog extends FreeColPanel {
 
     /** A panel showing a summary of the current agreement. */
     private JPanel summary;
+
+    /** What we know of the other player, for the price estimate. */
+    private NationSummary otherSummary;
 
     /** Useful internal messages. */
     private StringTemplate demand, offer;
@@ -188,6 +198,7 @@ public final class NegotiationDialog extends FreeColPanel {
         this.exchangeMessage = Messages.message("negotiationDialog.exchange");
 
         NationSummary ns = igc().nationSummary(otherPlayer);
+        this.otherSummary = ns;
         int gold = (ns == null
                 || ns.getGold() == Player.GOLD_NOT_ACCOUNTED) ? HUGE_DEMAND
                 : ns.getGold();
@@ -253,7 +264,8 @@ public final class NegotiationDialog extends FreeColPanel {
 
         this.summary = new MigPanel(new MigLayout("wrap 2", "[20px:n:n][]"));
         this.summary.setOpaque(false);
-        this.summary.add(Utility.localizedTextArea(comment), "center, span 2");
+        this.summary.add(Utility.localizedTextArea(comment, SUMMARY_COLUMNS),
+            "center, span 2");
         /**
          * Build Layout of Diplomatic Trade Dialog
          */
@@ -520,7 +532,8 @@ public final class NegotiationDialog extends FreeColPanel {
 
         summary.removeAll();
 
-        summary.add(Utility.localizedTextArea(comment), "center, span 2");
+        summary.add(Utility.localizedTextArea(comment, SUMMARY_COLUMNS),
+            "center, span 2");
 
         List<TradeItem> offers = agreement.getItemsGivenBy(player);
         if (!offers.isEmpty()) {
@@ -540,6 +553,72 @@ public final class NegotiationDialog extends FreeColPanel {
             for (TradeItem item : demands) {
                 summary.add(getTradeItemButton(item, false), "skip");
             }
+        }
+
+        // How does the deal look to a computer player?
+        if (agreement.getContext() == TradeContext.TRADE
+            && otherPlayer.isAI() && otherPlayer.isEuropean()) {
+            final NationSummary ns = this.otherSummary;
+            TradeAppraisal ta = TradeAppraisal.appraise(agreement, player,
+                otherPlayer, (ns == null) ? -1 : ns.getTax(),
+                (ns == null) ? -1 : ns.getNumberOfUnits(),
+                (ns == null || ns.getGold() == Player.GOLD_NOT_ACCOUNTED)
+                    ? -1 : ns.getGold());
+            StringTemplate t = appraisalText(ta);
+            if (t != null) {
+                JTextArea text = Utility.localizedTextArea(t, SUMMARY_COLUMNS);
+                text.setFont(FontLibrary.getScaledFont("normal-bold-tiny"));
+                summary.add(text, "newline 20, span, growx");
+                summary.add(Utility.localizedTextArea(StringTemplate
+                        .key("negotiationDialog.appraisal.note"),
+                        SUMMARY_COLUMNS),
+                    "span, growx");
+            }
+        }
+    }
+
+    /**
+     * The text for a price estimate.
+     *
+     * @param ta The {@code TradeAppraisal}.
+     * @return A {@code StringTemplate}, or null if there is nothing
+     *     to say.
+     */
+    private StringTemplate appraisalText(TradeAppraisal ta) {
+        final String prefix = "negotiationDialog.appraisal.";
+        final StringTemplate nation = otherPlayer.getCountryLabel();
+        switch (ta.verdict) {
+        case ASK:
+            return StringTemplate.template(prefix + "ask")
+                .addStringTemplate("%nation%", nation)
+                .addAmount("%value%", (ta.theirGold >= 0)
+                    ? Math.min(ta.value, ta.theirGold) : ta.value);
+        case LOW_BALL:
+            return StringTemplate.template(prefix + "lowBall")
+                .addStringTemplate("%nation%", nation)
+                .addAmount("%ask%", ta.ask)
+                .addAmount("%value%", (ta.theirGold >= 0)
+                    ? Math.min(ta.value, ta.theirGold) : ta.value);
+        case FAIR:
+            return StringTemplate.template(prefix + "fair")
+                .addStringTemplate("%nation%", nation)
+                .addAmount("%ask%", ta.ask)
+                .addAmount("%value%", ta.value);
+        case HIGH_BALL:
+            return StringTemplate.template(prefix + ((ta.counter < 0)
+                    ? "highBallBroke" : (ta.counter == 0)
+                    ? "highBallDrop" : "highBall"))
+                .addStringTemplate("%nation%", nation)
+                .addAmount("%ask%", ta.ask)
+                .addAmount("%value%", ta.value)
+                .addAmount("%counter%", ta.counter)
+                .addAmount("%gold%", ta.theirGold);
+        case SHORT:
+            return StringTemplate.template(prefix + "short")
+                .addStringTemplate("%nation%", nation)
+                .addAmount("%short%", -ta.value);
+        default:
+            return null;
         }
     }
 
@@ -638,6 +717,33 @@ public final class NegotiationDialog extends FreeColPanel {
 
 
     // Override Component
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        // The wrapped texts only know their height once laid out, and
+        // the window was sized before that, cutting off the right
+        // side.  Size the window again once everything is in place.
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            javax.swing.JInternalFrame f = (javax.swing.JInternalFrame)
+                javax.swing.SwingUtilities.getAncestorOfClass(
+                    javax.swing.JInternalFrame.class, this);
+            if (f == null) return;
+            f.pack();
+            java.awt.Container p = f.getParent();
+            if (p != null) {
+                // Keep it on the screen.
+                int x = Math.max(0, Math.min(f.getX(),
+                        p.getWidth() - f.getWidth()));
+                int y = Math.max(0, Math.min(f.getY(),
+                        p.getHeight() - f.getHeight()));
+                f.setLocation(x, y);
+            }
+        });
+    }
 
     /**
      * {@inheritDoc}

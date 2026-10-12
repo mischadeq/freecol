@@ -67,6 +67,25 @@ public final class SelectGoodsAmountDialog {
      */
     public static FreeColDialog<Integer> create(FreeColClient freeColClient, GoodsType goodsType, int availableAmount,
             int defaultAmount, boolean pay) {
+        return create(freeColClient, goodsType, availableAmount,
+                      defaultAmount, pay, false);
+    }
+
+    /**
+     * Creates a goods amount dialog that, when trading with the market
+     * in Europe, shows what the chosen amount costs or earns, the tax,
+     * and the gold left afterwards.
+     *
+     * @param freeColClient The enclosing {@code FreeColClient}.
+     * @param goodsType The {@code GoodsType} to select an amount of.
+     * @param availableAmount The amount of goods available.
+     * @param defaultAmount The amount to select to start with.
+     * @param pay If true, a purchase: check the player has the funds.
+     * @param sale If true, a sale to the market.
+     * @return The dialog.
+     */
+    public static FreeColDialog<Integer> create(FreeColClient freeColClient, GoodsType goodsType, int availableAmount,
+            int defaultAmount, boolean pay, boolean sale) {
         final FreeColDialog<Integer> dialog = new FreeColDialog<>(api -> {
             final JPanel content = new JPanel(new MigLayout("fill, wrap 1", "", ""));
             
@@ -129,6 +148,34 @@ public final class SelectGoodsAmountDialog {
             });
             content.add(comboBox, "wrap, growx");
 
+            // The price of the chosen amount, kept up to date.
+            if ((pay || sale) && goodsType != null) {
+                final JLabel priceLabel = new JLabel(" ");
+                content.add(priceLabel, "span, growx");
+                final Runnable update = () -> priceLabel.setText(
+                    priceText(freeColClient, goodsType, readValue(comboBox),
+                              pay));
+                comboBox.addActionListener(ae -> update.run());
+                final java.awt.Component editor
+                    = comboBox.getEditor().getEditorComponent();
+                if (editor instanceof javax.swing.text.JTextComponent) {
+                    ((javax.swing.text.JTextComponent)editor).getDocument()
+                        .addDocumentListener(new javax.swing.event.DocumentListener() {
+                            @Override
+                            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                                javax.swing.SwingUtilities.invokeLater(update);
+                            }
+                            @Override
+                            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                                javax.swing.SwingUtilities.invokeLater(update);
+                            }
+                            @Override
+                            public void changedUpdate(javax.swing.event.DocumentEvent e) {}
+                        });
+                }
+                update.run();
+            }
+
             final JButton okButton = new FreeColButton(Messages.message("ok")).withButtonStyle(ButtonStyle.IMPORTANT);
             okButton.addActionListener(ae -> {
                 api.setValue(determineValue(comboBox));
@@ -147,6 +194,76 @@ public final class SelectGoodsAmountDialog {
         return dialog;
     }
 
+
+    /**
+     * Read the amount currently typed or selected.
+     *
+     * @param comboBox The amount {@code JComboBox}.
+     * @return The amount, or -1 if it is not a number.
+     */
+    private static int readValue(JComboBox<Integer> comboBox) {
+        Object o = comboBox.getEditor().getItem();
+        if (o == null) o = comboBox.getSelectedItem();
+        try {
+            return Integer.parseInt(String.valueOf(o).trim());
+        } catch (NumberFormatException nfe) {
+            return -1;
+        }
+    }
+
+    /**
+     * Describe the price of an amount of goods in the market in Europe,
+     * as the server will charge or pay it: purchases are not taxed,
+     * sales are taxed at the current rate.
+     *
+     * @param freeColClient The {@code FreeColClient}.
+     * @param goodsType The {@code GoodsType} traded.
+     * @param amount The amount.
+     * @param buy True for a purchase, false for a sale.
+     * @return An HTML description.
+     */
+    private static String priceText(FreeColClient freeColClient,
+                                    GoodsType goodsType, int amount,
+                                    boolean buy) {
+        final Player player = freeColClient.getMyPlayer();
+        final net.sf.freecol.common.model.Market market
+            = (player == null) ? null : player.getMarket();
+        if (market == null || amount <= 0) return " ";
+        final int gold = player.getGold();
+        if (!player.canTrade(goodsType)) {
+            return "<html><font color='#b00000'>"
+                + Messages.message("selectAmountDialog.boycott")
+                + "</font></html>";
+        }
+        net.sf.freecol.common.model.StringTemplate t;
+        if (buy) {
+            final int unit = market.getCostToBuy(goodsType);
+            final int cost = market.getBidPrice(goodsType, amount);
+            t = net.sf.freecol.common.model.StringTemplate
+                .template("selectAmountDialog.buy")
+                .addAmount("%amount%", amount)
+                .addAmount("%price%", unit)
+                .addAmount("%total%", cost)
+                .addAmount("%gold%", gold - cost);
+            final String s = Messages.message(t);
+            return "<html>" + ((cost > gold) ? "<font color='#b00000'>"
+                + s + "</font>" : s) + "</html>";
+        }
+        final int tax = player.getTax();
+        final int unit = market.getPaidForSale(goodsType);
+        final int before = market.getSalePrice(goodsType, amount);
+        final int after = ((100 - tax) * before) / 100;
+        t = net.sf.freecol.common.model.StringTemplate
+            .template("selectAmountDialog.sell")
+            .addAmount("%amount%", amount)
+            .addAmount("%price%", unit)
+            .addAmount("%total%", before)
+            .addName("%tax%", tax + "%")
+            .addAmount("%taxAmount%", before - after)
+            .addAmount("%net%", after)
+            .addAmount("%gold%", gold + after);
+        return "<html>" + Messages.message(t) + "</html>";
+    }
 
     private static boolean verifyWholeBox(JComboBox<Integer> box, int available) {
         final int n = box.getItemCount();

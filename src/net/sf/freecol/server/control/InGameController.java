@@ -3098,7 +3098,11 @@ public final class InGameController extends Controller {
             nt.mergeFrom(session.getNativeTrade());
             if (item == null) {
                 return serverPlayer.clientError("Null purchase: " + nt);
-            } else if (!nt.canBuy()) {
+            } else if (item.priceIsSet() && !nt.canBuy()) {
+                // As for selling: a haggle arrives with the price
+                // unset, and as the session object is updated in place
+                // from the message, the item looks unpriced here.  The
+                // natives price it again before answering.
                 return serverPlayer.clientError("Can not buy: " + nt);
             } else if (find(nt.getSettlementToUnit(),
                             item.goodsMatcher()) == null) {
@@ -3137,12 +3141,16 @@ public final class InGameController extends Controller {
                 return serverPlayer.clientError("Null gift: " + nt);
             } else if (!nt.canGift()) {
                 return serverPlayer.clientError("Can not gift: " + nt);
-            } else if (find(nt.getUnitToSettlement(),
-                            item.goodsMatcher()) == null) {
+            }
+            // The gift may be part of the goods the unit carries.
+            // Value it from our own copy, not the client's.
+            final NativeTradeItem whole = find(nt.getUnitToSettlement(),
+                                               item.partMatcher());
+            if (whole == null) {
                 return serverPlayer.clientError("Item missing for "
                     + action + ": " + nt);
             }
-            nt.setItem(item);
+            nt.setItem(whole.withAmount(item.getGoods().getAmount()));
             cs.add(See.only(otherPlayer),
                    new NativeTradeMessage(action, nt));
             break;
@@ -3195,7 +3203,7 @@ public final class InGameController extends Controller {
             csGift(unit, item.getGoods(), item.getPrice(),
                    (ServerIndianSettlement)is, cs);
             nt.setGift(false);
-            nt.removeFromUnit(item);
+            nt.removeGiftFromUnit(item);
             session.getNativeTrade().mergeFrom(nt);
             session.getNativeTrade().setGift(false);
             cs.add(See.only(otherPlayer),
