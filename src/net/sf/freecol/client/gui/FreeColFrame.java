@@ -72,6 +72,12 @@ public class FreeColFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         if (windowed) {
             setResizable(true);
+        } else if (useBorderless(freeColClient)) {
+            // A borderless window over the whole screen.  Exclusive
+            // full screen is minimised by Windows as soon as another
+            // monitor gets the focus, which makes the game flicker.
+            setUndecorated(true);
+            this.borderless = true;
         } else {
             setUndecorated(true);
             gd.setFullScreenWindow(this);
@@ -123,6 +129,14 @@ public class FreeColFrame extends JFrame {
         */
     }
 
+    /** Is this frame a borderless window instead of exclusive full screen? */
+    private boolean borderless = false;
+
+    private static boolean useBorderless(FreeColClient freeColClient) {
+        final ClientOptions co = freeColClient.getClientOptions();
+        return co != null && co.getBoolean(ClientOptions.BORDERLESS_FULL_SCREEN);
+    }
+
     private FullscreenDisplayModeOption getDisplayModeOption(FreeColClient freeColClient) {
         return freeColClient.getClientOptions().getOption(ClientOptions.DISPLAY_MODE_FULLSCREEN, FullscreenDisplayModeOption.class);
     }
@@ -158,6 +172,7 @@ public class FreeColFrame extends JFrame {
     }
 
     public void exitFullScreen() {
+        if (this.borderless) return; // Nothing was taken over
         GraphicsConfiguration GraphicsConf = getGraphicsConfiguration();
         GraphicsDevice gd = GraphicsConf.getDevice();
         gd.setFullScreenWindow(null);

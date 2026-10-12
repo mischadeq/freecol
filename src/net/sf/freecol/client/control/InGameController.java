@@ -194,6 +194,7 @@ public final class InGameController extends FreeColClientHolder {
      */
     public InGameController(FreeColClient freeColClient) {
         super(freeColClient);
+        net.sf.freecol.client.gui.UnitBadges.setClient(freeColClient);
 
         // FIXME: fetch value of lastSaveGameFile from a persistent
         // client value
@@ -2221,8 +2222,16 @@ public final class InGameController extends FreeColClientHolder {
 
             // At the stop, do the work available.
             lb.mark();
+            // Note the cargo before and after, for the companion log.
+            final java.util.Map<GoodsType, Integer> cargoBefore
+                = net.sf.freecol.client.companion.CompanionLog.cargoOf(unit);
             unloadUnitAtStop(unit, lb); // Anything to unload?
+            final java.util.Map<GoodsType, Integer> cargoUnloaded
+                = net.sf.freecol.client.companion.CompanionLog.cargoOf(unit);
             loadUnitAtStop(unit, lb); // Anything to load?
+            net.sf.freecol.client.companion.CompanionLog.tradeStop(unit, tr,
+                cargoBefore, cargoUnloaded,
+                net.sf.freecol.client.companion.CompanionLog.cargoOf(unit));
             lb.grew("\n", Messages.message(stop.getLabelFor("tradeRoute.atStop",
                                                             player)));
 
@@ -3467,6 +3476,19 @@ public final class InGameController extends FreeColClientHolder {
             return;
         }
 
+        // Warn about orders that have not been carried out yet.
+        if (getClientOptions().getBoolean(ClientOptions.WARN_PENDING_ORDERS)) {
+            final int pending = countPendingOrders();
+            if (pending > 0 && !getGUI().modalConfirmDialog(null,
+                    StringTemplate.template("endTurn.pendingOrders")
+                        .addAmount("%number%", pending),
+                    (javax.swing.ImageIcon)null,
+                    "endTurn.pendingOrders.yes", "endTurn.pendingOrders.no",
+                    false)) {
+                return;
+            }
+        }
+
         doEndTurn(showDialog && getClientOptions().getBoolean(ClientOptions.SHOW_END_TURN_DIALOG));
     }
 
@@ -3564,6 +3586,32 @@ public final class InGameController extends FreeColClientHolder {
      *
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
+     */
+    /**
+     * Count the units with orders that have not been carried out
+     * yet this turn: a go-to order or a trade route, and moves left.
+     *
+     * @return The number of such units, 0 if it is not our turn.
+     */
+    public int countPendingOrders() {
+        final Player player = getMyPlayer();
+        if (player == null || !getFreeColClient().currentPlayerIsMyPlayer()) {
+            return 0;
+        }
+        int n = 0;
+        for (Unit u : player.getUnitSet()) {
+            if (u.goingToDestination() || u.isReadyToTrade()) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Execute all orders that are planned but not carried out yet:
+     * go-to orders and trade routes.
+     *
+     * Called from ExecuteGotoOrdersAction.
+     *
+     * @return True if all went well.
      */
     public boolean executeGotoOrders() {
         if (!requireOurTurn()

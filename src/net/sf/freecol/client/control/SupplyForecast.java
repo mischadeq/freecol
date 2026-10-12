@@ -161,7 +161,7 @@ public final class SupplyForecast {
     public SupplyForecast(Player player) {
         for (TradeRoute route : player.getTradeRoutes()) {
             try {
-                examine(route);
+                examine(player, route);
             } catch (RuntimeException re) {
                 // A forecast is a convenience, never let it break the game.
                 logger.log(Level.WARNING, "Supply forecast failed for "
@@ -171,6 +171,29 @@ public final class SupplyForecast {
     }
 
 
+    /**
+     * Get the carriers assigned to a trade route.
+     *
+     * {@link TradeRoute#getAssignedUnits} compares route objects by
+     * identity, but after a route is edited the client can hold two
+     * copies of it: the one in the player's list and the one the
+     * units point to.  So match by id instead.
+     *
+     * @param player The {@code Player} owning the route.
+     * @param route The {@code TradeRoute}.
+     * @return The {@code Unit}s following the route.
+     */
+    public static List<Unit> getCarriers(Player player, TradeRoute route) {
+        List<Unit> result = new ArrayList<>();
+        final String id = route.getId();
+        for (Unit u : player.getUnitSet()) {
+            final TradeRoute tr = u.getTradeRoute();
+            if (tr != null && id.equals(tr.getId())) result.add(u);
+        }
+        result.sort(java.util.Comparator.comparing(Unit::getId));
+        return result;
+    }
+
     private static String key(Colony colony, GoodsType goodsType) {
         return colony.getId() + "/" + goodsType.getId();
     }
@@ -179,9 +202,10 @@ public final class SupplyForecast {
      * Work out what one trade route is set up to deliver, and what
      * its carriers are actually going to deliver.
      *
+     * @param player The {@code Player} owning the route.
      * @param route The {@code TradeRoute} to examine.
      */
-    private void examine(TradeRoute route) {
+    private void examine(Player player, TradeRoute route) {
         final List<TradeRouteStop> stops = route.getStopList();
         final int n = stops.size();
         if (n < 2) return;
@@ -205,7 +229,7 @@ public final class SupplyForecast {
             }
         }
 
-        final List<Unit> units = route.getAssignedUnits();
+        final List<Unit> units = getCarriers(player, route);
         this.carriers.put(route, units.size());
         for (Unit unit : units) follow(unit, route, stops);
     }

@@ -146,6 +146,8 @@ public class ActionManager extends OptionGroup {
         add(new ReportContinentalCongressAction(freeColClient));
         add(new ReportColonyAction(freeColClient));
         add(new ReportColonyOverviewAction(freeColClient));
+        add(new UnitBadgeLegendAction(freeColClient));
+        add(new OpenCompanionAction(freeColClient));
         add(new ReportLogisticsAction(freeColClient));
         add(new ReportGoodsOverviewAction(freeColClient));
         add(new ReportUnitOverviewAction(freeColClient));
@@ -283,6 +285,7 @@ public class ActionManager extends OptionGroup {
         }
         ret.add(new UnitButton(this, BuildColonyAction.id));
         ret.add(new UnitButton(this, DisbandUnitAction.id));
+        ret.add(new UnitButton(this, ExecuteGotoOrdersAction.id));
         return ret;
     }
     

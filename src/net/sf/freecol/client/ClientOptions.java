@@ -130,6 +130,10 @@ public class ClientOptions extends OptionGroup {
     public static final String DISPLAY_MODE_FULLSCREEN
         = "model.option.fullscreenDisplayMode";
 
+    /** Full screen as a borderless window instead of exclusive mode. */
+    public static final String BORDERLESS_FULL_SCREEN
+        = "model.option.borderlessFullScreen";
+
     /**
      * Option to control the display scale factor.
      */
@@ -398,6 +402,26 @@ public class ClientOptions extends OptionGroup {
     /** Show the end turn dialog. */
     public static final String SHOW_END_TURN_DIALOG
         = "model.option.showEndTurnDialog";
+
+    /** Warn when ending the turn with orders not carried out yet. */
+    public static final String WARN_PENDING_ORDERS
+        = "model.option.warnPendingOrders";
+
+    /** Draw unit badges as symbols instead of letters. */
+    public static final String UNIT_BADGE_SYMBOLS
+        = "model.option.unitBadgeSymbols";
+
+    /** Explain unit badges when hovering over a unit on the map. */
+    public static final String UNIT_BADGE_HOVER
+        = "model.option.unitBadgeHover";
+
+    /** Serve the companion page for a second monitor. */
+    public static final String COMPANION_PAGE
+        = "model.option.companionPage";
+
+    /** The local port the companion page is served on. */
+    public static final String COMPANION_PORT
+        = "model.option.companionPort";
 
     /** Set the default native demand action. */
     public static final String INDIAN_DEMAND_RESPONSE

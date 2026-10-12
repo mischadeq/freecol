@@ -2443,6 +2443,13 @@ public class GUI extends FreeColClientHolder {
     public FreeColPanel showReportUnitOverviewPanel() { return null; }
 
     /**
+     * Show the legend of the unit badges.
+     *
+     * @return The panel shown.
+     */
+    public FreeColPanel showUnitBadgeLegendPanel() { return null; }
+
+    /**
      * Show the Colony Overview Report.
      *
      * @return The panel shown.

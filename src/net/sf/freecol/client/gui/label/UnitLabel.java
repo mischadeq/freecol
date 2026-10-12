@@ -385,7 +385,8 @@ public final class UnitLabel extends FreeColLabel implements ActionListener, Car
                 getParent() instanceof EuropePanel.EuropeanDocksPanel ||
                 getParent().getParent() instanceof ReportPanel) {
             String text = Messages.message(this.unit.getOccupationLabel(player, false));
-            g.drawImage(lib.getOccupationIndicatorChip((Graphics2D)g, this.unit, text), 0, 0, null);
+            g.drawImage(net.sf.freecol.client.gui.UnitBadges.chip(lib,
+                    (Graphics2D)g, this.unit, player, text), 0, 0, null);
 
             if (this.unit.isDamaged()) {
                 String underRepair = Messages.message(this.unit.getRepairLabel());

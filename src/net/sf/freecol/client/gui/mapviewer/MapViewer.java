@@ -1252,7 +1252,8 @@ public final class MapViewer extends FreeColClientHolder {
 
         // Draw an occupation and nation indicator.
         String text = Messages.message(unit.getOccupationLabel(player, false));
-        g2d.drawImage(this.lib.getOccupationIndicatorChip(g2d, unit, text),
+        g2d.drawImage(net.sf.freecol.client.gui.UnitBadges.chip(this.lib,
+                          g2d, unit, player, text),
                       this.lib.scaleInt(TileViewer.STATE_OFFSET_X), 0, null);
 
         // Draw one small line for each additional unit (like in civ3).

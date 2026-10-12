@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeCol Companion</title>
+<link rel="stylesheet" href="companion.css">
+</head>
+<body>
+<header id="top">
+  <div class="who">
+    <span id="swatch" class="swatch"></span>
+    <div>
+      <div id="date" class="date">FreeCol</div>
+      <div id="nation" class="nation">Waiting for the game</div>
+    </div>
+  </div>
+  <div class="money">
+    <div><span class="lbl">Gold</span> <b id="gold">-</b></div>
+    <div><span class="lbl">Tax</span> <b id="tax">-</b></div>
+  </div>
+  <div class="chips">
+    <button id="chipAlerts" class="chip" title="Go to the alerts">
+      <span class="dot alarm"></span><span id="nAlerts">0</span> alerts</button>
+    <span id="chipPending" class="chip" title="Units with go-to orders or trade routes not carried out yet this turn">
+      <span class="sym">&#9654;&#9654;</span> <span id="nPending">0</span> orders</span>
+    <span id="chipIdle" class="chip" title="Units waiting for orders">
+      <span class="sym">&#9711;</span> <span id="nIdle">0</span> idle</span>
+    <span id="turnState" class="chip quiet"></span>
+    <button id="pediaToggle" class="chip logbtn" title="Rules, tips and the game's encyclopedia (C)">Colopedia</button>
+    <button id="logToggle" class="chip logbtn" title="Show or hide the log (L)">
+      Log <span id="unread" class="unread" hidden>0</span></button>
+  </div>
+</header>
+
+<div id="body">
+  <section id="mapSec">
+    <canvas id="map"></canvas>
+    <div id="tip" class="tip" hidden></div>
+    <div class="maphint">Scroll to zoom, drag to move, double-click to fit</div>
+    <div id="legend" class="legend"></div>
+  </section>
+
+  <main id="main">
+    <section id="alertsSec">
+      <h2>Alerts</h2>
+      <ul id="alerts" class="alerts"></ul>
+    </section>
+    <section>
+      <h2>Colonies</h2>
+      <div id="colonies" class="cards"></div>
+    </section>
+    <section>
+      <h2>Empire goods <span class="sub">in all colonies, change per turn</span></h2>
+      <div id="goods" class="goods"></div>
+    </section>
+  </main>
+
+  <aside id="log" class="drawer" hidden>
+    <div class="drawerHead">
+      <div class="dtabs">
+        <button class="dtab" data-tab="log">Log</button>
+        <button class="dtab" data-tab="pedia">Colopedia</button>
+      </div>
+      <button id="logClose" class="x" title="Hide the sidebar">&times;</button>
+    </div>
+    <ol id="logList" class="loglist"></ol>
+    <div id="pedia" class="pedia" hidden>
+      <div class="pediaTop">
+        <input id="pediaSearch" type="search" placeholder="Search goods, buildings, units, fathers" autocomplete="off">
+        <div class="ptabs">
+          <button class="ptab" data-sec="start">Start</button>
+          <button class="ptab" data-sec="goods">Goods</button>
+          <button class="ptab" data-sec="buildings">Buildings</button>
+          <button class="ptab" data-sec="units">Units</button>
+          <button class="ptab" data-sec="fathers">Fathers</button>
+        </div>
+      </div>
+      <div id="pediaBody" class="pediaBody"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="offline" class="offline">
+  <div>
+    <b id="offlineTitle">Waiting for FreeCol</b>
+    <p id="offlineText">Start FreeCol on this computer. This page connects by itself.</p>
+  </div>
+</div>
+
+<script src="companion.js"></script>
+</body>
+</html>

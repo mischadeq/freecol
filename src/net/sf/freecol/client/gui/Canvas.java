@@ -233,6 +233,8 @@ public final class Canvas extends JDesktopPane {
         setDoubleBuffered(true);
         setOpaque(true);
         setLayout(null);
+        // Explain the unit badges when hovering over the map.
+        javax.swing.ToolTipManager.sharedInstance().registerComponent(this);
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
         // Create key bindings for all actions
@@ -1801,6 +1803,24 @@ public final class Canvas extends JDesktopPane {
     }
 
     // Override JComponent
+
+    /**
+     * Explain the badges of the player's units under the mouse.
+     *
+     * @param e The {@code MouseEvent}.
+     * @return Tooltip text, or null for none.
+     */
+    @Override
+    public String getToolTipText(MouseEvent e) {
+        if (this.freeColClient.getGame() == null
+            || this.freeColClient.isMapEditor()) return null;
+        try {
+            return UnitBadges.mapToolTip(this.freeColClient,
+                this.mapViewer.convertToMapTile(e.getX(), e.getY()));
+        } catch (RuntimeException re) {
+            return null;
+        }
+    }
     public void paintJustTheMapImmediately() {
         if (this.freeColClient == null
                 || this.freeColClient.getGame() == null

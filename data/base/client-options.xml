@@ -30,6 +30,10 @@
 
     <optionGroup id="clientOptions.display" >
       <fullscreenDisplayModeOption id="model.option.fullscreenDisplayMode" defaultValue="" />
+      <!-- Full screen as a borderless window, so clicking on another
+           monitor does not minimise the game. -->
+      <booleanOption id="model.option.borderlessFullScreen"
+                     defaultValue="true"/>
       
       <!-- Control the display scale -->
       <rangeOption id="model.option.displayScaling"
@@ -96,6 +100,12 @@
     
     <optionGroup id="clientOptions.interface" >
       <optionGroup id="clientOptions.interface.mapView" >
+        <!-- Draw the unit badges as symbols instead of letters. -->
+        <booleanOption id="model.option.unitBadgeSymbols"
+                       defaultValue="true"/>
+        <!-- Explain unit badges when hovering over a unit. -->
+        <booleanOption id="model.option.unitBadgeHover"
+                       defaultValue="true"/>
         <!-- The default zoom level. -->
         <rangeOption id="model.option.defaultZoomLevel"
                      defaultValue="2" localizedLabels="false">
@@ -289,6 +299,15 @@
         <!-- Show the end turn dialog. -->
         <booleanOption id="model.option.showEndTurnDialog"
                        defaultValue="true"/>
+        <!-- Warn when ending the turn with orders not carried out yet. -->
+        <booleanOption id="model.option.warnPendingOrders"
+                       defaultValue="true"/>
+        <!-- Serve the companion page for a second monitor. -->
+        <booleanOption id="model.option.companionPage"
+                       defaultValue="true"/>
+        <!-- The port the companion page is served on (this computer only). -->
+        <integerOption id="model.option.companionPort"
+                       defaultValue="8765" minimumValue="1024" maximumValue="65535"/>
         <!-- What to do when the natives make a demand. -->
         <selectOption id="model.option.indianDemandResponse"
                       defaultValue="0" localizedLabels="true">

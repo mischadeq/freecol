@@ -62,7 +62,84 @@ there. That is a smoke test, not a play test.
       strip. Not checked: a carrier on its way (path and turns), hover,
       click.
 
-### Committed in 860678de9
+### Not yet committed (written 2026-10-12, third round)
+
+- [ ] **Execute Orders button.** New round button at the right end of
+      the bottom bar (fast-forward sign). A red number shows how many
+      units still have go-to orders or trade routes to carry out this
+      turn; greyed out when there are none. Same as Orders > Execute Go
+      To Orders (O). Sandbox-checked: count 4 at turn start, button
+      moved the army, count back to 0.
+- [ ] **End-turn warning.** Ending the turn while units still have
+      orders asks "End turn anyway / Not yet". Option: Preferences >
+      Other > "Warn about orders not carried out". Sandbox-checked:
+      "Not yet" keeps the turn and the orders.
+- [ ] **Unit badges as symbols.** ! waiting for orders, zz no moves
+      left, arrow on its way, circular arrow trade route, eye sentry,
+      shield outline fortifying, filled shield fortified, double
+      chevron skipped, hammer pioneer at work, plus under repair,
+      house in a colony. Only your own units; other nations keep the
+      letters. Option: Preferences > Interface > Map View > "Unit
+      badges as symbols" (off = classic letters).
+- [ ] **Badge explanations on hover.** Rest the mouse on your units on
+      the map: a tooltip explains each unit's badge in words. Option:
+      "Explain unit badges on hover".
+- [ ] **View > Unit Badges.** A legend of all badges with the classic
+      letter next to each.
+- Sandbox results for Round 3 (2026-10-12): an arrow-key step moved
+  all four army members (step 13 OK); marching together kept the
+  scout with the soldiers; Rush sent the scout ahead (3 tiles further).
+
+### Not yet committed (written 2026-10-12, fourth round)
+
+- [ ] **Companion page for a second monitor.** FreeCol now serves a
+      live, read-only page at http://localhost:8765 (this computer only,
+      no Docker needed). View > Open Companion Page opens it in the
+      browser. Portrait layout, top to bottom: header (year, turn, gold,
+      tax, alerts / orders / idle counters), live map (routes as moving
+      dashed lines, wagons and armies sliding along their paths, cargo
+      and turns next to carriers, group labels, rushing in amber, armed
+      foreigners ringed red; scroll to zoom, drag, double-click to fit),
+      alerts (supply-aware, click to show on the map), colony cards
+      (makes, needs, stock bars, building with progress, deliveries
+      arriving), empire goods with a trend line. A hideable log sidebar
+      (button or L) lists per turn what the carriers loaded and unloaded,
+      arrivals, new or lost colonies and the game's messages, repeats
+      counted. Options: Preferences > Other > "Companion page for a
+      second monitor" (on) and "Companion page port" (8765); restart
+      after changing. The page files are in data/companion/ and can be
+      edited without rebuilding. Sandbox-checked with Mischa's own save
+      (Autosave 1497): route set up, 3 turns played, page followed along,
+      wagons loaded at Alpha, Army 2 arrived at Bravo.
+- [ ] **Colopedia on the companion page** (Mischa: "connect the wiki").
+      Colopedia button in the page header (or C) opens a second tab in
+      the sidebar, next to Log. Start: what to do right now in your game
+      (colonies building nothing, pending orders, idle units), Congress
+      status, and a 10-step beginner guide (food, money, hammers, tools
+      and pioneers, bells and SoL, crosses, schools, wagons, defence, the
+      King). Goods: description, Europe prices, made from / made into,
+      made in which building, which expert, used in, needed for.
+      Buildings, Units, Founding Fathers (in Congress / being elected).
+      Search box across everything. Clicking any goods icon anywhere on
+      the page opens its entry. Built from the rules of the game in play,
+      so it matches mods. Link to the online manual
+      (https://freecol.org/docs/FreeCol.html). Sandbox-checked.
+- [ ] **Borderless full screen.** Exclusive full screen made the game
+      flicker black whenever the other monitor got the focus (Windows
+      minimises it, FreeCol restores it). New option Preferences >
+      Display > "Borderless full screen (for two monitors)", on by
+      default: a window without borders over the whole screen instead.
+      Restart after changing. Not testable in the sandbox (no full
+      screen there): Mischa to check.
+- [ ] **Fix: wagons on an edited route counted as "no carrier".**
+      FreeCol's own TradeRoute.getAssignedUnits() compares route objects
+      by identity, and after a route is edited the client keeps two
+      copies. The Colony Overview, Logistics report, supply warnings and
+      companion page now match carriers by route id instead. Found in the
+      sandbox: the game warned "no wagon train is assigned" for a route
+      with two wagons. Unit test added.
+
+### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
       - Orders menu: Form Group (Shift+G), Leave Group, Disband Group.
@@ -107,7 +184,7 @@ there. That is a smoke test, not a play test.
       In a group. Click a unit to select it on the map. Auto-checked:
       renders, filters work, destinations show turns to go. Not
       checked: clicking a unit.
-- [ ] **Colony Overview made narrower.** Only the main product is
+- [x] **Colony Overview made narrower.** Tested by Mischa 2026-10-12: OK. Only the main product is
       named, the other two show icon and amount; three stocks instead
       of four; tighter spacing. Auto-checked: the horizontal scrollbar
       is gone at a 1500 pixel wide window.
@@ -117,11 +194,11 @@ there. That is a smoke test, not a play test.
 Quick checks (2 minutes, `java -jar FreeCol.jar --debug-run 60`, click
 Start Game, then Report > Colony Overview or Shift+F6):
 
-- [ ] **Smaller building icons.** Auto-checked: rows are even.
-- [ ] **Building column colours.** Red only for "Nothing"; magenta for
+- [x] **Smaller building icons.** Tested by Mischa 2026-10-12: OK. Auto-checked: rows are even.
+- [x] **Building column colours.** Tested by Mischa 2026-10-12: OK. Red only for "Nothing"; magenta for
       "needs N more ..."; dark gray when it is simply counting turns.
       Auto-checked for "Nothing" only.
-- [ ] **Sortable columns.** Click each of the seven headers: the rows
+- [x] **Sortable columns.** Tested by Mischa 2026-10-12: OK. Click each of the seven headers: the rows
       reorder, an arrow appears on the sorted header, a second click
       reverses. Close and reopen the report: the sort is remembered.
       Auto-checked for "Mainly produces" and "Needs".
@@ -192,6 +269,13 @@ Known limits of the supply warnings (by design, not bugs):
 - Show the group on the map (a banner or number on the unit).
 - "Attack with the group" as an explicit order.
 - A list of groups with a button to jump to each.
+
+### Companion page, next steps
+- Filter the map to one trade route or one group (left out for now).
+- Arrivals of a group are logged once when the members arrive together;
+  members arriving in different moments still get a line each.
+- Later, maybe: let the page give simple orders. Kept read-only for now
+  (decided with Mischa).
 
 ### Logistics, next steps
 - Suggested routes: link a colony that needs a good to one with a

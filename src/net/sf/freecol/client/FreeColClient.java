@@ -228,6 +228,9 @@ public final class FreeColClient {
         this.clientOptions = loadClientOptions(savedGame);
         this.clientOptions.fixClientOptions();
 
+        // The companion page for a second monitor, if enabled.
+        net.sf.freecol.client.companion.CompanionServer.startIfEnabled(this);
+
         // Reset the mod resources as a result of the client option update.
         ResourceManager.setMods(this.clientOptions.getActiveMods());
         

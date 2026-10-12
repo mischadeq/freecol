@@ -86,7 +86,7 @@ public final class ReportLogisticsPanel extends OverviewReportPanel {
                     line.addStop(stop.getLocation().getTile());
                 }
             }
-            for (Unit u : route.getAssignedUnits()) {
+            for (Unit u : SupplyForecast.getCarriers(player, route)) {
                 if (u.getTile() == null) continue;
                 List<Tile> path = new ArrayList<>();
                 int turns = 0;
@@ -273,7 +273,7 @@ public final class ReportLogisticsPanel extends OverviewReportPanel {
         }
         int index = 0;
         for (TradeRoute route : routes) {
-            final List<Unit> units = route.getAssignedUnits();
+            final List<Unit> units = SupplyForecast.getCarriers(player, route);
             JPanel title = row();
             JLabel name = boldLabel(route.getName());
             name.setIcon(LogisticsMap.swatch(LogisticsMap.routeColor(index++)));

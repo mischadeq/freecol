@@ -135,6 +135,23 @@ public class SupplyForecastTest extends FreeColTestCase {
         assertEquals(1, f.getTargets().size());
     }
 
+    public void testCarrierOnCopyOfRoute() {
+        setUpRoute();
+        // After a route is edited the client can hold two copies of
+        // it, and the unit may point to the other one.
+        getGame().removeFreeColGameObject(route.getId(), "test copy");
+        TradeRoute copy = new TradeRoute(getGame(), route.getId());
+        copy.copyIn(route);
+        wagon.setTradeRoute(copy);
+        source.addGoods(lumberType, 80);
+
+        assertTrue("Upstream matches by identity",
+                   route.getAssignedUnits().isEmpty());
+        assertEquals(1, SupplyForecast.getCarriers(player, route).size());
+        Outlook o = new SupplyForecast(player).getOutlook(sink, lumberType, 5);
+        assertEquals(Status.IN_TIME, o.status);
+    }
+
     public void testDeliveryAlreadyAboard() {
         setUpRoute();
         wagon.setTradeRoute(route);

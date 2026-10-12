@@ -293,7 +293,8 @@ public final class TileViewer extends FreeColClientHolder {
             // Draw an occupation and nation indicator.
             Player owner = getMyPlayer();
             String text = Messages.message(unit.getOccupationLabel(owner, false));
-            g2d.drawImage(this.lib.getOccupationIndicatorChip(g2d, unit, text),
+            g2d.drawImage(net.sf.freecol.client.gui.UnitBadges.chip(this.lib,
+                              g2d, unit, owner, text),
                           this.lib.scaleInt(STATE_OFFSET_X), 0, null);
         }
     }
