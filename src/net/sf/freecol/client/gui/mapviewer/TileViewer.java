@@ -149,7 +149,14 @@ public final class TileViewer extends FreeColClientHolder {
      */
     public BufferedImage createTileImageWithBeachBorderAndItems(Tile tile) {
         if (!tile.isExplored()) {
-            return this.lib.getScaledTerrainImage(null, tile.getX(), tile.getY());
+            if (!useParchment()) {
+                return this.lib.getScaledTerrainImage(null, tile.getX(), tile.getY());
+            }
+            BufferedImage image = ImageUtils.createBufferedImage(this.tileWidth, this.tileHeight);
+            Graphics2D g2d = image.createGraphics();
+            ParchmentPainter.paintTile(g2d, tile, this.tileWidth, this.tileHeight);
+            g2d.dispose();
+            return image;
         }
         final TileType tileType = tile.getType();
         BufferedImage overlayImage = this.lib.getScaledOverlayImage(tile);
@@ -428,6 +435,11 @@ public final class TileViewer extends FreeColClientHolder {
         final int x = tile.getX();
         final int y = tile.getY();
 
+        if (!tile.isExplored() && useParchment()) {
+            ParchmentPainter.paintTile(g2d, tile, this.tileWidth, this.tileHeight);
+            return;
+        }
+
         final boolean outForBaseTileAnimation = (tileType != null) && (tileType.isWater() || getClientOptions().isRiverAnimationEnabled() && tile.hasRiver());
         if (!outForBaseTileAnimation) {
             // ATTENTION: we assume that all base tiles have the same size
@@ -536,16 +548,34 @@ public final class TileViewer extends FreeColClientHolder {
 
     public void displayUnknownTileBorder(Graphics2D g2d, Tile tile) {
         if (!tile.isExplored()) return;
+        // On the old chart the fade is drawn by the frontier fade pass.
+        if (useParchment()) return;
         
         for (Direction direction : Direction.values()) {
             Tile borderingTile = tile.getNeighbourOrNull(direction);
             if (borderingTile != null && !borderingTile.isExplored()) {
-                g2d.drawImage(this.lib.getBorderImage(null, direction,
-                                                      tile.getX(), tile.getY()),
-                              0, 0, null);
+                final BufferedImage border = this.lib.getBorderImage(null,
+                    direction, tile.getX(), tile.getY());
+                if (useParchment()) {
+                    ParchmentPainter.paintBorder(g2d, tile, border,
+                        this.tileWidth, this.tileHeight);
+                } else {
+                    g2d.drawImage(border, 0, 0, null);
+                }
             }
         }
     }
+
+    /**
+     * Is the unexplored map drawn as an old chart on parchment?
+     *
+     * @return True if so.
+     */
+    public boolean useParchment() {
+        final ClientOptions co = getClientOptions();
+        return co == null || co.getBoolean(ClientOptions.UNEXPLORED_PARCHMENT);
+    }
+
 
     /**
      * Displays the Tile text for a Tile.

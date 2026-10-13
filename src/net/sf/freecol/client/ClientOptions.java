@@ -131,6 +131,10 @@ public class ClientOptions extends OptionGroup {
         = "model.option.fullscreenDisplayMode";
 
     /** Full screen as a borderless window instead of exclusive mode. */
+    /** Draw the unexplored map as an old chart on parchment. */
+    public static final String UNEXPLORED_PARCHMENT
+        = "model.option.unexploredParchment";
+
     public static final String BORDERLESS_FULL_SCREEN
         = "model.option.borderlessFullScreen";
 

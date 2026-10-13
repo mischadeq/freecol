@@ -487,6 +487,25 @@ there. That is a smoke test, not a play test.
       defence cases). New: CompanionIndependence, /api/independence.
       Unit test IndependenceTest.
 
+- [ ] **Test version: the unexplored map as an old chart** (Mischa: the
+      flat blue is bland; old maps fade out, "a mountain range fades out
+      but we know it continues"; no spoilers). Unexplored tiles are aged,
+      muted paper (one seamless texture anchored to the map, so no tile
+      pattern). The last three rows of the explored map fade: colour
+      turns into a sepia ink sketch (dark parts become brown strokes,
+      light parts the paper), then into the paper; the sea under it
+      dissolves into the paper too. The amount is blended over each
+      tile from its corners, so there are no steps. Shows nothing that
+      has not been seen. Option: Preferences > Display > "Unexplored map
+      as an old chart" (on). First try (bright parchment, real coastline
+      sketched ahead) was dropped: too bright, and a spoiler.
+      Not yet done: faint guessed strokes beyond the edge that continue
+      what is known (step 3), the minimap. Performance to watch on a
+      big screen (pixel pass over the frontier tiles on each redraw).
+      ParchmentPainter (client/gui/mapviewer), hooks in MapViewer and
+      TileViewer, client option unexploredParchment. Unit test
+      ParchmentPainterTest (seamless, anchored, muted).
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
@@ -651,6 +670,17 @@ Known limits of the supply warnings (by design, not bugs):
   committing a worker to it.
 - Map overlays: tile ownership, potential production, colonies with
   problems.
+
+### Wars and the computer players (checked in the source, 2026-10-13)
+- The King declares war and peace on your behalf at random (Monarch
+  DECLARE_WAR / DECLARE_PEACE); computer nations follow tension, which
+  cools by itself. Not a difficulty matter (Easy meddles slightly less).
+- Computer soldiers only seek targets within 8 moves, overland or from
+  the ship they are on: no planned landings, so island maps see almost
+  no land war. Bug: UnitSeekAndDestroyMission.scorePath drops the score
+  for enemy units in the open (only colonies are ever targeted).
+- Ideas: fix that bug; let the computer ship an army to an enemy colony
+  when at war; option so the King's wars need real tension.
 
 ### Housekeeping
 - Decide later whether any of this is worth offering upstream. If so,

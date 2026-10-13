@@ -34,6 +34,10 @@
            monitor does not minimise the game. -->
       <booleanOption id="model.option.borderlessFullScreen"
                      defaultValue="true"/>
+      <!-- Unexplored land as an old chart: aged paper, with the
+           explored map fading into it as a sepia sketch. -->
+      <booleanOption id="model.option.unexploredParchment"
+                     defaultValue="true"/>
       
       <!-- Control the display scale -->
       <rangeOption id="model.option.displayScaling"

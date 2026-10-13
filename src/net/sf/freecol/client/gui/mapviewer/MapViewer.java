@@ -394,6 +394,7 @@ public final class MapViewer extends FreeColClientHolder {
         // Display everything else:
         final long animatedBaseMs = now();
         if (!dirtyClipBounds.isEmpty()) {
+            this.fadeTarget = nonAnimationBufferImage;
             displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, useBuffers);
         }
         
@@ -536,6 +537,7 @@ public final class MapViewer extends FreeColClientHolder {
         final BufferedImage nonAnimationBufferImage = rpm.getNonAnimationBufferImage();
         final Map map = getMap();
         final Graphics2D nonAnimationG2d = nonAnimationBufferImage.createGraphics();
+        this.fadeTarget = nonAnimationBufferImage;
         displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, true);
         nonAnimationG2d.dispose();
         if (FreeColDebugger.debugRendering()) {
@@ -543,6 +545,10 @@ public final class MapViewer extends FreeColClientHolder {
         }
         rpm.markAsClean();
     }
+
+    /** The image the map is drawn into, for the frontier fade (null if
+        drawing straight to the screen). */
+    private BufferedImage fadeTarget = null;
 
     private void displayToNonAnimationBufferImage(MapViewerBounds mapViewerBounds, Rectangle dirtyClipBounds, Graphics2D nonAnimationG2d, Map map, boolean useBuffers) {
         final TileClippingBounds tcb = new TileClippingBounds(mapViewerBounds, map, dirtyClipBounds);
@@ -648,6 +654,19 @@ public final class MapViewer extends FreeColClientHolder {
                 withNumbers, rop);
             this.tv.displayOptionalTileText(tileG2d, tile);
         });
+
+        // Old-chart look: the edge of the explored map fades into a sepia
+        // sketch and then into the paper of the unexplored part.
+        if (this.fadeTarget != null && this.tv.useParchment()) {
+            final BufferedImage target = this.fadeTarget;
+            final int w = tileBounds.getWidth(), h = tileBounds.getHeight();
+            paintEachTile(nonAnimationG2d, tcb, (tileG2d, tile) -> {
+                final java.awt.geom.AffineTransform at = tileG2d.getTransform();
+                if (at.getScaleX() != 1.0 || at.getScaleY() != 1.0) return;
+                ParchmentPainter.fadeTile(target, (int)Math.round(at.getTranslateX()),
+                    (int)Math.round(at.getTranslateY()), tile, w, h, clipBounds);
+            });
+        }
         
         // Paint transparent region borders
         long tileOverlaysMs = now();
