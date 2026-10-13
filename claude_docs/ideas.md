@@ -25,6 +25,12 @@ committed, not yet checked in the game. **Idea** = not started.
   any debug mode with menus) in single player, the report also lists
   the AI nations' colonies in gray, so there is real data to test with.
 
+- **Housekeeping: empty wrapper repos removed** (2026-10-13). The
+  folders `Freecol\freecol` and `Freecol\mods` were git repos with no
+  commits, no remote and no stash around the real clones; their `.git`
+  folders are gone. The real clones (`freecol\freecol`,
+  `mods\freecol-mods`) are untouched.
+
 ## In progress
 
 Nothing at the moment.
@@ -509,7 +515,5 @@ Known limits of the supply warnings (by design, not bugs):
   problems.
 
 ### Housekeeping
-- The folders `Freecol\freecol` and `Freecol\mods` are empty git repos
-  wrapped around the real clones. Harmless, but could be cleaned up.
 - Decide later whether any of this is worth offering upstream. If so,
   `claude_docs` should stay out of that pull request.
