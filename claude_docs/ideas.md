@@ -658,6 +658,12 @@ the Claude Doc "FreeCol: living diplomacy design").
 - **Step 0, next:** replay Mischa's consecutive autosaves (copies only,
   never written to), find what he and each AI did per turn, and compare
   with what the diplomat would have done, to tune the weights.
+- **Step 0 build plan** (2026-10-13): `claude_docs/plans/step0-replay.md`.
+  New pure package `common/diplomacy` (world view, relations, threat,
+  goals, effects, risk, scorer, diplomat) and a replay tool in
+  `tools/replay` (save series, turn diff, observed moves, hindsight,
+  report). The score function is written out per move, with its
+  assumptions (A1–A14). No game behaviour changes in step 0.
 
 ## Ideas, not started
 
