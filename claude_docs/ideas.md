@@ -295,6 +295,19 @@ there. That is a smoke test, not a play test.
       says what they mean: Low and High are warnings as a share of the
       warehouse, Keep is an amount that stays, trade routes and the
       custom house take only what is above it. Tool tips say the same.
+- [ ] **Trade routes do not haul goods to a full colony** (Mischa: a
+      warning every time a settlement is full; note it is full and do not
+      take those goods at the stop before). Better than a flag noted on
+      the last visit: before loading, the carrier looks at the colony
+      where it will unload the goods (the next stop that does not list
+      them) and loads only what fits there on arrival: the warehouse
+      less what is in store and what the colony itself makes on the way.
+      Nothing fits: the goods stay where they are ("Nijmegen has no
+      room"). Only our own colonies, only goods with a storage limit
+      (not food), only without the enhanced trade routes game option,
+      which already does this. The warning came from goods above the
+      warehouse capacity being thrown away at the end of each turn.
+      Unit test TradeRouteRoomTest.
 
 ### Committed in 0893f2ac5 / 860678de9
 

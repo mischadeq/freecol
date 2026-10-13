@@ -2396,6 +2396,47 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Find where goods loaded here will be unloaded: the first stop
+     * after this one that does not list them (the carrier unloads
+     * whatever the stop does not list).
+     *
+     * @param unit The carrier {@code Unit}.
+     * @param type The {@code GoodsType} to follow.
+     * @return The {@code TradeRouteStop}, or null if none.
+     */
+    static TradeRouteStop nextUnloadStop(Unit unit, GoodsType type) {
+        final List<TradeRouteStop> stops = unit.getCurrentStops();
+        if (stops == null || stops.size() < 2) return null;
+        stops.remove(0);
+        for (TradeRouteStop trs : stops) {
+            if (!trs.getCargo().contains(type)) return trs;
+        }
+        return null;
+    }
+
+    /**
+     * How much of some goods fits in the colony a carrier takes them
+     * to, by the time it arrives: the warehouse less what is there
+     * and what the colony itself makes on the way.
+     *
+     * @param unit The carrier {@code Unit}.
+     * @param dest The {@code TradeRouteStop} where the goods are
+     *     unloaded, or null.
+     * @param type The {@code GoodsType}.
+     * @return The room, or -1 if there is no limit (not one of our
+     *     colonies, or goods without a storage limit).
+     */
+    static int roomAt(Unit unit, TradeRouteStop dest, GoodsType type) {
+        if (dest == null || !(dest.getLocation() instanceof Colony)
+            || type.limitIgnored()) return -1;
+        final Colony colony = (Colony)dest.getLocation();
+        if (colony.getOwner() != unit.getOwner()) return -1;
+        final int turns = unit.getTurnsToReach(colony);
+        return colony.getImportAmount(type,
+            (turns >= Unit.MANY_TURNS) ? 0 : turns);
+    }
+
+    /**
      * Work out what goods to load onto a unit at a stop, and load them.
      *
      * @param unit The {@code Unit} to load.
@@ -2481,6 +2522,17 @@ public final class InGameController extends FreeColClientHolder {
                         break;
                     }
                     start = trs.getLocation();
+                }
+            }
+            if (!enhancedTradeRoutes) {
+                // Do not haul goods to a colony with no room for them:
+                // what does not fit is thrown away there at the end of
+                // the turn, with a warning every time.
+                final TradeRouteStop dest = nextUnloadStop(unit, type);
+                final int room = roomAt(unit, dest, type);
+                if (room >= 0) {
+                    importAmount = room;
+                    unload = dest;
                 }
             }
             if (enhancedTradeRoutes && unload == null) {
