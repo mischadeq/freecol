@@ -464,6 +464,29 @@ there. That is a smoke test, not a play test.
       two turns: Spanish "Army: far stronger, Navy: far weaker, Economy:
       poorer, Size: smaller".
 
+- [ ] **Independence tab on the companion page** (Mischa: worried about
+      the King's force; wants his units against theirs, quality and the
+      expected result). Tab 6 (also a widget): whether you can declare
+      (rebels across all colonies vs 50%, port, deadline year); forces
+      side by side (soldiers, dragoons, artillery, warships) and
+      strength in soldiers' worth (on his save: 12.7 against ≈ 290, 23×,
+      the game's own measure gives him 9% of land strength); his armed
+      units with attack/defence and where they are, flagged "seized if
+      you declare" when in Europe (his 5 veterans were); per colony:
+      rebels, walls, the defender now and its chance to hold one attack
+      by King's infantry / cavalry, the best defender possible with what
+      is in the colony (armed, fortified) and its chance, and how many
+      veterans would muster into Continental regulars; a "before you
+      declare" list; how the King gives up (holds no colony, your army
+      1.5× his remaining land force, his land units under 7 or ships
+      under 2); and the foreign help after 3,500 bells. Attack and
+      defence are worked out with the same modifiers as the game's
+      combat model (attack bonus, the REF's bombard bonus, popular
+      support from tories, walls, fortify); unit tests check both
+      against the combat model for real units (5 attack cases, 18
+      defence cases). New: CompanionIndependence, /api/independence.
+      Unit test IndependenceTest.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**

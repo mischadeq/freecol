@@ -40,6 +40,7 @@
   <button class="tab" data-tab="trade" title="Map, supply network, trade routes, Europe market (3)">Trade</button>
   <button class="tab" data-tab="nations" title="Every nation in plain figures (4)">Nations</button>
   <button class="tab" data-tab="military" title="Your forces against theirs (5)">Military</button>
+  <button class="tab" data-tab="independence" title="You against the King's army (6)">Independence</button>
   <button id="pickToggle" class="pickbtn" title="Choose what the Overview shows">&#9881; Widgets</button>
 </nav>
 <div id="picker" class="picker" hidden></div>
@@ -87,6 +88,10 @@
     <section id="militarySec" data-w="military">
       <h2>Military <span class="sub">strength counted in soldiers and frigates; hover for details</span></h2>
       <div id="military" class="military"></div>
+    </section>
+    <section id="indepSec" data-w="independence">
+      <h2>Independence <span class="sub">you against the King's army; every fight is a dice roll: attack against defence</span></h2>
+      <div id="indep" class="indep"></div>
     </section>
     <section id="routesSec" data-w="routes">
       <h2>Trade routes <span class="sub">what each route unloaded in the last 10 turns</span></h2>

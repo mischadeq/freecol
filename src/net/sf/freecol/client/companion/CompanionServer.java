@@ -179,6 +179,17 @@ public final class CompanionServer {
                     json = "{}";
                 }
                 send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/independence".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionIndependence.build(this.fcc.getGame(),
+                                                      this.fcc.getMyPlayer()));
+                } catch (Exception e) {
+                    json = "{}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
             } else if ("/api/market".equals(path)) {
                 String json;
                 try {

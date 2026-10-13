@@ -163,6 +163,8 @@
     if (s.marketRev !== marketRev) { marketRev = s.marketRev; loadMarket(); }
     // The nation figures need the server, so only ask during our turn.
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
+    if (shownWidgets().includes("independence") && s.myTurn &&
+        (s.turn !== indepTurn || Date.now() - indepAt > 10000)) loadIndependence(s.turn);
     if (view.auto) fitView();
   }
 
@@ -1648,15 +1650,17 @@
     { w: "market", label: "Europe prices" },
     { w: "routes", label: "Route charts" },
     { w: "nations", label: "Nations" },
-    { w: "military", label: "Military" }
+    { w: "military", label: "Military" },
+    { w: "independence", label: "Independence" }
   ];
   const TABS = {
     colonies: ["colonies", "goods"],
     trade: ["map", "network", "routes", "market"],
     nations: ["nations"],
-    military: ["military"]
+    military: ["military"],
+    independence: ["independence"]
   };
-  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military"];
+  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military", "independence"];
   let tab = store.get("fc.tab");
   if (!TAB_KEYS.includes(tab)) tab = "overview";
   let picks = null;
@@ -1685,6 +1689,7 @@
   function setTab(t) {
     if (!TAB_KEYS.includes(t)) return;
     tab = t;
+    if (t === "independence" && state) loadIndependence(state.turn);
     store.set("fc.tab", t);
     applyTab();
     $("main").scrollTop = 0;
@@ -1901,6 +1906,107 @@
     if ($("military").innerHTML !== html) $("military").innerHTML = html;
   }
 
+
+  // ---------------------------------------------------------------- independence
+
+  let indep = null, indepTurn = null, indepAt = 0, indepBusy = false;
+
+  async function loadIndependence(turn) {
+    if (indepBusy) return;
+    indepBusy = true;
+    try {
+      const r = await fetch("/api/independence", { cache: "no-store" });
+      const d = await r.json();
+      if (d.colonies) { indep = d; indepTurn = turn; indepAt = Date.now(); renderIndependence(); }
+    } catch (e) { /* try again later */ }
+    indepBusy = false;
+  }
+
+  function pctClass(p) { return p >= 60 ? "ok" : p >= 40 ? "warn" : "alarm"; }
+  function pct(p) { return '<b class="' + pctClass(p) + '">' + p + "%</b>"; }
+
+  function renderIndependence() {
+    const d = indep, sp = d.soldierPower;
+    const declared = d.playerType !== "colonial";
+    const mine = d.mine || [];
+    const myLand = mine.filter((u) => !u.naval), myShips = mine.filter((u) => u.naval);
+    const count = (list, k) => list.filter((u) => u.kind === k).length;
+    const refN = (k) => d.ref.filter((r) => r.kind === k).reduce((a, r) => a + r.number, 0);
+    const refAtt = (k) => { const r = d.ref.find((x) => x.kind === k); return r ? r.attack10 / 10 : 0; };
+    const mySol = d.myLandAttack / sp, refSol = d.refLandAttack / sp;
+    const times = mySol > 0 ? refSol / mySol : null;
+    const extra = Math.floor(d.muskets / 50);
+
+    // Declaring
+    const can = d.sol >= d.solNeeded && d.coastal && d.year <= d.lastYear;
+    let h = '<div class="ibanner ' + (declared ? "war" : can ? "ready" : "") + '">' +
+      (declared ? "<b>War of Independence.</b> Hold your colonies; the King gives up when he is worn down (see below)."
+        : can ? "<b>You can declare independence now</b> (Game menu). Read the checklist first."
+          : "<b>Not ready to declare:</b> rebels across all colonies " + d.sol + "% of the " + d.solNeeded + "% needed" +
+            (d.coastal ? "" : ", and you need a colony with a port") + ". Deadline: " + d.lastYear + ".") + "</div>";
+
+    // Forces side by side
+    const row = (label, you, king, tip) => '<tr title="' + esc(tip || "") + '"><td>' + label + '</td><td class="n">' + you + '</td><td class="n">' + king + "</td></tr>";
+    h += '<div class="igrid"><div class="mbox"><h3>Forces <span class="sub">you · the King</span></h3><table class="itable">' +
+      row("Soldiers", count(myLand, "soldier"), refN("soldier"), "King's infantry are regulars: each attacks a colony with " + refAtt("soldier") + "; your veteran soldier attacks with 4.5, a colonist soldier with 3.") +
+      row("Dragoons", count(myLand, "dragoon"), refN("dragoon"), "King's cavalry attacks a colony with " + refAtt("dragoon") + ".") +
+      row("Artillery", count(myLand, "artillery"), refN("artillery"), "Artillery attacks with 10.5 (King's: " + refAtt("artillery") + " against a colony) and defends well behind walls, badly in the open.") +
+      row("Warships", count(myShips, "warship"), refN("warship"), "A man-of-war attacks with " + refAtt("warship") + ", your frigate with 24.") +
+      '<tr class="tot"><td>Strength</td><td class="n">' + tenth(mySol * 10) + '</td><td class="n">≈ ' + tenth(refSol * 10) + "</td></tr>" +
+      "</table>" +
+      '<div class="mline">' + (times ? "The King's army is <b class=\"alarm\">" + (times >= 10 ? Math.round(times) : times.toFixed(1)) + "×</b> yours" : "You have no army yet") +
+      " in soldiers' worth (game's own measure: you have " + d.ratioLand + "% of the land strength, " + d.ratioNaval + "% at sea).</div>" +
+      '<div class="mline m">In store: ' + gi("model.goods.muskets") + " " + d.muskets + " muskets = " + extra + " more soldiers, " + gi("model.goods.horses") + " " + d.horses + " horses.</div>" +
+      "</div>";
+
+    // Your units
+    h += '<div class="mbox"><h3>Your armed units</h3>' + (myLand.length + myShips.length ? '<table class="itable">' +
+      mine.map((u) => '<tr' + (u.seized ? ' class="bad"' : "") + '><td>' + esc(u.name) + (u.veteran ? ' <span class="tag ok">veteran</span>' : "") + "</td><td>" + esc(u.where) +
+        (u.seized ? ' <span class="tag alarm" title="Units in Europe or sailing there are seized when you declare">seized if you declare</span>' : "") +
+        '</td><td class="n" title="attack / defence where it stands">' + tenth(u.attack10) + " / " + tenth(u.defence10) + "</td></tr>").join("") + "</table>" : '<div class="m">None.</div>') + "</div></div>";
+
+    // Colonies
+    h += '<div class="mbox wide"><h3>If the King attacks <span class="sub">chance your best defender holds one attack, now and with what is in the colony</span></h3>' +
+      '<table class="itable cols"><tr><th>Colony</th><th class="n" title="Rebels: the King gets this much less popular support">Rebels</th><th>Walls</th><th>Defender now</th>' +
+      '<th class="n" title="Against one attack by King\'s infantry / cavalry">Holds now</th><th>Best you can do</th><th class="n">Holds then</th><th class="n" title="Veteran soldiers that become Continental regulars when you declare (rebels above 50%)">Muster</th></tr>' +
+      d.colonies.map((c) => '<tr><td><b>' + esc(c.name) + '</b></td><td class="n">' + c.sol + "%</td><td>" + esc(c.walls || "none") + "</td>" +
+        "<td>" + (c.defender ? esc(c.defender) + (c.defenderArmed ? "" : ' <span class="tag warn">unarmed</span>') : '<span class="alarm">nobody</span>') +
+          ' <span class="m">(' + tenth(c.defence10) + ")</span></td>" +
+        '<td class="n">' + pct(c.holdInf) + ' <span class="m">/ ' + c.holdCav + "%</span></td>" +
+        "<td>" + (c.bestText ? esc(c.bestText) + ' <span class="m">(' + tenth(c.bestDefence10) + ")</span>" : '<span class="m">' + (c.defenderArmed ? "already the best here" : "no muskets in store") + "</span>") + "</td>" +
+        '<td class="n">' + (c.bestText ? pct(c.bestHoldInf) : "") + "</td>" +
+        '<td class="n" title="Up to ' + c.musterLimit + " can be mustered here; veteran soldiers here now: " + c.veterans + '">' + (c.musterLimit ? c.muster + " of " + c.musterLimit : '<span class="m">-</span>') + "</td></tr>").join("") +
+      "</table>" +
+      '<div class="mline m">The King\'s regulars attack a colony with ' + refAtt("soldier") + " plus the colony's tories as a bonus (100% − rebels): a colony with few rebels makes him stronger. Each attack he loses costs him a unit (cavalry first loses its horses).</div></div>";
+
+    // Checklist
+    const todo = [];
+    const seized = mine.filter((u) => u.seized);
+    if (seized.length) todo.push(["alarm", seized.length + " unit" + (seized.length > 1 ? "s are" : " is") + " in Europe (" + esc(seized.map((u) => u.name).join(", ")) + "): bring them home before declaring, or they are lost."]);
+    for (const c of d.colonies) {
+      if (!c.armed) todo.push(["warn", esc(c.name) + " has no armed defender" + (c.bestText ? ": arm the " + esc(c.bestText.split(" as ")[0]) + " there (holds " + c.bestHoldInf + "% instead of " + c.holdInf + "%)." : ".")]);
+    }
+    const musterRoom = d.colonies.filter((c) => c.musterLimit > c.muster);
+    if (musterRoom.length) todo.push(["info", "Put veteran soldiers in " + musterRoom.map((c) => esc(c.name) + " (room for " + (c.musterLimit - c.muster) + ")").join(", ") + " before declaring: they become Continental regulars (+3 attack and defence)."]);
+    const tory = d.colonies.filter((c) => c.sol < 50);
+    if (tory.length) todo.push(["warn", "Few rebels in " + tory.map((c) => esc(c.name) + " (" + c.sol + "%)").join(", ") + ": the King attacks there with up to +" + (100 - Math.min(...tory.map((c) => c.sol))) + "%. More bells there, or expect to lose them."]);
+    if (extra > 0) todo.push(["info", d.muskets + " muskets in store arm " + extra + " more soldiers; horses make them dragoons."]);
+    h += '<div class="mbox wide"><h3>Before you declare</h3>' + (todo.length ? '<ul class="ilist">' + todo.map((t) => '<li class="' + t[0] + '">' + t[1] + "</li>").join("") + "</ul>" : '<div class="m">Nothing to add.</div>') + "</div>";
+
+    // Winning and help
+    h += '<div class="igrid"><div class="mbox"><h3>How you win</h3>' +
+      '<div class="mline">The King gives up when <b>all</b> of these hold:</div><ul class="ilist plain">' +
+      "<li>he holds none of your colonies;</li>" +
+      "<li>your army is at least 1.5× what he has left on land;</li>" +
+      "<li>he is down to fewer than " + d.landRequired + " land units (now " + d.refLand + ") <i>or</i> fewer than " + d.navalRequired + " ships (now " + d.refNaval + ").</li></ul>" +
+      '<div class="mline m">Then you win; you may play on after the victory screen. Europe stays closed; a custom house keeps selling for you.</div></div>' +
+      '<div class="mbox"><h3>Help</h3><div class="mline">After declaring, once you make <b>' + num(d.interventionBells) + "</b> more bells, a foreign power sends: " +
+      esc(d.intervention.map((x) => x.name).join(", ")) + ".</div>" +
+      '<div class="mline m">On declaring, the native tribe that likes you least declares war on you; the one that likes you most makes peace.</div></div></div>';
+
+    if ($("indep").innerHTML !== h) $("indep").innerHTML = h;
+  }
+
   // ---------------------------------------------------------------- routes
 
   let lastRoutesJson = "";
@@ -2056,7 +2162,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
-    if (e.key >= "1" && e.key <= "5" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
+    if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
     if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });
