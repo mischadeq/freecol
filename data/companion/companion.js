@@ -159,6 +159,7 @@
     const aj = JSON.stringify(s.alerts);
     if (aj !== lastAlertsJson) { lastAlertsJson = aj; renderAlerts(s.alerts); }
     renderLegend(s.routes);
+    renderRoutes(s.routes);
     if (s.marketRev !== marketRev) { marketRev = s.marketRev; loadMarket(); }
     // The nation figures need the server, so only ask during our turn.
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
@@ -623,6 +624,8 @@
   }
 
   function renderNations() {
+    renderNatCards();
+    renderMilitary();
     const N = nations.nations;
     const ranks = {};
     for (const c of NAT_COLS) ranks[c.m] = natRanks(c);
@@ -1629,6 +1632,270 @@
     }
   }
 
+
+  // ---------------------------------------------------------------- tabs
+
+  // Every section is a widget.  The Overview tab shows the widgets
+  // picked by the player (remembered in this browser); the other tabs
+  // show a fixed set, each meant to fit one screen.
+  const WIDGETS = [
+    { w: "map", label: "Map" },
+    { w: "alerts", label: "Alerts" },
+    { w: "network", label: "Supply network" },
+    { w: "colonies", label: "Colony cards" },
+    { w: "goods", label: "Empire goods" },
+    { w: "market", label: "Europe prices" },
+    { w: "routes", label: "Route charts" },
+    { w: "nations", label: "Nations" },
+    { w: "military", label: "Military" }
+  ];
+  const TABS = {
+    colonies: ["colonies", "goods"],
+    trade: ["map", "network", "routes", "market"],
+    nations: ["nations"],
+    military: ["military"]
+  };
+  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military"];
+  let tab = store.get("fc.tab");
+  if (!TAB_KEYS.includes(tab)) tab = "overview";
+  let picks = null;
+  try { picks = JSON.parse(store.get("fc.picks")); } catch (e) { picks = null; }
+  if (!Array.isArray(picks)) picks = ["map", "alerts", "network", "military"];
+
+  function shownWidgets() { return tab === "overview" ? picks : TABS[tab]; }
+
+  function applyTab() {
+    const on = shownWidgets();
+    for (const el of document.querySelectorAll("section[data-w]")) {
+      el.classList.toggle("off", !on.includes(el.dataset.w));
+    }
+    for (const b of document.querySelectorAll("#tabs .tab")) {
+      b.classList.toggle("on", b.dataset.tab === tab);
+    }
+    $("pickToggle").hidden = tab !== "overview";
+    if (tab !== "overview") $("picker").hidden = true;
+    document.body.classList.toggle("nomap", !on.includes("map"));
+    resize();
+    if (market) renderMarket();
+    if (nations) drawNationChart();
+    if (state) renderNetwork(state.colonies);
+  }
+
+  function setTab(t) {
+    if (!TAB_KEYS.includes(t)) return;
+    tab = t;
+    store.set("fc.tab", t);
+    applyTab();
+    $("main").scrollTop = 0;
+  }
+
+  function renderPicker() {
+    $("picker").innerHTML = '<span class="lbl">Overview shows</span>' + WIDGETS.map((x) =>
+      '<label class="pick' + (picks.includes(x.w) ? " on" : "") + '"><input type="checkbox" data-pick="' + x.w + '"' +
+      (picks.includes(x.w) ? " checked" : "") + "> " + esc(x.label) + "</label>").join("");
+  }
+
+  $("tabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".tab");
+    if (b) setTab(b.dataset.tab);
+  });
+  $("pickToggle").addEventListener("click", () => {
+    renderPicker();
+    $("picker").hidden = !$("picker").hidden;
+  });
+  $("picker").addEventListener("change", (e) => {
+    const w = e.target.dataset && e.target.dataset.pick;
+    if (!w) return;
+    // Keep the page order of the widgets.
+    const set = new Set(picks);
+    if (e.target.checked) set.add(w); else set.delete(w);
+    picks = WIDGETS.map((x) => x.w).filter((x) => set.has(x));
+    store.set("fc.picks", JSON.stringify(picks));
+    renderPicker();
+    applyTab();
+  });
+
+  // ---------------------------------------------------------------- nation cards
+
+  const KIND_LABEL = {
+    soldier: ["soldier", "soldiers"], dragoon: ["dragoon", "dragoons"],
+    artillery: ["artillery", "artillery"], warship: ["warship", "warships"],
+    merchant: ["merchant ship", "merchant ships"], wagon: ["wagon train", "wagon trains"],
+    colonist: ["colonist outside", "colonists outside"], other: ["other", "others"]
+  };
+  const KIND_ORDER = ["soldier", "dragoon", "artillery", "warship", "merchant", "wagon", "colonist", "other"];
+
+  function kindList(units, only) {
+    const parts = [];
+    for (const k of KIND_ORDER) {
+      if (only && !only.includes(k)) continue;
+      const n = units && units[k];
+      if (n) parts.push(n + " " + KIND_LABEL[k][n === 1 ? 0 : 1]);
+    }
+    return parts.join(", ");
+  }
+  function num(x) { return Math.round(x).toLocaleString(); }
+  function tenth(x) { return (Math.round(x) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }); }
+
+  function bar(v, max, color) {
+    const w = max > 0 ? Math.max(v > 0 ? 3 : 0, Math.round(100 * v / max)) : 0;
+    return '<span class="nbar"><i style="width:' + w + "%;background:" + esc(color) + '"></i></span>';
+  }
+
+  // A small line of one measure over the recorded turns.
+  function natSpark(n, measure, color) {
+    if (!nations.history) return "";
+    const i = natIndex(measure);
+    const pts = Object.keys(nations.history).map(Number).sort((a, b) => a - b)
+      .map((t) => { const v = nations.history[t][n.id]; return v && v[i] >= 0 ? v[i] : null; })
+      .filter((v) => v != null).slice(-20);
+    if (pts.length < 2) return "";
+    const max = Math.max(...pts), min = Math.min(...pts), W = 64, H = 16;
+    const d = pts.map((v, k) => (k ? "L" : "M") + (k * W / (pts.length - 1)).toFixed(1) + "," +
+      (H - 1 - (max === min ? H / 2 : (v - min) * (H - 2) / (max - min))).toFixed(1)).join("");
+    return '<svg class="nspark" width="' + W + '" height="' + H + '"><path d="' + d + '" stroke="' + esc(color) +
+      '" fill="none" stroke-width="1.5"/></svg>';
+  }
+
+  function renderNatCards() {
+    const N = nations.nations.slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
+    const me = N.find((n) => n.me);
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
+    const maxOut = Math.max(1, ...N.map((n) => n.output || 0));
+    const per = nations.perColonist, sp = nations.soldierPower, fp = nations.frigatePower;
+    const html = N.map((n) => {
+      const v = (m) => n.v[natIndex(m)];
+      const est = n.me ? "" : "≈ ";
+      const rows = [];
+      // Expansion
+      rows.push(['Colonies', "<b>" + v("colonies") + "</b> · " + v("colonists") + " colonists " + natSpark(n, "colonists", n.color),
+        "Colonies, and colonists working in them as seen on the map."]);
+      // Output
+      if (n.output != null && n.output >= 0) {
+        rows.push(["Output", "<b>" + est + num(n.output) + "</b> gold/turn " + bar(n.output, maxOut, n.color),
+          n.me ? "What your colonies make per turn beyond what they use, at your Europe prices (exact)."
+               : "Estimate: " + v("colonists") + " colonists × " + per + " gold, what one of your colonists makes per turn at your Europe prices. " +
+                 "If they work less well than yours, it is lower."]);
+      }
+      // Bells
+      if (n.bellsPerTurn != null) {
+        rows.push(["Bells", "<b>" + est + num(n.bellsPerTurn) + "</b>/turn · rebels " + v("sol") + "% " + natSpark(n, "sol", n.color),
+          n.me ? "Liberty bells your colonies make per turn (exact)."
+               : "Estimate from how fast their rebels grow: every new rebel takes 200 bells (rebel share × colonists, over the last turns)."]);
+      } else if (v("sol") >= 0) {
+        rows.push(["Rebels", v("sol") + "% " + natSpark(n, "sol", n.color), "Share of colonists that supports independence."]);
+      }
+      // Treasury
+      if (v("gold") >= 0) {
+        const g = n.goldPerTurn;
+        rows.push(["Treasury", "<b>" + num(v("gold")) + "</b> gold" + (g != null ? ' <span class="' + (g >= 0 ? "up" : "down") + '">' + (g >= 0 ? "+" : "") + num(g) + "/turn</span>" : "") +
+          " · tax " + v("tax") + "%",
+          "Gold in the treasury (Foreign Affairs report); the change per turn is the average over the last turns: sales and taxes minus purchases."]);
+      }
+      // Army and navy
+      if (n.soldiers != null && n.soldiers >= 0) {
+        let tip = "Attack strength " + v("military") + ", as many soldiers as that (a soldier attacks with " + sp + ").";
+        if (n.me) {
+          tip += " Yours: " + (kindList(n.units, ["soldier", "dragoon", "artillery"]) || "none") + ".";
+          if (n.muskets) tip += " In store: " + n.muskets + " muskets (" + Math.floor(n.muskets / 50) + " more soldiers) and " + n.horses + " horses.";
+        } else if (kindList(n.units, ["soldier", "dragoon", "artillery"])) {
+          tip += " Seen now: " + kindList(n.units, ["soldier", "dragoon", "artillery"]) + ".";
+        }
+        rows.push(["Army", "<b>" + est + tenth(n.soldiers) + "</b> soldiers " + bar(n.soldiers, maxSol, n.color), tip]);
+      }
+      if (n.frigates != null && n.frigates >= 0) {
+        let line = "<b>" + est + tenth(n.frigates) + "</b> frigates " + bar(n.frigates, maxFri, n.color);
+        let tip = "Sea attack strength " + v("naval") + ", as many frigates as that (a frigate attacks with " + fp + "). Merchant ships do not count.";
+        if (n.raids) {
+          const r = n.raids, parts = [];
+          if (r[0] || r[1]) parts.push("you hit " + (r[0] + r[1]) + (r[1] ? " (" + r[1] + " sunk)" : ""));
+          if (r[2] || r[3]) parts.push("they hit " + (r[2] + r[3]) + " of yours" + (r[3] ? " (" + r[3] + " sunk)" : ""));
+          if (parts.length) {
+            line += '<div class="raid">⚔ ' + parts.join(", ") + " · 10 turns</div>";
+            tip += " Sea fights with them in the last 10 turns: you damaged " + r[0] + " and sank " + r[1] +
+              " of their ships; they damaged " + r[2] + " and sank " + r[3] + " of yours. Damaged ships sail home for repairs and lose their cargo: that is the blockade.";
+          }
+        }
+        rows.push(["Navy", line, tip]);
+      }
+      const seen = n.me ? "" : kindList(n.units);
+      if (seen) rows.push(["Seen now", esc(seen), "Their units on the map that you can see right now."]);
+      // Colonies, estimated per turn
+      const cl = (n.colonyList || []).slice().sort((a, b) => b.value - a.value);
+      const cols = cl.slice(0, 6).map((c) => '<span class="ncol" title="' + esc(c.name + ": " + c.size + " colonists, " +
+        (n.me ? "" : "about ") + c.value + " gold/turn") + '">' + esc(c.name) + " <b>" + c.size + "</b></span>").join("") +
+        (cl.length > 6 ? '<span class="m"> +' + (cl.length - 6) + "</span>" : "");
+      return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
+        "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') + "</div>" +
+        '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
+        (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
+    }).join("");
+    if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- military
+
+  function renderMilitary() {
+    const N = nations.nations;
+    const me = N.find((n) => n.me);
+    if (!me) return;
+    const sp = nations.soldierPower;
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
+    const sorted = (key) => N.slice().filter((n) => n[key] != null && n[key] >= 0).sort((a, b) => b[key] - a[key]);
+    const rows = (key, unit) => sorted(key).map((n) =>
+      '<div class="mrow' + (n.me ? " me" : "") + '"><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
+      bar(n[key], key === "soldiers" ? maxSol : maxFri, n.color) + '<span class="mval">' + (n.me ? "" : "≈ ") + tenth(n[key]) + " " + unit + "</span></div>").join("");
+    const fights = N.filter((n) => n.raids).map((n) => {
+      const r = n.raids;
+      return '<div class="mrow"><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
+        "<span>you damaged <b>" + r[0] + "</b>, sank <b>" + r[1] + "</b> · they damaged <b>" + r[2] + "</b>, sank <b>" + r[3] + "</b></span></div>";
+    }).join("");
+    const extraSoldiers = Math.floor((me.muskets || 0) / 50);
+    const html =
+      '<div class="mgrid">' +
+      '<div class="mbox"><h3>Your forces</h3>' +
+        '<div class="mline"><b>' + tenth(me.soldiers) + "</b> soldiers' worth on land: " + (kindList(me.units, ["soldier", "dragoon", "artillery"]) || "none") + "</div>" +
+        '<div class="mline"><b>' + tenth(me.frigates) + "</b> frigates' worth at sea: " + (kindList(me.units, ["warship"]) || "no warships") +
+          (me.units && me.units.merchant ? " (and " + kindList(me.units, ["merchant"]) + ")" : "") + "</div>" +
+        '<div class="mline m" title="50 muskets arm one soldier; 50 horses more make a dragoon">In store: ' + gi("model.goods.muskets") + " " + num(me.muskets || 0) +
+          " muskets = " + extraSoldiers + " more soldiers · " + gi("model.goods.horses") + " " + num(me.horses || 0) + " horses</div>" +
+        '<div class="mline m">Strength counts only armed units: a soldier attacks with ' + sp + ", a dragoon with 4.5, artillery with 10.5, a frigate with " + nations.frigatePower + ".</div>" +
+      "</div>" +
+      '<div class="mbox"><h3>Army <span class="sub">in soldiers</span></h3>' + rows("soldiers", "") + "</div>" +
+      '<div class="mbox"><h3>Navy <span class="sub">in frigates</span></h3>' + rows("frigates", "") + "</div>" +
+      '<div class="mbox"><h3>Sea fights <span class="sub">last 10 turns</span></h3>' + (fights || '<div class="m">None recorded yet (counted from now on).</div>') + "</div>" +
+      "</div>";
+    if ($("military").innerHTML !== html) $("military").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- routes
+
+  let lastRoutesJson = "";
+  function renderRoutes(routes) {
+    const j = JSON.stringify(routes.map((r) => [r.name, r.moved, r.movedGoods, r.carriers]));
+    if (j === lastRoutesJson) return;
+    lastRoutesJson = j;
+    $("routes").innerHTML = routes.length ? routes.map((r) => {
+      const moved = r.moved || [];
+      const max = Math.max(1, ...moved);
+      const total = moved.reduce((a, b) => a + b, 0);
+      const bars = moved.map((a, i) => {
+        const h = a ? Math.max(2, Math.round(40 * a / max)) : 1;
+        return '<rect x="' + i * 14 + '" y="' + (42 - h) + '" width="11" height="' + h + '" rx="1" fill="' + (a ? r.color : "#3a414b") + '"><title>' +
+          (moved.length - 1 - i === 0 ? "This turn" : (moved.length - 1 - i) + " turns ago") + ": " + a + "</title></rect>";
+      }).join("");
+      const goods = Object.entries(r.movedGoods || {}).slice(0, 5).map(([g, a]) => gi(g, goodsName(g)) + " " + a).join(" ");
+      const stops = r.stops.map((st) => esc(st.name)).join(" → ");
+      return '<div class="rcard"><div class="rhead"><i class="sw" style="background:' + esc(r.color) + '"></i><b>' + esc(r.name) + "</b>" +
+        ' <span class="m">' + r.carriers + (r.carriers === 1 ? " carrier" : " carriers") + "</span></div>" +
+        '<div class="m rstops">' + stops + "</div>" +
+        '<div class="rbody"><svg width="' + moved.length * 14 + '" height="44">' + bars + "</svg>" +
+        '<div class="rgoods">' + (total ? "<b>" + total + "</b> unloaded<br>" + goods : '<span class="m">nothing unloaded yet</span>') + "</div></div></div>";
+    }).join("") : '<div class="m">No trade routes yet.</div>';
+  }
+
   // Tiny bar chart of what a route unloaded in each of the last turns.
   function movedSpark(r) {
     if (!r.moved) return "";
@@ -1745,11 +2012,20 @@
     e.stopPropagation();
     openPedia("goods", t.dataset.g);
   }, true);
-  $("chipAlerts").addEventListener("click", () =>
-    $("alertsSec").scrollIntoView({ behavior: "smooth" }));
+  $("chipAlerts").addEventListener("click", () => {
+    if (!shownWidgets().includes("alerts")) {
+      if (!picks.includes("alerts")) {
+        picks = WIDGETS.map((x) => x.w).filter((x) => x === "alerts" || picks.includes(x));
+        store.set("fc.picks", JSON.stringify(picks));
+      }
+      setTab("overview");
+    }
+    $("alertsSec").scrollIntoView({ behavior: "smooth" });
+  });
   document.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
+    if (e.key >= "1" && e.key <= "5" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
     if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });
@@ -1759,7 +2035,7 @@
   if (pushQuery.addEventListener) pushQuery.addEventListener("change", setPush);
   window.addEventListener("resize", () => { resize(); if (market) renderMarket(); if (nations) drawNationChart(); if (state) renderNetwork(state.colonies); });
 
-  resize();
+  applyTab();
   setDrawer(store.get("fc.logOpen") === "1");
   requestAnimationFrame(frame);
   poll();

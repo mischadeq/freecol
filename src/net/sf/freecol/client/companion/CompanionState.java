@@ -160,6 +160,7 @@ final class CompanionState {
         buildMap(game, player);
         j.put("mapRev", this.mapRev);
         CompanionMarket.record(game, player);
+        CompanionRaids.scan(game, player);
         j.put("marketRev", CompanionMarket.getRev());
         header(j, game, player);
 

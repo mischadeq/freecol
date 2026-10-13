@@ -34,8 +34,18 @@
   </div>
 </header>
 
+<nav id="tabs" class="tabs">
+  <button class="tab" data-tab="overview" title="Your own choice of widgets (1)">Overview</button>
+  <button class="tab" data-tab="colonies" title="Colony cards and empire goods (2)">Colonies</button>
+  <button class="tab" data-tab="trade" title="Map, supply network, trade routes, Europe market (3)">Trade</button>
+  <button class="tab" data-tab="nations" title="Every nation in plain figures (4)">Nations</button>
+  <button class="tab" data-tab="military" title="Your forces against theirs (5)">Military</button>
+  <button id="pickToggle" class="pickbtn" title="Choose what the Overview shows">&#9881; Widgets</button>
+</nav>
+<div id="picker" class="picker" hidden></div>
+
 <div id="body">
-  <section id="mapSec">
+  <section id="mapSec" data-w="map">
     <canvas id="map"></canvas>
     <div id="tip" class="tip" hidden></div>
     <div class="maphint">Scroll to zoom, drag to move, double-click to fit</div>
@@ -43,11 +53,11 @@
   </section>
 
   <main id="main">
-    <section id="alertsSec">
+    <section id="alertsSec" data-w="alerts">
       <h2>Alerts</h2>
       <ul id="alerts" class="alerts"></ul>
     </section>
-    <section id="netSec" hidden>
+    <section id="netSec" data-w="network">
       <h2>Supply network <span class="sub">what your trade routes carry; the number is how much the receiver lacks per turn</span></h2>
       <svg id="net" role="img" aria-label="Supply network between your colonies"></svg>
       <div class="netleg">
@@ -58,12 +68,14 @@
         <span><b class="ringkey"></b>rebels</span>
       </div>
     </section>
-    <section>
+    <section id="coloniesSec" data-w="colonies">
       <h2>Colonies <span class="sub">advice never cuts a supply line; hover a chip for the details</span></h2>
       <div id="colonies" class="cards"></div>
     </section>
-    <section id="nationsSec">
-      <h2>Nations ranking <span class="sub">the European colonies side by side; #1 is best</span></h2>
+    <section id="nationsSec" data-w="nations">
+      <h2>Nations <span class="sub">yours exact; theirs from what you can know: the Foreign Affairs report, the map and your own fights. ≈ marks an estimate; hover for how it is worked out</span></h2>
+      <div id="natCards" class="natcards"></div>
+      <h2>Ranking <span class="sub">the same figures side by side; #1 is best</span></h2>
       <div id="natSummary" class="natsum"></div>
       <div id="natTable" class="ntable"></div>
       <div class="mchart">
@@ -72,11 +84,19 @@
       </div>
       <p id="natNote" class="note m"></p>
     </section>
-    <section>
+    <section id="militarySec" data-w="military">
+      <h2>Military <span class="sub">strength counted in soldiers and frigates; hover for details</span></h2>
+      <div id="military" class="military"></div>
+    </section>
+    <section id="routesSec" data-w="routes">
+      <h2>Trade routes <span class="sub">what each route unloaded in the last 10 turns</span></h2>
+      <div id="routes" class="routes"></div>
+    </section>
+    <section id="goodsSec" data-w="goods">
       <h2>Empire goods <span class="sub">in all colonies, change per turn</span></h2>
       <div id="goods" class="goods"></div>
     </section>
-    <section id="marketSec">
+    <section id="marketSec" data-w="market">
       <h2>Europe market <span class="sub">price per unit; selling a lot of something lowers its price</span></h2>
       <div id="marketSummary" class="msum"></div>
       <div class="mchart">

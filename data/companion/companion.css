@@ -353,3 +353,74 @@ img.gi[data-g] { cursor: help; }
 .chip2.alarm { border-color: var(--alarm); color: var(--text); }
 .chip2.warn { border-color: var(--warn); color: var(--text); }
 .chip2 img.gi { width: 16px; height: 16px; }
+
+/* Tabs and the Overview widget picker */
+.tabs {
+  display: flex; align-items: center; gap: 2px; padding: 0 12px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.tab {
+  background: none; border: 0; border-bottom: 3px solid transparent;
+  padding: 8px 14px 6px; color: var(--muted); cursor: pointer; font-weight: 600;
+}
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--text); border-bottom-color: var(--gold); }
+.pickbtn {
+  margin-left: auto; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.pickbtn:hover { border-color: var(--muted); }
+.picker {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  padding: 8px 16px; background: var(--panel2); border-bottom: 1px solid var(--line);
+}
+.picker[hidden] { display: none; }
+.pick {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px;
+}
+.pick.on { border-color: var(--gold); }
+.pick input { margin: 0; accent-color: var(--gold); }
+section.off { display: none !important; }
+body.nomap #mapSec { display: none; }
+
+/* Nation cards */
+.natcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin-bottom: 6px; }
+.ncard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ncard.me { border-color: #5c4a26; }
+.nhead { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+.nrows { display: grid; grid-template-columns: 74px 1fr; gap: 3px 8px; margin: 0; font-size: 13px; }
+.nrows dt { color: var(--muted); cursor: help; }
+.nrows dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; cursor: help; }
+.nbar { flex: 1 1 60px; min-width: 50px; max-width: 120px; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: inline-block; }
+.nbar i { display: block; height: 100%; border-radius: 3px; }
+.nspark { vertical-align: middle; }
+.up { color: var(--ok); }
+.down { color: var(--alarm); }
+.raid { flex-basis: 100%; color: var(--warn); font-size: 12px; }
+.ncols { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.ncol { background: var(--panel2); border-radius: 6px; padding: 1px 7px; font-size: 12px; color: var(--muted); }
+.ncol b { color: var(--text); font-weight: 600; }
+.tag { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); }
+
+/* Military */
+.mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.mbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.mbox h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.mbox h3 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.mline { margin: 4px 0; }
+.mline.m, .m { color: var(--muted); }
+.mrow { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
+.mrow.me .mname { color: var(--gold); }
+.mname { display: inline-flex; align-items: center; gap: 6px; width: 90px; flex: none; }
+.mrow .nbar { max-width: none; flex: 1; }
+.mval { width: 64px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
+
+/* Route charts */
+.routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.rcard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.rhead { display: flex; align-items: center; gap: 8px; }
+.rstops { font-size: 12px; margin: 2px 0 6px; }
+.rbody { display: flex; align-items: flex-end; gap: 12px; }
+.rgoods { font-size: 13px; line-height: 1.6; }

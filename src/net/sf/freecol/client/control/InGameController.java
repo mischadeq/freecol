@@ -1666,6 +1666,7 @@ public final class InGameController extends FreeColClientHolder {
             && getGUI().confirmHostileAction(unit, target)
             && getGUI().confirmPreCombat(unit, target)) {
             askServer().attack(unit, direction);
+            noteFights();
             // Immediately display resulting message, allowing
             // next updateGUI to select another unit.
             nextModelMessage();
@@ -1685,6 +1686,7 @@ public final class InGameController extends FreeColClientHolder {
             && getGUI().confirmHostileAction(unit, target)
             && getGUI().confirmPreCombat(unit, target)) {
             askServer().attackRanged(unit, target);
+            noteFights();
             // Immediately display resulting message, allowing
             // next updateGUI to select another unit.
             nextModelMessage();
@@ -2684,6 +2686,19 @@ public final class InGameController extends FreeColClientHolder {
      * @param lb A {@code LogBuilder} to update.
      * @return True if something was unloaded.
      */
+    /**
+     * Note sea fights with other nations from the combat messages, for
+     * the companion page.  Never lets a failure get in the way.
+     */
+    private void noteFights() {
+        try {
+            net.sf.freecol.client.companion.CompanionRaids.scan(getGame(),
+                                                                getMyPlayer());
+        } catch (RuntimeException re) {
+            logger.log(Level.WARNING, "Fight record failed", re);
+        }
+    }
+
     /**
      * Note goods unloaded by a carrier on a trade route, for the
      * route history.  Never lets a failure get in the way.
@@ -5657,6 +5672,8 @@ public final class InGameController extends FreeColClientHolder {
             } catch (RuntimeException re) {
                 logger.log(Level.WARNING, "Price record failed", re);
             }
+            // Sea fights during the other nations' turns.
+            noteFights();
             // Keep the route history in step with the turn (and forget
             // turns that are being played again).
             try {

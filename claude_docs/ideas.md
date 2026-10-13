@@ -410,6 +410,41 @@ there. That is a smoke test, not a play test.
       Tried on Mischa's save: the soldier (unit:6673) joined Nijmegen,
       muskets 114 → 164, and became the veteran's student.
 
+- [ ] **Companion page in tabs, with plain-language nations and a
+      Military tab** (Mischa: a lot of scrolling; a 1–4 rank says
+      nothing; economic power was shallow; sinking their ships should
+      show). Chose: tabs plus an Overview with picked widgets (C), all
+      widgets available, honest figures only (what you could know).
+      - Tabs: Overview · Colonies · Trade · Nations · Military (keys
+        1–5). Overview shows the widgets ticked under ⚙ Widgets (map,
+        alerts, supply network, colony cards, empire goods, Europe
+        prices, route charts, nations, military), remembered in the
+        browser. The alerts chip switches to the alerts.
+      - Nations: a card per nation. Output in gold per turn (ours exact:
+        colony surpluses at our Europe prices; theirs ≈ their colonists
+        × what one of ours makes); bells per turn (theirs ≈ from how fast
+        their rebels grow, 200 bells a rebel); treasury and its change
+        per turn; army in soldiers (a soldier attacks with 3) and navy
+        in frigates (24), with a bar against the others; units seen now;
+        sea fights; their colonies with sizes. Hover for how each is
+        worked out. Ranking table and chart stay below.
+      - Military: your forces (units, muskets and horses in store and
+        how many more soldiers that arms), army and navy bars for all
+        nations, sea fights per nation over the last 10 turns.
+      - Sea fights: counted from the game's combat messages (theirs
+        damaged / sunk by you, ours by them), after each attack and at
+        the start of each turn; kept in companion/raids-<game>.csv.
+        Counting starts now; earlier fights are not known.
+      - Trade routes widget: a card per route with stops, carriers, a
+        bar per turn of what it unloaded and the main goods.
+      New: NationEstimate, CompanionRaids; CompanionNations adds the
+      figures; index.html, companion.js, companion.css. Unit test
+      NationEstimateTest. Tried on Mischa's save (screenshots of all
+      tabs): Dutch army 4 soldiers' worth (1 soldier, 2 dragoons; 214
+      muskets in store = 4 more), French ≈ 15, English ≈ 14, Spanish ≈
+      29; navy Dutch 1.8 frigates, others 0; output Dutch 406 gold/turn,
+      French ≈ 302, English ≈ 282, Spanish ≈ 283.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
