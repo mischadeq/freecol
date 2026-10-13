@@ -2913,15 +2913,34 @@ public final class InGameController extends FreeColClientHolder {
         final Player player = getMyPlayer();
         if (student == null
             || !player.owns(student)
-            || student.getColony() == null
-            || !student.isInColony()
             || teacher == null
             || !player.owns(teacher)
             || !student.canBeStudent(teacher)
             || teacher.getColony() == null
-            || student.getColony() != teacher.getColony()
             || !teacher.getColony().canTrain(teacher)
             || !requireOurTurn()) return false;
+        final Colony colony = teacher.getColony();
+
+        // A unit standing outside on the colony tile (a soldier at the
+        // palisade) has to join the colony first: only units working
+        // in the colony can be taught.  Joining puts its equipment in
+        // the warehouse and gives it a job.
+        if (!student.isInColony()) {
+            if (!canJoinToLearn(student, colony)) return false;
+            ColonyWas colonyWas = new ColonyWas(colony);
+            UnitWas unitWas = new UnitWas(student);
+            if (!askServer().joinColony(student, colony)
+                || !student.isInColony()) {
+                showInformationPanel(student, StringTemplate
+                    .template("assignTeacher.cannotJoin")
+                    .addStringTemplate("%unit%",
+                        student.getLabel(Unit.UnitLabelType.NATIONAL))
+                    .addName("%colony%", colony.getName()));
+                return false;
+            }
+            fireChanges(colonyWas, unitWas);
+        }
+        if (student.getColony() != colony) return false;
 
         UnitWas unitWas = new UnitWas(student);
         boolean ret = askServer().assignTeacher(student, teacher)
@@ -2931,6 +2950,21 @@ public final class InGameController extends FreeColClientHolder {
             updateGUI(null, false);
         }
         return ret;
+    }
+
+    /**
+     * Can a unit outside a colony join it to be taught there?  It must
+     * stand on the colony tile itself (not aboard a carrier).
+     *
+     * @param unit The {@code Unit} to check.
+     * @param colony The {@code Colony} to join.
+     * @return True if the unit can join to learn.
+     */
+    public static boolean canJoinToLearn(Unit unit, Colony colony) {
+        return unit != null && colony != null && !unit.isInColony()
+            && unit.getLocation() == colony.getTile()
+            && colony.getOwner().owns(unit)
+            && unit.isPerson();
     }
 
     /**

@@ -441,13 +441,38 @@ public final class QuickActionMenu extends JPopupMenu {
                 ImageIcon teacherIcon
                     = new ImageIcon(lib.getSmallerUnitImage(teacher));
                 if (teacher.getStudent() != unit) {
-                    menuItem = Utility.localizedMenuItem("quickActionMenu.assignToTeacher",
-                        teacherIcon);
-                    if (teacher.getStudent() != null) {
-                        menuItem.setText(menuItem.getText()
-                            + " (" + teacher.getTurnsOfTraining()
-                            + "/" + teacher.getNeededTurnsOfTraining()
-                            + ")");
+                    // A unit outside the colony (a soldier at the
+                    // palisade) joins it first; say so.
+                    final boolean outside = !unit.isInColony();
+                    if (outside && !net.sf.freecol.client.control
+                        .InGameController.canJoinToLearn(unit,
+                            teacher.getColony())) continue;
+                    menuItem = Utility.localizedMenuItem((outside)
+                        ? "quickActionMenu.joinAndLearn"
+                        : "quickActionMenu.assignToTeacher", teacherIcon);
+                    if (outside) {
+                        menuItem.setToolTipText(Messages.message(
+                            "quickActionMenu.joinAndLearn.tip"));
+                    }
+                    final Unit current = teacher.getStudent();
+                    if (current != null) {
+                        final String tip = Messages.message(StringTemplate
+                            .template("quickActionMenu.replacesStudent.tip")
+                            .addName("%unit%", Messages.getName(current.getType()))
+                            .addAmount("%done%", teacher.getTurnsOfTraining())
+                            .addAmount("%needed%",
+                                teacher.getNeededTurnsOfTraining()));
+                        menuItem.setToolTipText((menuItem.getToolTipText() == null)
+                            ? tip : menuItem.getToolTipText() + " " + tip);
+                        menuItem.setText(menuItem.getText() + " "
+                            + Messages.message(StringTemplate
+                                .template("quickActionMenu.replacesStudent")
+                                .addName("%unit%",
+                                    Messages.getName(current.getType()))
+                                .addAmount("%done%",
+                                    teacher.getTurnsOfTraining())
+                                .addAmount("%needed%",
+                                    teacher.getNeededTurnsOfTraining())));
                     }
                     menuItem.setActionCommand(UnitAction.ASSIGN + "/"
                         + teacher.getId());

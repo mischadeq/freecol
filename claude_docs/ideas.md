@@ -393,6 +393,23 @@ there. That is a smoke test, not a play test.
       was saved with ore + muskets and Wijchen showed muskets under
       Unloads.
 
+- [ ] **Fix: a soldier at the palisade could not be made a student**
+      (Mischa: picking "Assign to teacher" on the soldier next to the
+      dragoon in Nijmegen sometimes did nothing, and the teacher said it
+      needs a student). Trace on his save: the soldier stands on the
+      colony tile, outside the colony; only colonists working inside
+      can be taught, so the game refused without a word, while the menu
+      still offered it. Now the menu says "Join colony and learn" for
+      such a unit (tool tip: it puts down its arms, which go to the
+      warehouse, and takes a job), and choosing it joins the colony
+      first, then assigns the teacher. When the teacher already has a
+      student, the item says so: "· replaces Free Colonist (2/4)".
+      Units aboard a wagon or on another tile are not offered it.
+      InGameController.assignTeacher and canJoinToLearn,
+      QuickActionMenu.addEducationItems. Unit test JoinToLearnTest.
+      Tried on Mischa's save: the soldier (unit:6673) joined Nijmegen,
+      muskets 114 → 164, and became the veteran's student.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
