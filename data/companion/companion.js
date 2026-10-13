@@ -1629,9 +1629,24 @@
     }
   }
 
+  // Tiny bar chart of what a route unloaded in each of the last turns.
+  function movedSpark(r) {
+    if (!r.moved) return "";
+    const max = Math.max(1, ...r.moved);
+    const total = r.moved.reduce((a, b) => a + b, 0);
+    const goods = Object.entries(r.movedGoods || {}).map(([g, a]) => a + " " + goodsName(g)).join(", ");
+    const tip = total ? "Unloaded, last " + r.moved.length + " turns: " + goods : "Nothing unloaded yet";
+    const bars = r.moved.map((a, i) => {
+      const h = a ? Math.max(2, Math.round(12 * a / max)) : 1;
+      return '<rect x="' + i * 4 + '" y="' + (13 - h) + '" width="3" height="' + h + '" fill="' + (a ? r.color : "#555") + '"/>';
+    }).join("");
+    return ' <svg class="spark" width="' + r.moved.length * 4 + '" height="14"><title>' + esc(tip) + "</title>" + bars + "</svg>";
+  }
+
   function renderLegend(routes) {
     const html = routes.map((r) => '<span><i style="background:' + r.color + '"></i>' +
-      esc(r.name) + ' <span class="m">' + r.carriers + (r.carriers === 1 ? " carrier" : " carriers") + "</span></span>").join("") +
+      esc(r.name) + ' <span class="m">' + r.carriers + (r.carriers === 1 ? " carrier" : " carriers") + "</span>" +
+      movedSpark(r) + "</span>").join("") +
       '<span><i style="background:#fff;height:2px"></i>going to</span>' +
       '<span><i style="background:#ffb020"></i>rushing ahead</span>' +
       '<span><i style="background:#ff3b3b;width:8px;height:8px;border-radius:50%"></i>armed foreigners</span>';

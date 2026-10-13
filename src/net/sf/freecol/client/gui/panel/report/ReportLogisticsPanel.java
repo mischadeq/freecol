@@ -21,6 +21,7 @@ package net.sf.freecol.client.gui.panel.report;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -28,7 +29,9 @@ import javax.swing.JSeparator;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.control.RouteHistory;
 import net.sf.freecol.client.control.SupplyForecast;
+import net.sf.freecol.client.gui.panel.MovedChart;
 import net.sf.freecol.client.control.SupplyWatch;
 import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.model.Colony;
@@ -148,6 +151,41 @@ public final class ReportLogisticsPanel extends OverviewReportPanel {
                         + Messages.message(PREFIX + "loads"), cPlain));
                 for (GoodsType gt : cargo) p.add(goodsLabel(gt, "", null, null));
                 p.add(label(")", cPlain));
+            }
+        }
+        return p;
+    }
+
+    /**
+     * What the route actually unloaded over the last turns: a small
+     * bar chart (hover a bar for that turn) and the main goods.
+     *
+     * @param route The {@code TradeRoute}.
+     * @param color The route colour.
+     * @return The row.
+     */
+    private JPanel movedRow(TradeRoute route, Color color) {
+        final RouteHistory history = getFreeColClient()
+            .getInGameController().getRouteHistory();
+        final int turn = getGame().getTurn().getNumber();
+        JPanel p = row();
+        p.add(boldLabel(Messages.message(StringTemplate
+                    .template(PREFIX + "moved")
+                    .addAmount("%turns%", MovedChart.TURNS))));
+        MovedChart chart = new MovedChart(history, route.getId(), turn,
+                                          color, getSpecification());
+        p.add(chart);
+        Map<String, Integer> goods = history.sumByGoods(route.getId(), turn,
+                                                        MovedChart.TURNS);
+        if (goods.isEmpty()) {
+            p.add(label(Messages.message(PREFIX + "moved.none"), Color.GRAY));
+        } else {
+            int shown = 0;
+            for (Map.Entry<String, Integer> e : goods.entrySet()) {
+                if (shown++ == 4) break;
+                GoodsType gt = getSpecification().getGoodsType(e.getKey());
+                p.add(goodsLabel(gt, String.valueOf(e.getValue()), cPlain,
+                                 Messages.getName(gt)));
             }
         }
         return p;
@@ -283,6 +321,8 @@ public final class ReportLogisticsPanel extends OverviewReportPanel {
                         .addAmount("%number%", units.size())),
                     (units.isEmpty()) ? cAlarm : cPlain));
             reportPanel.add(title);
+            reportPanel.add(movedRow(route, LogisticsMap.routeColor(index - 1)),
+                            "gapleft 16");
             reportPanel.add(stopsRow(route), "gapleft 16");
             JPanel deliveries = deliveriesRow(route);
             if (deliveries != null) reportPanel.add(deliveries, "gapleft 16");

@@ -347,6 +347,23 @@ there. That is a smoke test, not a play test.
       harmless hold-up is quiet), testDelayOnlyWarnsWhenLate,
       testLateWithoutDelay.
 
+- [ ] **What each route moved, as a small graph.** Every unload by a
+      carrier on a trade route is noted per route and turn (last 20
+      turns, kept in `companion/routes-<game>-<player>.csv` in the user
+      data folder, so it survives quitting; loading an older save or
+      Restart This Turn forgets the turns that will be played again).
+      Logistics report: under each route a row "Moved, last 10 turns:"
+      with a bar per turn (hover a bar: what was unloaded that turn) and
+      the main goods with totals. Companion page: a tiny bar chart after
+      each route in the map legend, hover for the goods. Counting starts
+      when the new version runs; older turns show empty. New classes
+      RouteHistory (client/control) and MovedChart (client/gui/panel);
+      hook in InGameController.unloadUnitAtStop; CompanionState routes
+      JSON gets "moved" and "movedGoods". Unit test RouteHistoryTest.
+      Tried on Mischa's save: two turns ended, the report showed bars
+      for all six routes (e.g. Ore to Wijchen: 48 tools, 8 ore, 2 food).
+      Also: client/control AllTests now lists all the mod's tests.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
@@ -492,7 +509,6 @@ Known limits of the supply warnings (by design, not bugs):
   surplus, straight from the overview.
 - Better trade route setup dialog (the current one is clunky).
 - Open the trade route editor from the Logistics report.
-- What each route actually moved over the last turns.
 - Check the wagon limit in the base rules. The `shippableWagons` mod's
   copy of the wagon definition limits wagon trains to fewer than the
   number of colonies. If the base rules have it too, a small companion

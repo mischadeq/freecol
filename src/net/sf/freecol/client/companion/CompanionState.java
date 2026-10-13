@@ -710,6 +710,19 @@ final class CompanionState {
             j.obj().put("name", route.getName())
                 .put("color", LogisticsMap.routeColor(index++))
                 .put("carriers", carriers);
+            // What the route unloaded in each of the last turns.
+            final net.sf.freecol.client.control.RouteHistory history
+                = this.fcc.getInGameController().getRouteHistory();
+            final int turn = this.fcc.getGame().getTurn().getNumber();
+            j.key("moved").arr();
+            for (int a : history.totals(route.getId(), turn, 10)) j.val(a);
+            j.endArr();
+            j.key("movedGoods").obj();
+            for (java.util.Map.Entry<String, Integer> e
+                     : history.sumByGoods(route.getId(), turn, 10).entrySet()) {
+                j.put(e.getKey(), e.getValue());
+            }
+            j.end();
             j.key("stops").arr();
             for (int i = 0; i < n; i++) {
                 final TradeRouteStop stop = stops.get(i);

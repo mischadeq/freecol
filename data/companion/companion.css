@@ -82,6 +82,7 @@ button.chip:hover { border-color: var(--muted); }
 }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+.legend .spark { vertical-align: middle; }
 .tip {
   position: absolute; z-index: 5; pointer-events: none;
   max-width: 320px; padding: 8px 10px; border-radius: 8px;

@@ -29,6 +29,13 @@ public class AllTests {
         TestSuite suite = new TestSuite("Test for net.sf.freecol.client.control");
         //$JUnit-BEGIN$
         suite.addTestSuite(MoveTest.class);
+        suite.addTestSuite(ColonyAdvisorTest.class);
+        suite.addTestSuite(RouteHistoryTest.class);
+        suite.addTestSuite(RoutineMessagesTest.class);
+        suite.addTestSuite(SupplyForecastTest.class);
+        suite.addTestSuite(TradeAppraisalTest.class);
+        suite.addTestSuite(TradeRouteRoomTest.class);
+        suite.addTestSuite(UnitGroupsTest.class);
         //$JUnit-END$
         return suite;
     }

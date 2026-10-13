@@ -180,6 +180,9 @@ public final class InGameController extends FreeColClientHolder {
     /** Watches the trade routes for supply lines that break down. */
     private final SupplyWatch supplyWatch = new SupplyWatch();
 
+    /** What each trade route unloaded, turn by turn. */
+    private final RouteHistory routeHistory = new RouteHistory();
+
     /** The player's named groups of units (armies, wagon trains). */
     private final UnitGroups unitGroups = new UnitGroups();
 
@@ -2681,6 +2684,39 @@ public final class InGameController extends FreeColClientHolder {
      * @param lb A {@code LogBuilder} to update.
      * @return True if something was unloaded.
      */
+    /**
+     * Note goods unloaded by a carrier on a trade route, for the
+     * route history.  Never lets a failure get in the way.
+     *
+     * @param unit The carrier {@code Unit}.
+     * @param type The {@code GoodsType} unloaded.
+     * @param amount The amount unloaded.
+     */
+    private void noteUnloaded(Unit unit, GoodsType type, int amount) {
+        final TradeRoute route = unit.getTradeRoute();
+        if (route == null || amount <= 0) return;
+        try {
+            final Game game = getGame();
+            this.routeHistory.attach(game, getMyPlayer());
+            this.routeHistory.record(route.getId(),
+                game.getTurn().getNumber(), type.getId(), amount);
+            this.routeHistory.save();
+        } catch (RuntimeException re) {
+            logger.log(Level.WARNING, "Route history failed", re);
+        }
+    }
+
+    /**
+     * What each trade route unloaded over the last turns, kept in step
+     * with the current game.
+     *
+     * @return The {@code RouteHistory}.
+     */
+    public RouteHistory getRouteHistory() {
+        this.routeHistory.attach(getGame(), getMyPlayer());
+        return this.routeHistory;
+    }
+
     private boolean unloadUnitAtStop(Unit unit, LogBuilder lb) {
         final TradeLocation trl = unit.getTradeLocation();
         if (trl == null) return false;
@@ -2741,6 +2777,7 @@ public final class InGameController extends FreeColClientHolder {
             // Try to unload.
             ret = askUnloadGoods(type, amount, unit);
             int retained = unit.getGoodsCount(type);
+            noteUnloaded(unit, type, present - retained);
             if (!ret || present == retained) {
                 noUnload.addStringTemplate(StringTemplate
                     .template("tradeRoute.unloadStop.noUnload.fail")
@@ -5585,6 +5622,13 @@ public final class InGameController extends FreeColClientHolder {
                 net.sf.freecol.client.companion.CompanionServer.recordTurn();
             } catch (RuntimeException re) {
                 logger.log(Level.WARNING, "Price record failed", re);
+            }
+            // Keep the route history in step with the turn (and forget
+            // turns that are being played again).
+            try {
+                this.routeHistory.attach(game, player);
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Route history failed", re);
             }
             // Add warnings about supply lines that stopped covering
             // a colony's needs.  Never let this break the turn.
