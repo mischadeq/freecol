@@ -194,15 +194,67 @@ public class SupplyForecastTest extends FreeColTestCase {
         source.addGoods(lumberType, 100);
         assertEquals(0, watch.check(player, 3).size());
 
-        // Turn 4: the wagon has not moved, so its arrival slips a turn.
-        ms = watch.check(player, 4);
-        assertEquals(1, ms.size());
-        assertEquals("supply.delayed", ms.get(0).getId());
+        // Turn 4: the wagon has not moved, so its arrival slips a turn,
+        // but it still arrives long before the sink runs out => quiet.
+        assertEquals(0, watch.check(player, 4).size());
 
         // Turn 5: the wagon is taken off the route => warn again.
         wagon.setTradeRoute(null);
         ms = watch.check(player, 5);
         assertEquals(1, ms.size());
         assertEquals("supply.noCarrier", ms.get(0).getId());
+    }
+
+    /** Make the sink burn lumber, with the given turns of stock left. */
+    private int burnLumber(int turns) {
+        sink.addGoods(lumberType, 30);
+        sink.getUnitList().get(0)
+            .setLocation(sink.getBuilding(carpenterHouseType));
+        sink.invalidateCache();
+        final int use = -sink.getAdjustedNetProductionOf(lumberType);
+        assertTrue("Sink should consume lumber", use > 0);
+        setStock(turns * use);
+        assertEquals(turns, SupplyWatch.getTurnsLeft(sink, lumberType).intValue());
+        return use;
+    }
+
+    private void setStock(int amount) {
+        sink.removeGoods(lumberType);
+        sink.addGoods(lumberType, amount);
+        sink.invalidateCache();
+    }
+
+    /**
+     * A carrier that is held up only gives a message when the hold-up
+     * makes it arrive after the colony runs out.
+     */
+    public void testDelayOnlyWarnsWhenLate() {
+        setUpRoute();
+        final int use = burnLumber(2); // Exactly the two turns the wagon needs
+        source.addGoods(lumberType, 100);
+        wagon.setTradeRoute(route);
+        SupplyWatch watch = new SupplyWatch();
+        assertEquals(0, watch.check(player, 1).size()); // In time
+
+        // Held up a turn, and the sink used a turn's worth meanwhile:
+        // one turn left, the wagon still needs two => too late.
+        setStock(use);
+        List<ModelMessage> ms = watch.check(player, 2);
+        assertEquals(1, ms.size());
+        assertEquals("supply.delayed", ms.get(0).getId());
+
+        // Held up again: already reported as late, no repeat.
+        assertEquals(0, watch.check(player, 3).size());
+    }
+
+    /** Late from the start (not because of a hold-up): the late message. */
+    public void testLateWithoutDelay() {
+        setUpRoute();
+        burnLumber(1); // One turn left, the wagon needs two
+        source.addGoods(lumberType, 100);
+        wagon.setTradeRoute(route);
+        List<ModelMessage> ms = new SupplyWatch().check(player, 1);
+        assertEquals(1, ms.size());
+        assertEquals("supply.late", ms.get(0).getId());
     }
 }

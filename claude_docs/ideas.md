@@ -329,6 +329,18 @@ there. That is a smoke test, not a play test.
       tried in the sandbox (its virtual monitors overlap): going full
       screen from the wide monitor did size the game to that monitor.
 
+- [ ] **Fewer supply warnings: only delays that make a delivery late.**
+      A carrier that is held up but still arrives before the colony runs
+      out no longer gives a message. When the hold-up does make it late,
+      one message says so: "Wagon train on trade route X is held up by
+      1 turn and will now be too late: Wijchen runs out of tools in 1
+      turn (8 left), the delivery needs 2 turns." Late from the start
+      (not a hold-up) keeps the old "too late" message; neither repeats
+      while the line stays late. SupplyWatch.check, string
+      supply.delayed. Unit tests in SupplyForecastTest: testWatch (a
+      harmless hold-up is quiet), testDelayOnlyWarnsWhenLate,
+      testLateWithoutDelay.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
@@ -420,7 +432,9 @@ Gold to buy a wagon train):
 - [ ] **Start-of-turn message: too late.** B runs out before the wagon
       can arrive.
 - [ ] **Start-of-turn message: delayed.** Block or hold the wagon for
-      a turn while it is on its way.
+      a turn while it is on its way, with so little in store that the
+      hold-up makes it late (since 2026-10-13 a hold-up that still
+      arrives in time gives no message).
 - [ ] **Building column, goods on their way.** A colony whose build
       waits for tools, with a carrier bringing enough: the cell reads
       "Tools arriving in N turns".

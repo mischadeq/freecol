@@ -40,8 +40,10 @@ import net.sf.freecol.common.model.Unit;
 /**
  * Watches the player's supply lines from turn to turn and produces a
  * message when one of them stops covering a colony's needs: the last
- * carrier was taken off the route, nothing is coming any more, the
- * next delivery will be too late, or a carrier has been delayed.
+ * carrier was taken off the route, nothing is coming any more, or the
+ * next delivery will be too late (saying so when a carrier was held
+ * up).  A carrier that is held up but still arrives in time gives no
+ * message.
  *
  * A message is produced when the situation changes, not on every
  * turn that it persists.  What was expected last turn is remembered
@@ -122,6 +124,14 @@ public final class SupplyWatch {
                 : o.delivery.unit.getId();
             now.put(k, new Memory(o.status, arrival, unitId));
 
+            // The same carrier, still on its way, now expected later?
+            final boolean slipped = o.delivery != null && before != null
+                && before.unitId != null && before.unitId.equals(unitId)
+                && before.arrival >= turn && arrival > before.arrival;
+
+            // Delays only matter when they make the delivery late: a
+            // carrier that slips but still arrives before the colony
+            // runs out is not worth a message.
             ModelMessage m = null;
             if (o.isBroken() && (before == null || before.status != o.status)) {
                 switch (o.status) {
@@ -134,26 +144,19 @@ public final class SupplyWatch {
                         .addName("%route%", o.route.getName());
                     break;
                 case LATE:
-                    m = message("supply.late", colony, gt)
+                    // Late because the carrier was held up: say so.
+                    m = message((slipped) ? "supply.delayed" : "supply.late",
+                                colony, gt)
                         .addName("%route%", o.route.getName())
                         .addStringTemplate("%unit%", o.delivery.unit
                             .getLabel(Unit.UnitLabelType.NATIONAL))
                         .addAmount("%turns%", turnsLeft)
                         .addAmount("%arrival%", o.delivery.turns);
+                    if (slipped) m.addAmount("%delay%", arrival - before.arrival);
                     break;
                 default:
                     break;
                 }
-            } else if (o.delivery != null && before != null
-                && before.unitId != null && before.unitId.equals(unitId)
-                && before.arrival >= turn && arrival > before.arrival) {
-                // The same carrier, still on its way, now expected later.
-                m = message("supply.delayed", colony, gt)
-                    .addName("%route%", o.route.getName())
-                    .addStringTemplate("%unit%", o.delivery.unit
-                        .getLabel(Unit.UnitLabelType.NATIONAL))
-                    .addAmount("%arrival%", o.delivery.turns)
-                    .addAmount("%delay%", arrival - before.arrival);
             }
             if (m != null) result.add(m);
         }
