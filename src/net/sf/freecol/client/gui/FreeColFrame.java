@@ -26,6 +26,8 @@ import java.awt.GraphicsDevice;
 import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.beans.PropertyChangeListener;
 import java.util.Comparator;
 import java.util.List;
@@ -106,24 +108,27 @@ public class FreeColFrame extends JFrame {
             // Leave the taskbar free: otherwise Windows draws it over
             // the bottom of the game (the order buttons) whenever
             // another monitor has the focus.
-            final Rectangle screen = gd.getDefaultConfiguration().getBounds();
-            final Insets si = Toolkit.getDefaultToolkit()
-                .getScreenInsets(gd.getDefaultConfiguration());
-            bounds = new Rectangle(screen.x + si.left, screen.y + si.top,
-                screen.width - si.left - si.right,
-                screen.height - si.top - si.bottom);
+            bounds = ScreenChooser.workArea(gd);
         } else if (!windowed || bounds==null || bounds.width<=0 || bounds.height<=0) {
             bounds = gd.getDefaultConfiguration().getBounds();
             if (windowed) {
-                Insets screenInsets = Toolkit.getDefaultToolkit()
-                        .getScreenInsets(gd.getDefaultConfiguration());
-                bounds = new Rectangle(bounds.x + screenInsets.left,
-                                       bounds.y + screenInsets.top,
-                                       bounds.width - screenInsets.right,
-                                       bounds.height - screenInsets.bottom);
+                bounds = ScreenChooser.workArea(gd);
             }
+        } else if (bounds.x == 0 && bounds.y == 0) {
+            // Only a size was given: put the window on the chosen monitor.
+            bounds = ScreenChooser.placeOn(bounds, ScreenChooser.workArea(gd));
         }
         setBounds(bounds);
+        this.sizedFor = gd;
+        // Follow the window to another monitor (Win+Shift+arrow): a
+        // borderless game resizes to fit it, and the monitor is
+        // remembered for the next start.
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentMoved(ComponentEvent e) {
+                followMonitor();
+            }
+        });
         logger.info(((windowed) ? "Windowed" : "Full screen")
             + " frame created with size " + bounds.width
             + "x" + bounds.height);
@@ -137,6 +142,30 @@ public class FreeColFrame extends JFrame {
             });
         }
         */
+    }
+
+    /** The monitor this frame was last sized for. */
+    private GraphicsDevice sizedFor = null;
+
+    /**
+     * Called when the frame moved: remember the monitor, and fit a
+     * borderless frame to the monitor it now mostly sits on.
+     */
+    private void followMonitor() {
+        if (!isShowing()) return;
+        final GraphicsDevice now = ScreenChooser.deviceFor(this);
+        if (now == null) return;
+        ScreenChooser.remember(now);
+        if (!this.borderless) return;
+        final Rectangle area = ScreenChooser.workArea(now);
+        if (now != this.sizedFor || !area.equals(getBounds())) {
+            if (now == this.sizedFor && area.contains(getBounds())
+                && getWidth() == area.width) return; // only a small nudge
+            this.sizedFor = now;
+            logger.info("Game moved to monitor " + now.getIDstring()
+                + ", resizing to " + area);
+            setBounds(area);
+        }
     }
 
     /** Is this frame a borderless window instead of exclusive full screen? */

@@ -213,7 +213,10 @@ public class SwingGUI extends GUI {
     public SwingGUI(FreeColClient freeColClient) {
         super(freeColClient);
 
-        this.graphicsDevice = Utils.getGoodGraphicsDevice();
+        // Start on the monitor used last time, if it is still there.
+        final GraphicsDevice remembered = ScreenChooser.rememberedDevice();
+        this.graphicsDevice = (remembered != null) ? remembered
+            : Utils.getGoodGraphicsDevice();
         if (this.graphicsDevice == null) {
             FreeCol.fatal(logger, "Could not find a GraphicsDevice!");
         }

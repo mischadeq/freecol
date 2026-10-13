@@ -116,7 +116,7 @@ public final class Canvas extends JDesktopPane {
     private final FreeColClient freeColClient;
 
     /** The graphics device to display to. */
-    private final GraphicsDevice graphicsDevice;
+    private GraphicsDevice graphicsDevice;
 
     /** Is the canvas in windowed mode? */
     private boolean windowed;
@@ -1516,6 +1516,13 @@ public final class Canvas extends JDesktopPane {
         if (this.parentFrame != null) {
             menuBar = this.parentFrame.getJMenuBar();
             windowBounds = this.parentFrame.getBounds();
+        }
+        // Go full screen (or back) on the monitor the game is on now,
+        // not the one it started on.
+        final GraphicsDevice current = ScreenChooser.deviceFor(this.parentFrame);
+        if (current != null) {
+            this.graphicsDevice = current;
+            ScreenChooser.remember(current);
         }
         destroyFrame();
         toggleWindowed();

@@ -309,6 +309,26 @@ there. That is a smoke test, not a play test.
       warehouse capacity being thrown away at the end of each turn.
       Unit test TradeRouteRoomTest.
 
+### Written 2026-10-13
+
+- [ ] **Full screen on the right monitor** (Mischa: View > Full screen
+      jumped back to the vertical monitor; moved over with Win+Shift+
+      arrow it kept the vertical monitor's width, so either the order
+      buttons were under the taskbar or the game did not use the full
+      width). Cause: FreeCol picked a monitor once at start-up and
+      always went full screen there. Now full screen uses the monitor
+      the window is on; a borderless game moved to another monitor
+      (Win+Shift+arrow) resizes to that monitor (minus the taskbar); and
+      the monitor is remembered, so the next start opens there. New
+      class ScreenChooser (client/gui), changes in FreeColFrame, Canvas
+      (toggleFrame) and SwingGUI (start-up monitor). Note: the automatic
+      scale factor follows the start-up monitor's height, so starting on
+      the wide monitor can change the size of text and icons; Preferences
+      > Display scaling sets it by hand. Unit test ScreenChooserTest
+      (vertical 1080x1920 next to a wide screen). Could only be partly
+      tried in the sandbox (its virtual monitors overlap): going full
+      screen from the wide monitor did size the game to that monitor.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
