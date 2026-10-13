@@ -117,4 +117,19 @@ public class NationEstimateTest extends FreeColTestCase {
         assertEquals(1, fr[CompanionRaids.THEIRS_SUNK]); // turn 1 too old
         CompanionRaids.clear();
     }
+
+    public void testVerdictInWords() {
+        // Spanish army ≈ 29 soldiers against Mischa's 4: far stronger.
+        assertEquals(NationEstimate.FAR_ABOVE, NationEstimate.verdict(88, 12));
+        assertEquals(NationEstimate.ABOVE, NationEstimate.verdict(18, 12));
+        assertEquals(NationEstimate.EVEN, NationEstimate.verdict(13, 12));
+        assertEquals(NationEstimate.EVEN, NationEstimate.verdict(10, 12));
+        assertEquals(NationEstimate.BELOW, NationEstimate.verdict(8, 12));
+        // No navy against his 1.8 frigates: far weaker.
+        assertEquals(NationEstimate.FAR_BELOW, NationEstimate.verdict(0, 42));
+        // Nothing on either side is even; something against nothing is far above.
+        assertEquals(NationEstimate.EVEN, NationEstimate.verdict(0, 0));
+        assertEquals(NationEstimate.FAR_ABOVE, NationEstimate.verdict(5, 0));
+        assertNull(NationEstimate.verdict(-1, 12));
+    }
 }

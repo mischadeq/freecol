@@ -445,6 +445,25 @@ there. That is a smoke test, not a play test.
       29; navy Dutch 1.8 frigates, others 0; output Dutch 406 gold/turn,
       French ≈ 302, English ≈ 282, Spanish ≈ 283.
 
+- [ ] **Nations in words, like the moods in Relations** (Mischa: "content"
+      says more than 1/100; a 1–4 rank says nothing). Each nation card
+      now has tags comparing it with you: Army / Navy far weaker, weaker,
+      about even, stronger, far stronger; Economy far poorer … far
+      richer; Size much smaller … much bigger (red when they are ahead,
+      green when you are; hover: "about 3.8× yours (≈ 15.3 soldiers vs
+      your 4)"), plus their War / Peace stance. Rule: under half, under
+      80%, within a quarter, up to double, more than double
+      (NationEstimate.verdict).
+      **A graph per nation** (Mischa: only one overall graph): army,
+      navy, output and treasury get a small line on every card, next to
+      colonists and rebels. Output is now recorded per turn (new measure
+      in companion/nations-<game>.csv; older files still load) and is a
+      column in the ranking table and chart, and the Economy group ranks
+      on output, not only gold and tax. Unit test
+      NationEstimateTest.testVerdictInWords. Tried on Mischa's save after
+      two turns: Spanish "Army: far stronger, Navy: far weaker, Economy:
+      poorer, Size: smaller".
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**

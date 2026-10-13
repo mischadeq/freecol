@@ -424,3 +424,5 @@ body.nomap #mapSec { display: none; }
 .rstops { font-size: 12px; margin: 2px 0 6px; }
 .rbody { display: flex; align-items: flex-end; gap: 12px; }
 .rgoods { font-size: 13px; line-height: 1.6; }
+.nverd { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; }
+.nverd .tag { cursor: help; }

@@ -584,6 +584,7 @@
     { m: "colonists", grp: "Expansion", label: "Colonists", tip: "Colonists working in their colonies, counted on the map" },
     { m: "avgSize",   grp: "Expansion", label: "Per colony", tip: "Average colonists per colony", div: 10 },
     { m: "units",     grp: "Expansion", label: "Units", tip: "All units: colonists in and outside colonies, soldiers, ships, wagons" },
+    { m: "output",    grp: "Economy",   label: "Output", tip: "Gold per turn their colonies make beyond what they use: yours exact, theirs estimated (their colonists × what one of yours makes)" },
     { m: "gold",      grp: "Economy",   label: "Gold", tip: "Gold in the treasury" },
     { m: "tax",       grp: "Economy",   label: "Tax", tip: "Tax rate in Europe (lower is better)", low: true, pct: true },
     { m: "military",  grp: "Military",  label: "Army", tip: "Land strength: the attack power of soldiers, dragoons and artillery" },
@@ -1757,6 +1758,34 @@
       '" fill="none" stroke-width="1.5"/></svg>';
   }
 
+  // How a nation compares to you, in words, like the moods in Relations.
+  const VERDICT_WORDS = {
+    military: { farBelow: "far weaker", below: "weaker", even: "about even", above: "stronger", farAbove: "far stronger" },
+    naval: { farBelow: "far weaker", below: "weaker", even: "about even", above: "stronger", farAbove: "far stronger" },
+    output: { farBelow: "far poorer", below: "poorer", even: "about even", above: "richer", farAbove: "far richer" },
+    colonists: { farBelow: "much smaller", below: "smaller", even: "your size", above: "bigger", farAbove: "much bigger" }
+  };
+  const VERDICT_LABEL = { military: "Army", naval: "Navy", output: "Economy", colonists: "Size" };
+  const VERDICT_CLASS = { farBelow: "ok", below: "ok", even: "info", above: "warn", farAbove: "alarm" };
+  const STANCE_CLASS = { war: "alarm", peace: "ok", ceaseFire: "warn", alliance: "info", unContacted: "m" };
+
+  function verdictChips(n, me) {
+    if (!n.verdict || !me) return "";
+    const v = (x, m) => x.v[natIndex(m)];
+    return '<div class="nverd">' + ["military", "naval", "output", "colonists"].map((m) => {
+      const w = n.verdict[m];
+      if (!w) return "";
+      const theirs = v(n, m), ours = v(me, m);
+      const times = ours > 0 ? (theirs / ours) : null;
+      const tip = VERDICT_LABEL[m] + ": " + (times != null ? "about " + (times >= 10 ? Math.round(times) : times.toFixed(1)) + "× yours" : "you have none") +
+        " (" + (m === "military" ? "≈ " + tenth(n.soldiers) + " soldiers vs your " + tenth(me.soldiers)
+          : m === "naval" ? "≈ " + tenth(n.frigates) + " frigates vs your " + tenth(me.frigates)
+          : m === "output" ? "≈ " + num(theirs) + " vs your " + num(ours) + " gold/turn"
+          : theirs + " vs your " + ours + " colonists") + ")";
+      return '<span class="tag ' + VERDICT_CLASS[w] + '" title="' + esc(tip) + '">' + VERDICT_LABEL[m] + ": " + VERDICT_WORDS[m][w] + "</span>";
+    }).join("") + "</div>";
+  }
+
   function renderNatCards() {
     const N = nations.nations.slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
     const me = N.find((n) => n.me);
@@ -1773,7 +1802,7 @@
         "Colonies, and colonists working in them as seen on the map."]);
       // Output
       if (n.output != null && n.output >= 0) {
-        rows.push(["Output", "<b>" + est + num(n.output) + "</b> gold/turn " + bar(n.output, maxOut, n.color),
+        rows.push(["Output", "<b>" + est + num(n.output) + "</b> gold/turn " + bar(n.output, maxOut, n.color) + natSpark(n, "output", n.color),
           n.me ? "What your colonies make per turn beyond what they use, at your Europe prices (exact)."
                : "Estimate: " + v("colonists") + " colonists × " + per + " gold, what one of your colonists makes per turn at your Europe prices. " +
                  "If they work less well than yours, it is lower."]);
@@ -1790,7 +1819,7 @@
       if (v("gold") >= 0) {
         const g = n.goldPerTurn;
         rows.push(["Treasury", "<b>" + num(v("gold")) + "</b> gold" + (g != null ? ' <span class="' + (g >= 0 ? "up" : "down") + '">' + (g >= 0 ? "+" : "") + num(g) + "/turn</span>" : "") +
-          " · tax " + v("tax") + "%",
+          " · tax " + v("tax") + "% " + natSpark(n, "gold", n.color),
           "Gold in the treasury (Foreign Affairs report); the change per turn is the average over the last turns: sales and taxes minus purchases."]);
       }
       // Army and navy
@@ -1802,10 +1831,10 @@
         } else if (kindList(n.units, ["soldier", "dragoon", "artillery"])) {
           tip += " Seen now: " + kindList(n.units, ["soldier", "dragoon", "artillery"]) + ".";
         }
-        rows.push(["Army", "<b>" + est + tenth(n.soldiers) + "</b> soldiers " + bar(n.soldiers, maxSol, n.color), tip]);
+        rows.push(["Army", "<b>" + est + tenth(n.soldiers) + "</b> soldiers " + bar(n.soldiers, maxSol, n.color) + natSpark(n, "military", n.color), tip]);
       }
       if (n.frigates != null && n.frigates >= 0) {
-        let line = "<b>" + est + tenth(n.frigates) + "</b> frigates " + bar(n.frigates, maxFri, n.color);
+        let line = "<b>" + est + tenth(n.frigates) + "</b> frigates " + bar(n.frigates, maxFri, n.color) + natSpark(n, "naval", n.color);
         let tip = "Sea attack strength " + v("naval") + ", as many frigates as that (a frigate attacks with " + fp + "). Merchant ships do not count.";
         if (n.raids) {
           const r = n.raids, parts = [];
@@ -1827,7 +1856,9 @@
         (n.me ? "" : "about ") + c.value + " gold/turn") + '">' + esc(c.name) + " <b>" + c.size + "</b></span>").join("") +
         (cl.length > 6 ? '<span class="m"> +' + (cl.length - 6) + "</span>" : "");
       return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
-        "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') + "</div>" +
+        "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') +
+        (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
+        verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
     }).join("");

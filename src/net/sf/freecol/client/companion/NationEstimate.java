@@ -202,4 +202,29 @@ public final class NationEstimate {
         if (colonists < 0 || perColonist <= 0) return -1;
         return (int)Math.round(colonists * perColonist);
     }
+
+    /** How another nation compares to us, in words (see verdict). */
+    public static final String FAR_BELOW = "farBelow", BELOW = "below",
+        EVEN = "even", ABOVE = "above", FAR_ABOVE = "farAbove";
+
+    /**
+     * Compare a figure of another nation with ours, the way the
+     * Relations panel says "happy" instead of a number: far below
+     * (under half), below (under 80%), even (within a quarter), above
+     * (up to double) or far above (more than double).
+     *
+     * @param theirs Their figure (negative if unknown).
+     * @param ours Our figure.
+     * @return The verdict, or null if unknown.
+     */
+    public static String verdict(double theirs, double ours) {
+        if (theirs < 0 || ours < 0) return null;
+        if (ours == 0) return (theirs == 0) ? EVEN : FAR_ABOVE;
+        final double r = theirs / ours;
+        return (r < 0.5) ? FAR_BELOW
+            : (r < 0.8) ? BELOW
+            : (r <= 1.25) ? EVEN
+            : (r <= 2.0) ? ABOVE
+            : FAR_ABOVE;
+    }
 }

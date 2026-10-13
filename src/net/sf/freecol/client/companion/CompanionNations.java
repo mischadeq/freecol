@@ -59,7 +59,7 @@ final class CompanionNations {
     /** The measures, in the order they are recorded and shown. */
     static final String[] MEASURES = {
         "colonies", "colonists", "avgSize", "units", "military", "naval",
-        "gold", "sol", "fathers", "tax"
+        "gold", "sol", "fathers", "tax", "output"
     };
 
     /** History by turn, then nation id: values in MEASURES order. */
@@ -144,6 +144,18 @@ final class CompanionNations {
                 v[8] = ns.getFoundingFathers();
                 v[9] = ns.getTax();
             }
+            // Output in gold per turn: ours exact, theirs estimated
+            // from their colonists (see NationEstimate).
+            if (p == me) {
+                double sum = 0;
+                for (Colony c : me.getColonyList()) {
+                    sum += NationEstimate.colonyValue(c, me.getMarket());
+                }
+                v[10] = (int)Math.round(sum);
+            } else {
+                v[10] = NationEstimate.output(colonists,
+                    NationEstimate.valuePerColonist(me));
+            }
             rows.add(new Object[] { p, v, met, known, sizes });
         }
         return rows;
@@ -166,10 +178,12 @@ final class CompanionNations {
         try {
             for (String line : Files.readAllLines(f.toPath(), StandardCharsets.UTF_8)) {
                 String[] p = line.split(",");
-                if (p.length != 2 + MEASURES.length) continue;
+                // Older files have fewer measures: the rest is unknown.
+                if (p.length < 12 || p.length > 2 + MEASURES.length) continue;
                 try {
                     int[] v = new int[MEASURES.length];
-                    for (int i = 0; i < v.length; i++) v[i] = Integer.parseInt(p[2 + i]);
+                    java.util.Arrays.fill(v, -1);
+                    for (int i = 0; i < p.length - 2; i++) v[i] = Integer.parseInt(p[2 + i]);
                     history.computeIfAbsent(Integer.parseInt(p[0]),
                                             t -> new TreeMap<>()).put(p[1], v);
                 } catch (NumberFormatException nfe) {
@@ -196,6 +210,25 @@ final class CompanionNations {
         } catch (IOException ioe) {
             logger.log(Level.WARNING, "Could not write " + f, ioe);
         }
+    }
+
+    /** Our own figures from the rows. */
+    private static int[] mine(List<Object[]> rows, Player me) {
+        for (Object[] r : rows) if (r[0] == me) return (int[])r[1];
+        return null;
+    }
+
+    /** How a nation compares to us, in words, for the page. */
+    private static void verdicts(Json j, int[] v, int[] ours) {
+        if (ours == null) return;
+        j.key("verdict").obj();
+        for (String m : new String[] { "colonists", "military", "naval",
+                                       "output", "gold" }) {
+            final int i = mi(m);
+            final String w = NationEstimate.verdict(v[i], ours[i]);
+            if (w != null) j.put(m, w);
+        }
+        j.end();
     }
 
     /** Index of a measure. */
@@ -378,6 +411,10 @@ final class CompanionNations {
                 .put("met", (Boolean)r[2])
                 .put("knownColonies", (Integer)r[3]);
             if (p == me) j.put("score", me.getScore());
+            else {
+                final net.sf.freecol.common.model.Stance st = me.getStance(p);
+                if (st != null) j.put("stance", st.getKey().replace("stance.", ""));
+            }
             j.key("sizes").arr();
             for (Object x : (List<?>)r[4]) j.val((Integer)x);
             j.endArr();
@@ -385,6 +422,7 @@ final class CompanionNations {
             for (int x : v) j.val(x);
             j.endArr();
             estimates(j, game, me, p, v);
+            if (p != me) verdicts(j, v, mine(rows, me));
             j.end();
         }
         j.endArr();
