@@ -19,712 +19,586 @@
 
 package net.sf.freecol.client.gui.panel;
 
-import static net.sf.freecol.common.util.CollectionUtils.any;
-import static net.sf.freecol.common.util.CollectionUtils.matchKeyEquals;
-import static net.sf.freecol.common.util.CollectionUtils.transform;
-
+import java.awt.Color;
 import java.awt.Component;
-import java.awt.GridLayout;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseListener;
-import java.io.IOException;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.swing.AbstractAction;
-import javax.swing.DefaultListModel;
+import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.ListCellRenderer;
-import javax.swing.SwingConstants;
-import javax.swing.TransferHandler;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-import javax.swing.plaf.PanelUI;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 
 import net.miginfocom.swing.MigLayout;
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.control.RoutePlan;
+import net.sf.freecol.client.control.SupplyForecast;
 import net.sf.freecol.client.gui.ImageLibrary;
-import net.sf.freecol.client.gui.label.GoodsTypeLabel;
-import net.sf.freecol.client.gui.plaf.FreeColSelectedPanelUI;
+import net.sf.freecol.client.gui.panel.report.LogisticsMap;
 import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.Europe;
-import net.sf.freecol.common.model.FreeColGameObject;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.Location;
 import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.StringTemplate;
-import net.sf.freecol.common.model.TradeLocation;
+import net.sf.freecol.common.model.Tile;
 import net.sf.freecol.common.model.TradeRoute;
 import net.sf.freecol.common.model.TradeRouteStop;
+import net.sf.freecol.common.model.Unit;
 
 
 /**
- * Allows the user to edit trade routes.
+ * The trade route editor.
+ *
+ * One screen: the name, a small map with the route (click a colony to
+ * add it as a stop), a row of buttons to add a stop, the stops as a
+ * table with what is loaded and unloaded at each and what is in store
+ * there, the goods to click to load at the selected stop, and the
+ * mistakes found in the route.
+ *
+ * FreeCol stores, per stop, the cargo a carrier leaves with; what is
+ * unloaded follows from the stop before.  This editor shows both.
+ *
+ * Carriers are assigned from the unit (or group), not here.
  */
-public final class TradeRouteInputPanel extends FreeColPanel 
-    implements ListSelectionListener {
+public final class TradeRouteInputPanel extends FreeColPanel {
 
     private static final Logger logger = Logger.getLogger(TradeRouteInputPanel.class.getName());
 
-    public static final DataFlavor STOP_FLAVOR
-        = new DataFlavor(TradeRouteStop.class, "Stop");
+    private static final String PREFIX = "tradeRouteEditor.";
 
-    private class DestinationCellRenderer extends JLabel
-        implements ListCellRenderer<String> {
-
-        public DestinationCellRenderer() {
-            setOpaque(true);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public Component getListCellRendererComponent(JList<? extends String> list,
-                                                      String value,
-                                                      int index,
-                                                      boolean isSelected,
-                                                      boolean cellHasFocus) {
-            FreeColGameObject fcgo = getGame().getFreeColGameObject(value);
-            if (fcgo instanceof Location) {
-                setText(Messages.message(((Location)fcgo).getLocationLabel()));
-            } else {
-                setText(value);
-            }
-            setForeground((isSelected) ? list.getSelectionForeground()
-                : list.getForeground());
-            setBackground((isSelected) ? list.getSelectionBackground()
-                : list.getBackground());
-            return this;
-        }
-    }
-
-    /**
-     * Panel for all types of goods that can be loaded onto a carrier.
-     * This should *not* change under drag/drop, but a drop indicates
-     * that the dropped goods type is no longer needed to be loaded
-     * at the currently selected stop.
-     */
-    private class AllGoodsTypesPanel extends GoodsTypePanel {
-
-        /** The currently selected goods types. */
-        private List<GoodsTypeLabel> labels;
-        
-        public AllGoodsTypesPanel(List<GoodsTypeLabel> labels) {
-            super(new GridLayout(0, 4, MARGIN, MARGIN), true);
-
-            this.labels = labels;
-            setOpaque(false);
-            setBorder(Utility.localizedBorder("goods"));
-            reset();
-        }
-
-        public void reset() {
-            setLabels(this.labels);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void setEnabled(boolean enable) {
-            super.setEnabled(enable);
-            for (Component child : getComponents()) {
-                if (child instanceof GoodsTypeLabel) child.setEnabled(enable);
-            }
-        }
-
-        // Interface DropTarget
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public Component add(Component comp, boolean editState) {
-            if (comp instanceof GoodsTypeLabel) {
-                GoodsTypeLabel gtl = (GoodsTypeLabel)comp;
-                cancelImport(gtl);
-                
-                // XXX: Do not add the component -- we already have the GoodsType here.
-                
-                return comp;
-            } else {
-                return super.add(comp);
-            }
-        }
-    }
-
-    /**
-     * Panel for the types of goods that are to be loaded onto the carrier
-     * at the current stop.  This changes under drag/drop, and a drop
-     * adds the dropped goods type to be loaded at the currently selected
-     * stop.
-     */
-    private class StopGoodsTypesPanel extends GoodsTypePanel {
-
-        public StopGoodsTypesPanel() {
-            super(new MigLayout("wrap 10"), false);
-        }
-
-        // Interface DropTarget
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public Component add(Component comp, boolean editState) {
-            if (comp instanceof GoodsTypeLabel) {
-                final GoodsTypeLabel dndComp = (GoodsTypeLabel) comp;
-                final Component newComp = super.add(new GoodsTypeLabel(dndComp), editState);
-                enableImport(dndComp.getType());
-                revalidate();
-                repaint();
-                return newComp;
-            } else {
-                return super.add(comp);
-            }
-        }
-    }
-        
-    private static class StopListTransferable implements Transferable {
-
-        private final List<TradeRouteStop> stops;
-
-
-        public StopListTransferable(List<TradeRouteStop> stops) {
-            this.stops = stops;
-        }
-
-        // Interface Transferable
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public Object getTransferData(DataFlavor flavor) {
-            return (flavor == STOP_FLAVOR) ? stops : null;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public DataFlavor[] getTransferDataFlavors() {
-            return new DataFlavor[] { STOP_FLAVOR };
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean isDataFlavorSupported(DataFlavor flavor) {
-            return flavor == STOP_FLAVOR;
-        }
-    }
-
-    /**
-     * TransferHandler for Stops.
-     */
-    private class StopListHandler extends TransferHandler {
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean canImport(JComponent c, DataFlavor[] flavors) {
-            return any(flavors, matchKeyEquals(STOP_FLAVOR));
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        protected Transferable createTransferable(JComponent c) {
-            final JList<?> list = (JList<?>) c;
-            final DefaultListModel<?> model = (DefaultListModel<?>) list.getModel();
-            final int[] indicies = list.getSelectedIndices();
-            final List<TradeRouteStop> stops = new ArrayList<>(indicies.length);
-            for (int i : indicies) {
-                stops.add((TradeRouteStop) model.get(i));
-            }
-            return new StopListTransferable(stops);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public int getSourceActions(JComponent c) {
-            return MOVE;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean importData(JComponent target, Transferable data) {
-            final JList<TradeRouteStop> stl = TradeRouteInputPanel.this.stopList;
-            try {
-                if (target == stl && canImport(target, data.getTransferDataFlavors())) {
-                    @SuppressWarnings("unchecked")
-                    final List<TradeRouteStop> stops = (List<TradeRouteStop>) data.getTransferData(STOP_FLAVOR);
-                    
-                    final DefaultListModel<TradeRouteStop> newModel = new DefaultListModel<>();
-                    final int targetIndex = stl.getMaxSelectionIndex();
-                    
-                    final List<TradeRouteStop> oldList = getAllValues(stl);
-                    if (targetIndex < 0) {
-                        oldList.removeAll(stops);
-                        newModel.addAll(oldList);
-                        newModel.addAll(stops);
-                    } else {
-                        final List<TradeRouteStop> beforeList = new ArrayList<>(oldList.subList(0, targetIndex));
-                        beforeList.removeAll(stops);
-                        
-                        final List<TradeRouteStop> afterList = new ArrayList<>(oldList.subList(targetIndex, oldList.size()));
-                        afterList.removeAll(stops);
-                        
-                        newModel.addAll(beforeList);
-                        newModel.addAll(stops);
-                        newModel.addAll(afterList);
-                    }
-                    
-                    stopListModel = newModel;
-                    stl.setModel(newModel);
-                    if (targetIndex < 0) {
-                        stl.setSelectedIndex(newModel.getSize() - 1);
-                    } else {
-                        stl.setSelectedIndex(targetIndex);
-                    }
-                    stl.invalidate();
-                    stl.repaint();
-                    
-                    return true;
-                }
-            } catch (IOException e) {
-                logger.log(Level.WARNING, "Drag&drop failed.", e);
-                return false;
-            } catch (UnsupportedFlavorException e) {
-                logger.log(Level.WARNING, "Drag&drop failed.", e);
-                return false;
-            } catch (RuntimeException e) {
-                logger.log(Level.WARNING, "Drag&drop failed.", e);
-                throw e;
-            }
-            return false;
-        }
-
-        private List<TradeRouteStop> getAllValues(final JList<TradeRouteStop> jList) {
-            final List<TradeRouteStop> oldList = new ArrayList<>();
-            for (int i=0; i<jList.getModel().getSize(); i++) {
-                oldList.add(jList.getModel().getElementAt(i));
-            }
-            return oldList;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        protected void exportDone(JComponent source, Transferable data, int action) {
-        }
-    }
-
-    private class StopRenderer implements ListCellRenderer<TradeRouteStop> {
-
-        private final JPanel SELECTED_COMPONENT = new JPanel();
-        private final JPanel NORMAL_COMPONENT = new JPanel();
-
-        public StopRenderer() {
-            NORMAL_COMPONENT.setLayout(new MigLayout("", "[center][]"));
-            NORMAL_COMPONENT.setOpaque(false);
-            SELECTED_COMPONENT.setLayout(new MigLayout("", "[center][]"));
-            SELECTED_COMPONENT.setOpaque(false);
-            SELECTED_COMPONENT.setUI((PanelUI)FreeColSelectedPanelUI
-                .createUI(SELECTED_COMPONENT));
-        }
-
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public Component getListCellRendererComponent(JList<? extends TradeRouteStop> list,
-                                                      TradeRouteStop value,
-                                                      int index,
-                                                      boolean isSelected,
-                                                      boolean hasFocus) {
-            JPanel panel = (isSelected) ? SELECTED_COMPONENT
-                : NORMAL_COMPONENT;
-            panel.removeAll();
-            panel.setForeground(list.getForeground());
-            panel.setFont(list.getFont());
-            Location location = value.getLocation();
-            ImageLibrary lib = getImageLibrary();
-            ImageIcon ii;
-            JLabel name;
-
-            if (location instanceof TradeLocation) {
-                TradeLocation tl = (TradeLocation) location;
-                if (tl.canBeInput() == true) {
-                    name = tl.getNameAsJlabel();
-                } else   {
-                    throw new IllegalStateException("Bogus location: " + location);
-                }
-            } else {
-                throw new IllegalStateException("Bogus location: " + location);
-            }
-
-            if (location instanceof Europe) {
-                Player owner = ((Europe)location).getOwner();
-                ii = new ImageIcon(lib.getSmallerNationImage(owner.getNation()));
-            } else if (location instanceof Colony) {
-                Colony colony = (Colony) location;
-                ii = new ImageIcon(lib.getSmallerSettlementImage(colony));
-            } else {
-                throw new IllegalStateException("Bogus location: " + location);
-            }
-            
-            name.setVerticalTextPosition(SwingConstants.CENTER);
-            
-            final int width = (int) (80 * getImageLibrary().getScaleFactor());
-            final int height = (int) (60 * getImageLibrary().getScaleFactor());
-            panel.add(new JLabel(ii), "spany, width " + width + ", height " + height);
-            panel.add(name, "span, wrap");
-            for (GoodsType cargo : value.getCargo()) {
-                ii = new ImageIcon(lib.getSmallerGoodsTypeImage(cargo));
-                panel.add(new JLabel(ii));
-            }
-            return panel;
-        }
-    }
-
-
-    /**
-     * The original route passed to this panel.  We are careful not to
-     * modify it until we are sure all is well.
-     */
+    /** The route as given; only changed when OK is pressed. */
     private final TradeRoute newRoute;
 
-    /** The TransferHandler for the cargo labels. */
-    private TransferHandler transferHandler;
+    /** The stops being edited (copies). */
+    private final List<TradeRouteStop> stops = new ArrayList<>();
 
-    /** Mouse listener to use throughout. */
-    private transient MouseListener dragListener;
+    /** The selected stop, or -1. */
+    private int selected = -1;
 
-    /** Model to contain the current stops. */
-    private DefaultListModel<TradeRouteStop> stopListModel;
+    /** The carriers on the route, and their smallest number of holds. */
+    private final List<Unit> carriers;
+    private final int minHolds;
 
-    /** The list of stops to show. */
-    private JList<TradeRouteStop> stopList;
+    private final JTextField nameField;
+    private final JCheckBox silenceBox;
+    private final JPanel mapHolder = new JPanel(new MigLayout("insets 0, fill"));
+    private final JPanel stopsPanel;
+    private final JPanel goodsPanel = new JPanel(new MigLayout("insets 0, gap 2"));
+    private final JLabel goodsTitle = new JLabel();
+    private final JPanel warningsPanel = new JPanel(new MigLayout("insets 0, wrap 1, gap 0 1"));
 
-    /** The user-editable name of the trade route. */
-    private JTextField tradeRouteName;
+    private final Color cPlain, cAlarm, cDim, cSelected, cGood;
 
-    /** A box to select stops to add. */
-    private JComboBox<String> destinationSelector;
-
-    /** Toggle message display. */
-    private JCheckBox messagesBox;
-
-    /** A button to add stops with. */
-    private JButton addStopButton;
-
-    /** A button to remove stops with. */
-    private JButton removeStopButton;
-
-    /** The panel displaying all goods types that could be transported. */
-    private AllGoodsTypesPanel allGoodsTypesPanel;
-
-    /** The panel displaying the goods types to collect at the selected stop. */
-    private StopGoodsTypesPanel stopGoodsTypesPanel;
+    /** Goods being dragged from the palette, or null. */
+    private GoodsType dragging = null;
 
 
     /**
-     * Create a panel to define trade route cargos.
+     * Create the trade route editor.
      *
      * @param freeColClient The {@code FreeColClient} for the game.
-     * @param newRoute The {@code TradeRoute} to operate on.
+     * @param newRoute The {@code TradeRoute} to edit.  Its name is set
+     *     to null if the edit is cancelled.
      */
     public TradeRouteInputPanel(FreeColClient freeColClient,
                                 TradeRoute newRoute) {
         super(freeColClient, null,
-              new MigLayout("wrap 4, fill", "[]20[fill]rel"));
-
+              new MigLayout("wrap 1, fill, insets 10 16 10 16, gap 0 6",
+                            "[fill, grow]", ""));
         final Game game = freeColClient.getGame();
         final Player player = getMyPlayer();
-        final TradeRoute tradeRoute = newRoute.copy(game);
-
         this.newRoute = newRoute;
-        this.transferHandler = new DefaultTransferHandler(freeColClient, this);
-        this.dragListener = new DragListener(freeColClient, this);
+        final TradeRoute copy = newRoute.copy(game);
+        this.stops.addAll(copy.getStopList());
 
-        this.stopListModel = new DefaultListModel<>();
-        for (TradeRouteStop stop : tradeRoute.getStopList()) {
-            this.stopListModel.addElement(stop);
+        this.cPlain = ImageLibrary.getColor("color.report.colony.plain",
+                                            Color.DARK_GRAY);
+        this.cAlarm = ImageLibrary.getColor("color.report.colony.alarm",
+                                            Color.RED);
+        this.cGood = new Color(0x2E7D32);
+        this.cDim = new Color(110, 100, 85);
+        this.cSelected = new Color(0xE9D8AA);
+
+        this.carriers = SupplyForecast.getCarriers(player, newRoute);
+        int h = 0;
+        for (Unit u : this.carriers) {
+            final int c = u.getCargoCapacity();
+            if (c > 0) h = (h == 0) ? c : Math.min(h, c);
         }
+        this.minHolds = h;
 
-        this.stopList = new JList<>(this.stopListModel);
-        this.stopList.setCellRenderer(new StopRenderer());
-        this.stopList.setDragEnabled(true);
-        this.stopList.setTransferHandler(new StopListHandler());
-        this.stopList.addKeyListener(new KeyListener() {
+        // Title
+        add(Utility.localizedHeader("tradeRouteInputPanel.editRoute",
+                                    Utility.FONTSPEC_TITLE),
+            "align center");
 
-                @Override
-                public void keyTyped(KeyEvent e) {
-                    if (e.getKeyChar() == KeyEvent.VK_DELETE) {
-                        deleteCurrentlySelectedStops();
-                    }
-                }
+        // Name, silence, carriers
+        this.nameField = new JTextField(copy.getName(), 24);
+        this.silenceBox = new JCheckBox(Messages.message("tradeRouteInputPanel.silence"));
+        this.silenceBox.setOpaque(false);
+        this.silenceBox.setSelected(copy.isSilent());
+        JPanel top = new JPanel(new MigLayout("insets 0", "[][grow, fill]20[]20[]"));
+        top.setOpaque(false);
+        top.add(Utility.localizedLabel("tradeRouteInputPanel.nameLabel"));
+        top.add(this.nameField);
+        top.add(this.silenceBox);
+        top.add(carriersLabel(player));
+        add(top);
 
-                @Override
-                public void keyPressed(KeyEvent e) {} // Ignore
+        // Map
+        this.mapHolder.setOpaque(false);
+        add(this.mapHolder, "h 180!");
 
-                @Override
-                public void keyReleased(KeyEvent e) {} // Ignore
-            });
-        this.stopList.addListSelectionListener(this);
-        JScrollPane tradeRouteView = new JScrollPane(stopList);
-
-        JLabel nameLabel
-            = Utility.localizedLabel("tradeRouteInputPanel.nameLabel");
-        this.tradeRouteName = new JTextField(tradeRoute.getName());
-
-        JLabel destinationLabel
-            = Utility.localizedLabel("tradeRouteInputPanel.destinationLabel");
-        this.destinationSelector = new JComboBox<>();
-        this.destinationSelector.setRenderer(new DestinationCellRenderer());
-        StringTemplate template
-            = StringTemplate.template("tradeRouteInputPanel.allColonies");
-        this.destinationSelector.addItem(Messages.message(template));
-        if (player.getEurope() != null) {
-            this.destinationSelector.addItem(player.getEurope().getId());
-        }
+        // Add stop buttons
+        JPanel addRow = new JPanel(new MigLayout("insets 0, gap 4"));
+        addRow.setOpaque(false);
+        addRow.add(boldLabel(Messages.message(PREFIX + "addStop")));
         for (Colony colony : player.getColonyList()) {
-            this.destinationSelector.addItem(colony.getId());
+            addRow.add(addButton(colony, colony.getName()));
         }
+        final Europe europe = player.getEurope();
+        if (europe != null) {
+            addRow.add(addButton(europe,
+                Messages.message(europe.getLocationLabelFor(player))));
+        }
+        addRow.add(label(Messages.message(PREFIX + "addStop.hint"), this.cDim));
+        add(addRow);
 
-        this.messagesBox
-            = new JCheckBox(Messages.message("tradeRouteInputPanel.silence"));
-        this.messagesBox.setSelected(tradeRoute.isSilent());
-        this.messagesBox.addActionListener((ActionEvent ae) -> {
-                tradeRoute.setSilent(messagesBox.isSelected());
-            });
+        // Stops
+        this.stopsPanel = new JPanel(new MigLayout("insets 0, wrap 1, gap 0 0",
+                                                   "[fill, grow]", ""));
+        this.stopsPanel.setOpaque(false);
+        JScrollPane scroll = new JScrollPane(this.stopsPanel,
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+            JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        add(scroll, "h 150:300:, growy, pushy");
 
-        this.addStopButton
-            = Utility.localizedButton("tradeRouteInputPanel.addStop");
-        this.addStopButton.addActionListener((ActionEvent ae) -> {
-                addSelectedStops();
-            });
+        // Goods palette
+        this.goodsPanel.setOpaque(false);
+        JPanel goodsRow = new JPanel(new MigLayout("insets 0, wrap 1, gap 0 2"));
+        goodsRow.setOpaque(false);
+        goodsRow.add(this.goodsTitle);
+        goodsRow.add(this.goodsPanel);
+        goodsRow.add(label(Messages.message(PREFIX + "goods.hint"), this.cDim));
+        add(goodsRow);
 
-        this.removeStopButton
-            = Utility.localizedButton("tradeRouteInputPanel.removeStop");
-        this.removeStopButton.addActionListener((ActionEvent ae) -> {
-                deleteCurrentlySelectedStops();
-            });
+        // Warnings
+        this.warningsPanel.setOpaque(false);
+        add(this.warningsPanel, "gaptop 4");
 
-        final List<GoodsType> gtl = getSpecification().getGoodsTypeList();
-        this.allGoodsTypesPanel = new AllGoodsTypesPanel(transform(gtl,
-                GoodsType::isStorable, gt -> buildCargoLabel(gt)));
-        this.allGoodsTypesPanel.setTransferHandler(this.transferHandler);
-        this.allGoodsTypesPanel.setEnabled(false);
-
-        this.stopGoodsTypesPanel = new StopGoodsTypesPanel();
-        this.stopGoodsTypesPanel.setTransferHandler(this.transferHandler);
-
+        // Buttons
         JButton cancelButton = Utility.localizedButton("cancel");
         cancelButton.setActionCommand(CANCEL);
         cancelButton.addActionListener(this);
+        add(okButton, "newline 10, split 2, tag ok, growx 0");
+        add(cancelButton, "tag cancel, growx 0");
         setEscapeAction(new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    TradeRouteInputPanel.this.cancelTradeRoute();
+                    cancelTradeRoute();
                 }
             });
-                    
-        add(Utility.localizedHeader("tradeRouteInputPanel.editRoute",
-                                    Utility.FONTSPEC_TITLE),
-            "span, align center");
-        add(tradeRouteView, "span 1 5, grow");
-        add(nameLabel);
-        add(this.tradeRouteName, "span");
-        add(destinationLabel);
-        add(this.destinationSelector, "span");
-        add(this.messagesBox);
-        add(this.addStopButton);
-        add(this.removeStopButton, "span");
-        add(this.allGoodsTypesPanel, "span");
-        
-        final int iconHeight = (int) (80 * getImageLibrary().getScaleFactor());
-        add(this.stopGoodsTypesPanel, "span, height " + iconHeight + "px:, growy");
-        add(okButton, "newline 20, span, split 2, tag ok");
-        add(cancelButton, "tag cancel");
-        
-        setEscapeAction(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent ae) {
-                cancelButton.doClick();
-            }
-        });
+        getInputMap(WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "deleteStop");
+        getActionMap().put("deleteStop", new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    if (!(SwingUtilities.getRootPane(nameField) != null
+                          && nameField.isFocusOwner())) removeStop(selected);
+                }
+            });
 
-        // update cargo panel if stop is selected
-        if (this.stopListModel.getSize() > 0) {
-            this.stopList.setSelectedIndex(0);
-            updateCargoPanel(this.stopListModel.firstElement());
-        }
-        // update buttons according to selection
-        updateButtons();
-
+        if (!this.stops.isEmpty()) this.selected = 0;
+        refresh();
+        setPreferredSize(new Dimension(
+            Math.max(940, getPreferredSize().width), 820));
         getGUI().restoreSavedSize(this, getPreferredSize());
     }
 
-    /**
-     * Update the cargo panel to show a given stop.
-     *
-     * @param stop The {@code TradeRouteStop} to select.
-     */
-    private void updateCargoPanel(TradeRouteStop stop) {
-        this.stopGoodsTypesPanel.setLabels((stop == null) ? null
-            : transform(stop.getCargo(), GoodsType::isStorable,
-                        gt -> buildCargoLabel(gt)));
+
+    // Building blocks
+
+    private static JLabel label(String text, Color color) {
+        JLabel l = new JLabel(text);
+        if (color != null) l.setForeground(color);
+        return l;
     }
 
-    /**
-     * Import new goods at the selected stops.
-     *
-     * @param gt The {@code GoodsType} to import.
-     */
-    private void enableImport(GoodsType gt) {
-        if (gt == null) return;
-        for (int stopIndex : this.stopList.getSelectedIndices()) {
-            TradeRouteStop stop = this.stopListModel.get(stopIndex);
-            stop.addCargo(gt);
-            
-            final int[] idx = this.stopList.getSelectedIndices();
-            if (idx.length > 0) {
-                updateCargoPanel(this.stopListModel.get(idx[0]));
-            }
-        }
-        this.stopList.revalidate();
-        this.stopList.repaint();
+    private static JLabel boldLabel(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(l.getFont().deriveFont(Font.BOLD));
+        return l;
     }
 
-    /**
-     * Cancel import of goods at the selected stops.
-     *
-     * @param gt The {@code GoodsType} to stop importing.
-     */
-    private void cancelImport(GoodsTypeLabel gtl) {
-        this.stopGoodsTypesPanel.remove(gtl);
-        
-        final GoodsType gt = gtl.getType();
-        for (int stopIndex : this.stopList.getSelectedIndices()) {
-            TradeRouteStop stop = this.stopListModel.get(stopIndex);
-            List<GoodsType> cargo = new ArrayList<>(stop.getCargo());
-            
-            // Only remove the GoodsType once.
-            final int cargoIndex = cargo.indexOf(gt);
-            if (cargoIndex >= 0) {
-                cargo.remove(cargoIndex);
-                stop.setCargo(cargo);
-            }
-        }
-        this.stopList.revalidate();
-        this.stopList.repaint();
-        this.stopGoodsTypesPanel.revalidate();
-        this.stopGoodsTypesPanel.repaint();
+    private ImageIcon goodsIcon(GoodsType gt) {
+        return new ImageIcon(getImageLibrary().getSmallerGoodsTypeImage(gt));
     }
 
-    /**
-     * Add any stops selected in the destination selector.
-     */
-    private void addSelectedStops() {
-        int startIndex = -1;
-        int endIndex = -1;
-        int sel = this.destinationSelector.getSelectedIndex();
-        if (sel == 0) { // All colonies + Europe
-            startIndex = 1;
-            endIndex = this.destinationSelector.getItemCount();
-        } else { // just one place
-            startIndex = sel;
-            endIndex = startIndex+1;
+    private JLabel carriersLabel(Player player) {
+        if (this.carriers.isEmpty()) {
+            JLabel l = label(Messages.message(PREFIX + "noCarriers"), this.cDim);
+            l.setToolTipText(Messages.message(PREFIX + "noCarriers.tip"));
+            return l;
         }
-        List<GoodsType> cargo
-            = transform(this.stopGoodsTypesPanel.getComponents(),
-                        c -> c instanceof GoodsTypeLabel,
-                        c -> ((GoodsTypeLabel)c).getType());
-        int maxIndex = this.stopList.getMaxSelectionIndex();
-        for (int i = startIndex; i < endIndex; i++) {
-            String id = this.destinationSelector.getItemAt(i);
-            FreeColGameObject fcgo = getGame().getFreeColGameObject(id);
-            if (fcgo instanceof Location) {
-                TradeRouteStop stop
-                    = new TradeRouteStop(getGame(), (Location)fcgo);
-                stop.setCargo(cargo);
-                if (maxIndex < 0) {
-                    this.stopListModel.addElement(stop);
-                } else {
-                    maxIndex++;
-                    this.stopListModel.add(maxIndex, stop);
+        StringBuilder sb = new StringBuilder();
+        for (Unit u : this.carriers) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(Messages.message(u.getLabel(Unit.UnitLabelType.PLAIN)));
+        }
+        JLabel l = label(Messages.message(StringTemplate
+                .template(PREFIX + "carriers")
+                .addAmount("%number%", this.carriers.size())), this.cPlain);
+        l.setToolTipText(sb.toString());
+        return l;
+    }
+
+    private JButton addButton(Location loc, String name) {
+        JButton b = new JButton(name);
+        b.setMargin(new java.awt.Insets(1, 6, 1, 6));
+        b.setToolTipText(Messages.message(StringTemplate
+                .template(PREFIX + "addStop.tip").addName("%place%", name)));
+        b.addActionListener(ae -> addStop(loc));
+        return b;
+    }
+
+    private JButton smallButton(String text, String tipKey, Runnable r,
+                                boolean enabled) {
+        JButton b = new JButton(text);
+        b.setMargin(new java.awt.Insets(0, 4, 0, 4));
+        b.setToolTipText(Messages.message(PREFIX + tipKey));
+        b.setEnabled(enabled);
+        b.addActionListener(ae -> r.run());
+        return b;
+    }
+
+
+    // Editing
+
+    /**
+     * Add a stop after the selected one (or at the end).
+     *
+     * @param loc The {@code Location} to stop at.
+     */
+    private void addStop(Location loc) {
+        final TradeRouteStop stop = new TradeRouteStop(getGame(), loc);
+        final int at = (this.selected < 0) ? this.stops.size()
+            : this.selected + 1;
+        this.stops.add(at, stop);
+        this.selected = at;
+        refresh();
+    }
+
+    private void removeStop(int i) {
+        if (i < 0 || i >= this.stops.size()) return;
+        this.stops.remove(i);
+        if (this.selected >= this.stops.size()) {
+            this.selected = this.stops.size() - 1;
+        }
+        refresh();
+    }
+
+    private void moveStop(int i, int delta) {
+        final int j = i + delta;
+        if (i < 0 || j < 0 || j >= this.stops.size()) return;
+        this.stops.add(j, this.stops.remove(i));
+        this.selected = j;
+        refresh();
+    }
+
+    /** Load one more hold of goods at a stop. */
+    private void addHold(int i, GoodsType gt) {
+        if (i < 0 || i >= this.stops.size()) return;
+        this.stops.get(i).addCargo(gt);
+        this.selected = i;
+        refresh();
+    }
+
+    /** Load one hold less of goods at a stop. */
+    private void removeHold(int i, GoodsType gt) {
+        if (i < 0 || i >= this.stops.size()) return;
+        final TradeRouteStop stop = this.stops.get(i);
+        List<GoodsType> cargo = new ArrayList<>(stop.getCargo());
+        int k = cargo.lastIndexOf(gt);
+        if (k >= 0) cargo.remove(k);
+        stop.setCargo(cargo);
+        this.selected = i;
+        refresh();
+    }
+
+    private void select(int i) {
+        if (i == this.selected) return;
+        this.selected = i;
+        refresh();
+    }
+
+
+    // Drawing
+
+    /** Rebuild everything from the stops. */
+    private void refresh() {
+        rebuildMap();
+        rebuildStops();
+        rebuildGoods();
+        rebuildWarnings();
+        revalidate();
+        repaint();
+    }
+
+    private void rebuildMap() {
+        final Player player = getMyPlayer();
+        LogisticsMap.Route line = new LogisticsMap.Route(this.nameField.getText(),
+            LogisticsMap.routeColor(0));
+        for (TradeRouteStop stop : this.stops) {
+            final Location loc = stop.getLocation();
+            if (loc != null && loc.getTile() != null) line.addStop(loc.getTile());
+        }
+        List<LogisticsMap.Route> routes = new ArrayList<>();
+        routes.add(line);
+        LogisticsMap map = new LogisticsMap(getImageLibrary(), getGame().getMap(),
+            player, routes, (Tile t) -> {
+                // Click a colony of ours: add it as a stop.
+                if (t.getColony() != null && player.owns(t.getColony())) {
+                    addStop(t.getColony());
                 }
+            }).includeAllColonies();
+        map.setPreferredSize(new Dimension(600, 180));
+        map.setMinimumSize(new Dimension(300, 180));
+        this.mapHolder.removeAll();
+        this.mapHolder.add(map, "grow");
+    }
+
+    private void rebuildStops() {
+        final Player player = getMyPlayer();
+        this.stopsPanel.removeAll();
+        final String cols = "[24!][130!][210!][150!][grow, fill][]";
+        JPanel head = new JPanel(new MigLayout("insets 2 6 2 6", cols));
+        head.setOpaque(false);
+        head.add(label("#", this.cDim));
+        head.add(label(Messages.message(PREFIX + "col.stop"), this.cDim));
+        head.add(label(Messages.message(PREFIX + "col.loads"), this.cDim));
+        head.add(label(Messages.message(PREFIX + "col.unloads"), this.cDim));
+        head.add(label(Messages.message(PREFIX + "col.store"), this.cDim));
+        this.stopsPanel.add(head);
+        if (this.stops.isEmpty()) {
+            this.stopsPanel.add(label(Messages.message(PREFIX + "noStops"),
+                                      this.cDim), "gapleft 8");
+        }
+        final int n = this.stops.size();
+        for (int i = 0; i < n; i++) {
+            final int index = i;
+            final TradeRouteStop stop = this.stops.get(i);
+            final String place = RoutePlan.placeName(stop, player);
+            final boolean sel = i == this.selected;
+            JPanel row = new JPanel(new MigLayout("insets 3 6 3 6", cols)) {
+                    @Override
+                    protected void paintComponent(java.awt.Graphics g) {
+                        if (sel) {
+                            g.setColor(cSelected);
+                            g.fillRect(0, 0, getWidth(), getHeight());
+                        }
+                    }
+                };
+            row.setOpaque(false);
+            row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0,
+                    new Color(0, 0, 0, 30)));
+            row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            row.putClientProperty("stopIndex", i);
+            row.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mousePressed(MouseEvent e) {
+                        select(index);
+                    }
+                });
+            row.add(label(String.valueOf(i + 1), this.cDim));
+            JLabel name = boldLabel(place);
+            row.add(name);
+
+            // Loads: one chip per goods, "x2" for two holds.
+            JPanel loads = new JPanel(new MigLayout("insets 0, gap 3"));
+            loads.setOpaque(false);
+            final Map<GoodsType, Integer> holds = RoutePlan.holds(stop);
+            if (holds.isEmpty()) loads.add(label("—", this.cDim));
+            for (Map.Entry<GoodsType, Integer> e : holds.entrySet()) {
+                final GoodsType gt = e.getKey();
+                JLabel chip = new JLabel((e.getValue() > 1)
+                    ? "×" + e.getValue() : "", goodsIcon(gt), JLabel.LEADING);
+                final int at = RoutePlan.unloadedAt(this.stops, i, gt);
+                chip.setToolTipText(Messages.message((at < 0)
+                    ? StringTemplate.template(PREFIX + "loadTip.never")
+                        .addNamed("%goods%", gt)
+                        .addAmount("%holds%", e.getValue())
+                    : StringTemplate.template(PREFIX + "loadTip")
+                        .addNamed("%goods%", gt)
+                        .addAmount("%holds%", e.getValue())
+                        .addName("%place%",
+                            RoutePlan.placeName(this.stops.get(at), player))));
+                if (at < 0) chip.setForeground(this.cAlarm);
+                chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                chip.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mousePressed(MouseEvent me) {
+                            removeHold(index, gt);
+                        }
+                    });
+                loads.add(chip);
             }
+            row.add(loads);
+
+            // Unloads: worked out from the stop before.
+            JPanel unloads = new JPanel(new MigLayout("insets 0, gap 3"));
+            unloads.setOpaque(false);
+            final List<GoodsType> un = RoutePlan.unloads(this.stops, i);
+            if (un.isEmpty()) unloads.add(label("—", this.cDim));
+            final String from = RoutePlan.placeName(
+                this.stops.get((i - 1 + n) % n), player);
+            for (GoodsType gt : un) {
+                JLabel chip = new JLabel(goodsIcon(gt));
+                chip.setToolTipText(Messages.message(StringTemplate
+                        .template(PREFIX + "unloadTip")
+                        .addNamed("%goods%", gt)
+                        .addName("%from%", from)
+                        .addName("%place%", place)));
+                unloads.add(chip);
+            }
+            row.add(unloads);
+
+            // What is in store, for the goods loaded or unloaded here.
+            row.add(storeCell(stop, place, holds.keySet(), un));
+
+            // Move and remove
+            JPanel buttons = new JPanel(new MigLayout("insets 0, gap 2"));
+            buttons.setOpaque(false);
+            buttons.add(smallButton("↑", "up", () -> moveStop(index, -1), i > 0));
+            buttons.add(smallButton("↓", "down", () -> moveStop(index, 1), i < n - 1));
+            buttons.add(smallButton("✕", "remove", () -> removeStop(index), true));
+            row.add(buttons);
+            this.stopsPanel.add(row);
         }
     }
 
-    /**
-     * Convenience function to build a new {@code GoodsTypeLabel}.
-     *
-     * @param gt The {@code GoodsType} for the label.
-     * @return A {@code GoodsTypeLabel} for the goods type.
-     */
-    private GoodsTypeLabel buildCargoLabel(GoodsType gt) {
-        GoodsTypeLabel label = new GoodsTypeLabel(getFreeColClient(), gt);
-        label.setTransferHandler(this.transferHandler);
-        label.addMouseListener(this.dragListener);
-        return label;
+    private JComponent storeCell(TradeRouteStop stop, String place,
+                                 java.util.Collection<GoodsType> loads,
+                                 List<GoodsType> unloads) {
+        JPanel p = new JPanel(new MigLayout("insets 0, gap 6"));
+        p.setOpaque(false);
+        if (!(stop.getLocation() instanceof Colony)) {
+            p.add(label(Messages.message(PREFIX + "store.market"), this.cDim));
+            return p;
+        }
+        final Colony colony = (Colony)stop.getLocation();
+        List<GoodsType> goods = new ArrayList<>(loads);
+        for (GoodsType gt : unloads) if (!goods.contains(gt)) goods.add(gt);
+        if (goods.isEmpty()) p.add(label("", null));
+        for (GoodsType gt : goods) {
+            final int amount = colony.getGoodsCount(gt);
+            final int net = colony.getNetProductionOf(gt);
+            final int keep = colony.getExportData(gt).getExportLevel();
+            final int cap = colony.getWarehouseCapacity();
+            String text = String.valueOf(amount)
+                + ((net == 0) ? "" : (net > 0) ? " +" + net : " " + net);
+            JLabel l = new JLabel(text, goodsIcon(gt), JLabel.LEADING);
+            boolean loadedHere = loads.contains(gt);
+            l.setForeground((loadedHere && amount <= keep && net <= 0)
+                ? this.cAlarm
+                : (!loadedHere && gt.isStorable() && gt.limitIgnored() == false
+                   && amount >= cap) ? this.cAlarm : this.cPlain);
+            l.setToolTipText(Messages.message(StringTemplate
+                    .template(PREFIX + "storeTip")
+                    .addNamed("%goods%", gt)
+                    .addName("%place%", place)
+                    .addAmount("%amount%", amount)
+                    .addAmount("%keep%", keep)
+                    .addName("%net%", ((net > 0) ? "+" : "") + net)
+                    .addAmount("%capacity%", cap)));
+            p.add(l);
+        }
+        return p;
     }
 
-    /**
-     * Delete any stops currently selected in the stop list.
-     */
-    private void deleteCurrentlySelectedStops() {
-        int count = 0;
-        int lastIndex = 0;
-        for (int index : this.stopList.getSelectedIndices()) {
-            this.stopListModel.remove(index - count);
-            count++;
-            lastIndex = index;
-        }
-
-        // If the remaining list is non-empty, make sure that the
-        // element beneath the last of the previously selected is
-        // selected (ie, delete one of many, the one -under- the
-        // deleted is selected) the user can then click in the list
-        // once, and continue deleting without having to click in the
-        // list again.
-        if (this.stopListModel.getSize() > 0) {
-            this.stopList.setSelectedIndex(lastIndex - count + 1);
+    private void rebuildGoods() {
+        final Player player = getMyPlayer();
+        this.goodsPanel.removeAll();
+        final boolean on = this.selected >= 0 && this.selected < this.stops.size();
+        this.goodsTitle.setText(Messages.message((on)
+            ? StringTemplate.template(PREFIX + "goods")
+                .addName("%place%", RoutePlan.placeName(
+                    this.stops.get(this.selected), player))
+            : StringTemplate.template(PREFIX + "goods.none")));
+        this.goodsTitle.setFont(this.goodsTitle.getFont().deriveFont(Font.BOLD));
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            JButton b = new JButton(goodsIcon(gt));
+            b.setMargin(new java.awt.Insets(2, 2, 2, 2));
+            b.setEnabled(on);
+            b.setToolTipText(Messages.getName(gt));
+            b.addActionListener(ae -> addHold(this.selected, gt));
+            // Dragging onto a stop loads it there.
+            b.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mousePressed(MouseEvent e) {
+                        dragging = gt;
+                    }
+                    @Override
+                    public void mouseReleased(MouseEvent e) {
+                        final GoodsType g = dragging;
+                        dragging = null;
+                        if (g == null || b.contains(e.getPoint())) return;
+                        Point pt = SwingUtilities.convertPoint(b, e.getPoint(),
+                            stopsPanel);
+                        Component c = SwingUtilities.getDeepestComponentAt(
+                            stopsPanel, pt.x, pt.y);
+                        for (; c != null && c != stopsPanel; c = c.getParent()) {
+                            if (c instanceof JComponent && ((JComponent)c)
+                                .getClientProperty("stopIndex") != null) {
+                                addHold((Integer)((JComponent)c)
+                                    .getClientProperty("stopIndex"), g);
+                                return;
+                            }
+                        }
+                    }
+                });
+            this.goodsPanel.add(b);
         }
     }
 
+    private void rebuildWarnings() {
+        this.warningsPanel.removeAll();
+        List<StringTemplate> ws = RoutePlan.warnings(this.stops, this.minHolds,
+                                                     getMyPlayer());
+        if (ws.isEmpty()) {
+            this.warningsPanel.add(label("✓ " + Messages.message(PREFIX + "ok"),
+                                         this.cGood));
+        }
+        for (StringTemplate w : ws) {
+            this.warningsPanel.add(label("⚠ " + Messages.message(w), this.cAlarm));
+        }
+    }
+
+
+    // Closing
 
     /**
      * Make sure the original route is invalid and remove this panel.
@@ -738,41 +612,27 @@ public final class TradeRouteInputPanel extends FreeColPanel
     }
 
     /**
-     * Enables the remove stop button if a stop is selected and disables it
-     * otherwise.
-     */
-    private void updateButtons() {
-        this.addStopButton.setEnabled(this.stopListModel.getSize() 
-            < this.destinationSelector.getItemCount() - 1);
-        this.removeStopButton.setEnabled(this.stopList.getSelectedIndices()
-            .length > 0);
-    }
-
-    /**
-     * Check that the trade route is valid.
+     * Copy the edit into the route and check it.
      *
      * @return True if the trade route is valid.
      */
     private boolean verifyNewTradeRoute() {
-        // Update the trade route with the current settings
-        this.newRoute.setName(tradeRouteName.getText());
-        this.newRoute.clearStops();
-        for (int index = 0; index < this.stopListModel.getSize(); index++) {
-            this.newRoute.addStop(this.stopListModel.get(index));
-        }
-        this.newRoute.setSilent(this.messagesBox.isSelected());
-
-        StringTemplate err = this.newRoute.verify();
+        // Check a copy first, so a refused edit leaves the route as it was.
+        final TradeRoute check = this.newRoute.copy(getGame());
+        check.setName(this.nameField.getText());
+        check.clearStops();
+        for (TradeRouteStop stop : this.stops) check.addStop(stop);
+        StringTemplate err = check.verify();
         if (err != null) {
             getGUI().showInformationPanel(err);
-            this.newRoute.setName(null); // Mark as unacceptable
-            return false;
+            return false; // Stay open, so the route can be fixed
         }
+        this.newRoute.setName(this.nameField.getText());
+        this.newRoute.clearStops();
+        for (TradeRouteStop stop : this.stops) this.newRoute.addStop(stop);
+        this.newRoute.setSilent(this.silenceBox.isSelected());
         return true;
     }
-
-
-    // Interface ActionListener
 
     /**
      * {@inheritDoc}
@@ -795,48 +655,5 @@ public final class TradeRouteInputPanel extends FreeColPanel
             super.actionPerformed(ae);
             break;
         }
-    }
-
-
-    // Interface ListSelectionListener
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void valueChanged(ListSelectionEvent e) {
-        if (e.getValueIsAdjusting()) return;
-        int[] idx = this.stopList.getSelectedIndices();
-        if (idx.length > 0) {
-            updateCargoPanel(this.stopListModel.get(idx[0]));
-            this.allGoodsTypesPanel.setEnabled(true);
-        } else {
-            this.allGoodsTypesPanel.setEnabled(false);
-        }
-        updateButtons();
-    }
-
-
-    // Override Component
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void removeNotify() {
-        this.transferHandler = null;
-        this.dragListener = null;
-        this.stopListModel.clear();
-        this.stopListModel = null;
-        this.stopList = null;
-        this.tradeRouteName = null;
-        this.destinationSelector = null;
-        this.messagesBox = null;
-        this.addStopButton = null;
-        this.removeStopButton = null;
-        this.stopGoodsTypesPanel = null;
-        this.allGoodsTypesPanel = null;
-
-        super.removeNotify();
     }
 }

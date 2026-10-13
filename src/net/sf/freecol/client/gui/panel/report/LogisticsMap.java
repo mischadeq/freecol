@@ -191,9 +191,27 @@ public final class LogisticsMap extends JComponent {
         });
     }
 
+    /** Also show all the player's colonies (for picking stops). */
+    private boolean allColonies = false;
+
+    /**
+     * Show all the player's colonies, not only those on the routes,
+     * so that they can be clicked.
+     *
+     * @return This map.
+     */
+    public LogisticsMap includeAllColonies() {
+        this.allColonies = true;
+        computeBounds();
+        return this;
+    }
+
     /** Work out which part of the map to show. */
     private void computeBounds() {
         List<Tile> tiles = new ArrayList<>();
+        if (this.allColonies) {
+            for (Colony c : this.player.getColonyList()) tiles.add(c.getTile());
+        }
         for (Route r : this.routes) {
             tiles.addAll(r.stops);
             for (Carrier c : r.carriers) {

@@ -364,6 +364,35 @@ there. That is a smoke test, not a play test.
       for all six routes (e.g. Ore to Wijchen: 48 tools, 8 ore, 2 food).
       Also: client/control AllTests now lists all the mod's tests.
 
+- [ ] **New trade route editor** (Mischa: the old dialog is clunky;
+      wanted a map in it; carriers stay assigned from the unit or group).
+      One screen: name, Silence messages, how many carriers. A small map
+      with the route and all colonies; click a colony to add it as a
+      stop. "Add stop:" buttons for every colony and Europe (adds after
+      the selected stop). The stops as a table: # | Stop | ▲ Loads (a
+      chip per goods, "×2" for two holds; click a chip to take a hold
+      off) | ▼ Unloads (worked out from the stop before, which the game
+      never showed) | In store (amount and per turn for the goods
+      involved; red when a loading stop has nothing above Keep, or an
+      unloading stop is full; hover for Keep and warehouse size) | ↑ ↓ ✕.
+      Delete key removes the selected stop. Goods row: click (or drag
+      onto a stop) to load one more hold at the selected stop. Warnings
+      at the bottom: fewer than two stops, goods loaded at every stop
+      (never unloaded), the same place twice in a row, a stop that loads
+      and unloads nothing, more holds than the smallest carrier has, a
+      colony asked to load goods it neither has nor makes. A refused OK
+      no longer changes the route (the old dialog had already changed
+      it). The Trade Routes list now shows per route: name, the stops
+      (Arnhem → Nijmegen → …), carriers, and the moved chart.
+      Rewritten TradeRouteInputPanel; new RoutePlan (client/control);
+      TradeRoutePanel row renderer; LogisticsMap.includeAllColonies.
+      Unit test RoutePlanTest. Tried on Mischa's save: opened Food Coat
+      to Nijmegen and GUNS (the editor flags StinkyTown and
+      Chattahoochee on GUNS as loading and unloading nothing), and on
+      Ore to Wijchen added muskets at Nijmegen by clicking: the route
+      was saved with ore + muskets and Wijchen showed muskets under
+      Unloads.
+
 ### Committed in 0893f2ac5 / 860678de9
 
 - [ ] **Unit groups: armies, wagon trains, fleets.**
@@ -507,7 +536,6 @@ Known limits of the supply warnings (by design, not bugs):
 ### Logistics, next steps
 - Suggested routes: link a colony that needs a good to one with a
   surplus, straight from the overview.
-- Better trade route setup dialog (the current one is clunky).
 - Open the trade route editor from the Logistics report.
 - Check the wagon limit in the base rules. The `shippableWagons` mod's
   copy of the wagon definition limits wagon trains to fewer than the

@@ -31,6 +31,7 @@ public class AllTests {
         suite.addTestSuite(MoveTest.class);
         suite.addTestSuite(ColonyAdvisorTest.class);
         suite.addTestSuite(RouteHistoryTest.class);
+        suite.addTestSuite(RoutePlanTest.class);
         suite.addTestSuite(RoutineMessagesTest.class);
         suite.addTestSuite(SupplyForecastTest.class);
         suite.addTestSuite(TradeAppraisalTest.class);

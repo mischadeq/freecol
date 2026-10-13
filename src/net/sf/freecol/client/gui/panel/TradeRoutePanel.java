@@ -38,7 +38,15 @@ import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.event.ListSelectionEvent;
 
+import java.awt.Color;
+import java.awt.Font;
+import javax.swing.JPanel;
+
 import net.miginfocom.swing.MigLayout;
+import net.sf.freecol.client.control.RouteHistory;
+import net.sf.freecol.client.control.RoutePlan;
+import net.sf.freecol.client.gui.panel.report.LogisticsMap;
+import net.sf.freecol.common.model.TradeRouteStop;
 import net.sf.freecol.client.FreeColClient;
 import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.model.Location;
@@ -99,22 +107,35 @@ public final class TradeRoutePanel extends FreeColPanel {
         this.tradeRoutes.addListSelectionListener((ListSelectionEvent e) -> {
                 updateButtons();
             });
-        this.tradeRoutes.setCellRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list,
-                    Object value, int index, boolean selected, boolean focus) {
-                    Component ret = super.getListCellRendererComponent(list,
-                        value, index, selected, focus);
-                    TradeRoute tradeRoute = (TradeRoute)value;
-                    String name = tradeRoute.getName();
-                    Integer n = TradeRoutePanel.this.counts.get(tradeRoute);
-                    if (n == null || n <= 0) {
-                        setText(name);
-                    } else {
-                        setText(name + "  (" + n + ")");
-                    }
-                    return ret;
+        // One row per route: name, stops, carriers and a small chart of
+        // what it unloaded over the last turns.
+        final RouteHistory history = igc().getRouteHistory();
+        final int turn = getGame().getTurn().getNumber();
+        this.tradeRoutes.setCellRenderer((JList<? extends TradeRoute> list,
+                TradeRoute route, int index, boolean sel, boolean focus) -> {
+                JPanel row = new JPanel(new MigLayout("insets 4 6 4 6, gap 2 0",
+                                                      "[grow][]", "[][]"));
+                row.setOpaque(sel);
+                row.setBackground(new Color(0xE9D8AA));
+                JLabel name = new JLabel(route.getName());
+                name.setFont(name.getFont().deriveFont(Font.BOLD));
+                row.add(name);
+                MovedChart chart = new MovedChart(history, route.getId(), turn,
+                    LogisticsMap.routeColor(player.getTradeRoutes().indexOf(route)),
+                    getSpecification());
+                row.add(chart, "spany 2, wrap");
+                StringBuilder sb = new StringBuilder();
+                for (TradeRouteStop stop : route.getStopList()) {
+                    if (sb.length() > 0) sb.append(" → ");
+                    sb.append(RoutePlan.placeName(stop, player));
                 }
+                Integer n = TradeRoutePanel.this.counts.get(route);
+                JLabel info = new JLabel(sb + "   · " + Messages.message(
+                        StringTemplate.template("tradeRouteEditor.carriers")
+                            .addAmount("%number%", (n == null) ? 0 : n)));
+                info.setForeground(new Color(110, 100, 85));
+                row.add(info);
+                return row;
             });
 
         JScrollPane tradeRouteView = new JScrollPane(this.tradeRoutes);
@@ -191,7 +212,7 @@ public final class TradeRoutePanel extends FreeColPanel {
             JLabel locLabel = Utility.localizedLabel(loc.getLocationLabelFor(player));
             add(locLabel);
         }
-        add(tradeRouteView, "height 360:400, width 250:");
+        add(tradeRouteView, "height 360:400, width 420:");
         add(this.newRouteButton, "split 4, flowy, growx");
         add(this.editRouteButton, "growx");
         add(this.deleteRouteButton, "growx");
