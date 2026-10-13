@@ -3,11 +3,14 @@
 Goal: make FreeCol's UI workable and give proper overviews.
 Branch: `colony-overview` on the fork `mischadeq/freecol`.
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 Status legend: **Done** = written and seen working in the game.
 **In progress** = being worked on now. **To be tested** = written and
-committed, not yet checked in the game. **Idea** = not started.
+committed, not yet checked in the game. **Planned** = designed, with a
+plan in `claude_docs/plans/`, not built. **Idea** = not started.
+
+Aim: release the mod once Mischa is content with it.
 
 ## Done
 
@@ -631,6 +634,31 @@ Known limits of the supply warnings (by design, not bugs):
   is accurate but says little about what a colony is specialised in.
   One option is to hide it unless it is a real surplus, say +8 or more.
 
+## Planned (designed, not built)
+
+### Living diplomacy and native tribes (2026-10-13)
+Full plan: `claude_docs/plans/ai-diplomacy-and-natives.md` (snapshot of
+the Claude Doc "FreeCol: living diplomacy design").
+- **What:** every computer nation gets a "diplomat" with opinion,
+  memories, trust and fear of each other nation, a long-term ambition,
+  short-term goals and a score function; it makes offers (goods,
+  purchases, trade agreements, pacts, joint wars, coalitions against
+  the strongest), complains before going to war, and plans landings.
+  Native tribes get the same: opinions of each other, calling for help,
+  refugees, settlements or whole tribes joining a European nation, joint
+  uprisings.
+- **Why:** wars start and stop at random, nobody fights for land or
+  makes an offer, and the tribes are isolated and hardly matter.
+- **Decided:** at most one offer per nation per 5 turns; nations stay
+  committed to their goals; deals between computer nations too; no
+  off switch; a native settlement that joins you becomes an allied
+  native settlement (stays native, cheap trade with each other).
+- **Open:** what Hard should mean for the diplomat; whether wealth
+  should count more than 40% of threat.
+- **Step 0, next:** replay Mischa's consecutive autosaves (copies only,
+  never written to), find what he and each AI did per turn, and compare
+  with what the diplomat would have done, to tune the weights.
+
 ## Ideas, not started
 
 ### Unit groups, next steps
@@ -685,3 +713,6 @@ Known limits of the supply warnings (by design, not bugs):
 ### Housekeeping
 - Decide later whether any of this is worth offering upstream. If so,
   `claude_docs` should stay out of that pull request.
+- Release: Mischa wants to release the mod once he is content with it.
+  Before that: a list of what changed for players, and the options to
+  turn features on or off.
