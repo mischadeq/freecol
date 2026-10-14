@@ -1791,23 +1791,27 @@
     }).join("") + "</div>";
   }
 
-  // How a computer nation feels about you (single player games only).
-  const MOOD_CHIP = {
-    friendly: ["ok", "🙂", "Friendly"], neutral: ["m", "😐", "Neutral"],
-    wary: ["warn", "🤨", "Wary of you"], hostile: ["alarm", "😠", "Hostile"]
-  };
-  const TRUST_CHIP = {
-    trusts: ["ok", "🤝", "Trusts you"], careful: ["m", "⚖️", "Careful"],
-    distrusts: ["alarm", "✋", "Does not trust you"]
-  };
+  // How a computer nation feels about you (single player games only):
+  // coloured chips with a small meter, no numbers.
+  const MOOD_LV = { hostile: [1, "alarm", "Hostile"], wary: [2, "warn", "Wary of you"],
+    neutral: [3, "m", "Neutral"], friendly: [4, "ok", "Friendly"] };
+  const TRUST_LV = { distrusts: [1, "alarm", "Does not trust you"], careful: [2, "m", "Careful"],
+    trusts: [3, "ok", "Trusts you"] };
+  function meter(level, of, cls) {
+    let h = '<span class="seg ' + cls + '">';
+    for (let i = 1; i <= of; i++) h += "<i" + (i <= level ? ' class="on"' : "") + "></i>";
+    return h + "</span>";
+  }
   function moodChips(n) {
     const m = n.mood;
     if (!m) return "";
-    const a = MOOD_CHIP[m.word] || MOOD_CHIP.neutral, t = TRUST_CHIP[m.trust] || TRUST_CHIP.careful;
+    const a = MOOD_LV[m.word] || MOOD_LV.neutral, t = TRUST_LV[m.trust] || TRUST_LV.careful;
     return '<div class="nverd nmood">' +
-      '<span class="tag ' + a[0] + '" title="What they think of you, from the game\'s tension and what they remember.">' + a[1] + " " + a[2] + "</span>" +
-      '<span class="tag ' + t[0] + '" title="Kept deals, gifts and trade raise trust; a broken peace cuts it hard.">' + t[1] + " " + t[2] + "</span>" +
-      '<span class="tag info" title="Their long-term ambition, from their nation type.">🎯 ' + esc(cap(m.ambition)) + "</span></div>";
+      '<span class="tag ' + a[1] + '" title="What they think of you, from the game\'s tension and what they remember: hostile, wary, neutral, friendly.">' +
+        meter(a[0], 4, a[1]) + " " + a[2] + "</span>" +
+      '<span class="tag ' + t[1] + '" title="Kept deals, gifts and trade raise trust; a broken deal cuts it hard.">' +
+        meter(t[0], 3, t[1]) + " " + t[2] + "</span>" +
+      '<span class="tag info" title="Their long-term ambition, from their nation type.">' + esc(cap(m.ambition)) + "</span></div>";
   }
   function moodRows(n) {
     const m = n.mood, rows = [];
@@ -1817,15 +1821,18 @@
         "What they are after right now (their diplomat's short-term goals)."]);
     }
     if (m.remembers.length) {
-      const one = (r) => (r.good ? "👍 " : "👎 ") + r.text + " (" + r.year + ")";
+      const one = (r) => r.text + " (" + r.year + ")";
       rows.push(["Remembers", m.remembers.slice(0, 3).map((r) =>
-        '<span class="ncol mem ' + (r.good ? "up" : "down") + '">' + esc(one(r)) + "</span>").join("") +
+        '<span class="ncol mem ' + (r.good ? "good" : "bad") + '">' + esc(one(r)) + "</span>").join("") +
         (m.remembers.length > 3 ? '<span class="m"> +' + (m.remembers.length - 3) + "</span>" : ""),
-        "What they remember about you, strongest first. All: " + m.remembers.map(one).join("; ") + "."]);
+        "What they remember about you, strongest first (green: in your favour, red: against you). All: " +
+        m.remembers.map((r) => (r.good ? "+ " : "- ") + one(r)).join("; ") + "."]);
     }
     if (m.feelings.length) {
-      rows.push(["Feels", m.feelings.map((f) => '<span class="ncol"><i class="sw" style="background:' + esc(f.color) + '"></i> ' +
-        esc(f.name) + ": " + (f.stance === "war" ? "⚔ " : "🤝 ") + esc(f.word) + (f.why ? ' <span class="m">· ' + esc(f.why) + "</span>" : "") + "</span>").join(""),
+      rows.push(["Feels", m.feelings.map((f) => '<span class="ncol rel ' + (f.stance === "war" ? "war" : "ally") + '">' +
+        '<i class="sw" style="background:' + esc(f.color) + '"></i> ' + esc(f.name) + " " +
+        '<b class="' + (f.stance === "war" ? "down" : "info") + '">' + (f.stance === "war" ? "at war" : "allied") + "</b>, " +
+        esc(f.word) + (f.why ? ' <span class="m">(' + esc(f.why) + ")</span>" : "") + "</span>").join(""),
         "How they feel about the nations they are at war or allied with (public: everybody knows who fights whom), and why they chose that war or alliance."]);
     }
     return rows;
@@ -1906,7 +1913,7 @@
           if (r[0] || r[1]) parts.push("you hit " + (r[0] + r[1]) + (r[1] ? " (" + r[1] + " sunk)" : ""));
           if (r[2] || r[3]) parts.push("they hit " + (r[2] + r[3]) + " of yours" + (r[3] ? " (" + r[3] + " sunk)" : ""));
           if (parts.length) {
-            line += '<div class="raid">⚔ ' + parts.join(", ") + " · 10 turns</div>";
+            line += '<div class="raid">Sea fights: ' + parts.join(", ") + " · 10 turns</div>";
             tip += " Sea fights with them in the last 10 turns: you damaged " + r[0] + " and sank " + r[1] +
               " of their ships; they damaged " + r[2] + " and sank " + r[3] + " of yours. Damaged ships sail home for repairs and lose their cargo: that is the blockade.";
           }

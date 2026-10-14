@@ -427,8 +427,18 @@ body.nomap #mapSec { display: none; }
 .nverd { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; }
 .nverd .tag { cursor: help; }
 .nmood { margin-bottom: 4px; }
-.ncol.mem.up { color: var(--ok); }
-.ncol.mem.down { color: var(--alarm); }
+.ncol.mem { border-left: 3px solid var(--line); }
+.ncol.mem.good { border-left-color: var(--ok); color: var(--text); }
+.ncol.mem.bad { border-left-color: var(--alarm); color: var(--text); }
+.ncol.rel.war { border-left: 3px solid var(--alarm); }
+.ncol.rel.ally { border-left: 3px solid var(--info); }
+.info { color: var(--info); }
+.seg { display: inline-flex; gap: 2px; vertical-align: 0; }
+.seg i { width: 6px; height: 8px; border-radius: 1px; background: var(--panel2); display: inline-block; }
+.seg.ok i.on { background: var(--ok); }
+.seg.warn i.on { background: var(--warn); }
+.seg.alarm i.on { background: var(--alarm); }
+.seg.m i.on { background: var(--muted); }
 .ncol .sw { width: 9px; height: 9px; vertical-align: -1px; }
 
 /* Independence */
