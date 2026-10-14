@@ -58,6 +58,7 @@ import net.sf.freecol.server.ai.mission.Mission;
 import net.sf.freecol.server.ai.mission.MissionaryMission;
 import net.sf.freecol.server.ai.mission.PioneeringMission;
 import net.sf.freecol.server.ai.mission.PrivateerMission;
+import net.sf.freecol.server.ai.mission.ScoutBearingMission;
 import net.sf.freecol.server.ai.mission.ScoutingMission;
 import net.sf.freecol.server.ai.mission.TransportMission;
 import net.sf.freecol.server.ai.mission.UnitSeekAndDestroyMission;
@@ -901,6 +902,9 @@ public final class AIUnit extends TransportableAIObject {
 
         } else if (PrivateerMission.TAG.equals(tag)) {
             mission = new PrivateerMission(aiMain, this, xr);
+
+        } else if (ScoutBearingMission.TAG.equals(tag)) {
+            mission = new ScoutBearingMission(aiMain, this, xr);
 
         } else if (ScoutingMission.TAG.equals(tag)) {
             mission = new ScoutingMission(aiMain, this, xr);

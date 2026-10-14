@@ -155,6 +155,35 @@ public class ReplayTest extends TestCase {
         assertEquals(Action.Kind.ARM_TRIBE, o.asAction().kind);
     }
 
+    public void testBearingSummary() {
+        net.sf.freecol.common.diplomacy.Bearings b
+            = new net.sf.freecol.common.diplomacy.Bearings();
+        b.add(new net.sf.freecol.common.diplomacy.Bearings.Sighting(FRENCH,
+            30, 20, 1, net.sf.freecol.common.diplomacy.Bearings.Kind.COLONY));
+        b.add(new net.sf.freecol.common.diplomacy.Bearings.Sighting(FRENCH,
+            30, 20, 1, net.sf.freecol.common.diplomacy.Bearings.Kind.COLONY));
+        var sure = b.bearing(FRENCH, 20, 20, 1);
+        b = new net.sf.freecol.common.diplomacy.Bearings();
+        b.add(new net.sf.freecol.common.diplomacy.Bearings.Sighting(FRENCH,
+            23, 20, 1, net.sf.freecol.common.diplomacy.Bearings.Kind.SHIP));
+        var unsure = b.bearing(FRENCH, 20, 20, 1);
+        assertTrue(sure.confidence >= ReplayReport.USABLE);
+        assertTrue(unsure.confidence < ReplayReport.USABLE);
+        Replay r = new Replay();
+        r.bearingChecks.add(new Replay.BearingCheck(5, DUTCH, FRENCH, unsure, 90, 10, 1, 0, false));
+        r.bearingChecks.add(new Replay.BearingCheck(6, DUTCH, FRENCH, sure, 100, 10, 1, 0, false));
+        r.bearingChecks.add(new Replay.BearingCheck(7, DUTCH, FRENCH, sure, 20, 10, 1, 0, false));
+        r.bearingChecks.add(new Replay.BearingCheck(9, DUTCH, FRENCH, sure, 0, 10, 1, 0, true));
+        ReplayReport.BearingSummary s = ReplayReport.bearings(r).get(DUTCH + "|" + FRENCH);
+        assertEquals(3, s.blind);
+        assertEquals(2, s.usable);
+        assertEquals(1, s.within45);
+        assertEquals(60.0, s.meanError(), 1e-9);
+        assertEquals(7, s.firstGood);
+        assertEquals(9, s.firstKnown);
+        assertTrue(ReplayReport.json(r).contains("\"bearings\":[{\"from\":\"dutch\""));
+    }
+
     private static Snapshot snap(int turn) {
         Snapshot s = new Snapshot(turn, "t" + turn);
         s.nations.put(DUTCH, new Snapshot.Nation(DUTCH, true, false));

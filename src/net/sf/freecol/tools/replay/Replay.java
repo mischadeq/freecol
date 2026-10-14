@@ -134,6 +134,37 @@ public final class Replay {
         }
     }
 
+    /** How good one nation's guess about another was, at one turn. */
+    public static final class BearingCheck {
+        public final int turn;
+        public final String observer, target;
+        /** The guess: direction, distance, confidence. */
+        public final net.sf.freecol.common.diplomacy.Bearings.Bearing guess;
+        /** True direction to the target's colonies (degrees off). */
+        public final double error;
+        public final double trueDistance;
+        /** True direction (unit vector, x east, y south). */
+        public final double trueDx, trueDy;
+        /** Had the observer explored one of the target's colonies yet? */
+        public final boolean known;
+
+        BearingCheck(int turn, String observer, String target,
+                     net.sf.freecol.common.diplomacy.Bearings.Bearing guess,
+                     double error, double trueDistance, double trueDx,
+                     double trueDy, boolean known) {
+            this.turn = turn;
+            this.trueDx = trueDx;
+            this.trueDy = trueDy;
+            this.observer = observer;
+            this.target = target;
+            this.guess = guess;
+            this.error = error;
+            this.trueDistance = trueDistance;
+            this.known = known;
+        }
+    }
+
+    public final List<BearingCheck> bearingChecks = new ArrayList<>();
     public final List<Snapshot> snaps = new ArrayList<>();
     public final List<Row> rows = new ArrayList<>();
     public final List<War> wars = new ArrayList<>();
@@ -152,6 +183,7 @@ public final class Replay {
                     java.util.function.IntConsumer progress)
         throws Exception {
         Map<String, List<Memory>> memories = new HashMap<>();
+        Map<String, net.sf.freecol.common.diplomacy.Bearings> bearings = new HashMap<>();
         for (int i = 0; i < saves.size(); i++) {
             final ServerGame game = SaveSeries.load(saves.get(i));
             final Snapshot snap = Snapshot.of(game);
@@ -164,8 +196,13 @@ public final class Replay {
             }
             for (Player p : game.getLiveEuropeanPlayerList()) {
                 if (p.isREF()) continue;
+                net.sf.freecol.common.diplomacy.Bearings b = bearings
+                    .computeIfAbsent(p.getNationId(),
+                                     k -> new net.sf.freecol.common.diplomacy.Bearings());
+                net.sf.freecol.common.diplomacy.Sightings.look(game, p, b);
+                checkBearings(game, p, b);
                 WorldView w = WorldViewBuilder.build(game, p, true,
-                    memories.get(p.getNationId()));
+                    memories.get(p.getNationId()), b);
                 Situation s = new Situation(w);
                 List<ScoredAction> ranked = Diplomat.rank(s);
                 Row row = new Row(i, snap.turn, snap.label, p.getNationId(),
@@ -203,6 +240,37 @@ public final class Replay {
 
     /** The full ranking of each row, only while comparing. */
     private final Map<Row, List<ScoredAction>> rankedByRow = new HashMap<>();
+
+    /** Compare a nation's guesses with where the others really are. */
+    private void checkBearings(ServerGame game, Player me,
+                               net.sf.freecol.common.diplomacy.Bearings b) {
+        final net.sf.freecol.common.model.Tile o
+            = net.sf.freecol.common.diplomacy.Sightings.origin(me);
+        if (o == null) return;
+        final int now = game.getTurn().getNumber();
+        for (Player x : game.getLiveEuropeanPlayerList()) {
+            if (x == me || x.isREF() || x.getColonyList().isEmpty()) continue;
+            var guess = b.bearing(x.getNationId(), o.getX(), o.getY(), now);
+            if (guess == null) continue;
+            double cx = 0, cy = 0;
+            boolean known = false;
+            for (net.sf.freecol.common.model.Colony c : x.getColonyList()) {
+                cx += c.getTile().getX();
+                cy += c.getTile().getY();
+                known |= c.getTile().isExploredBy(me);
+            }
+            cx /= x.getColonyList().size();
+            cy /= x.getColonyList().size();
+            final double tx = cx - o.getX(), ty = (cy - o.getY()) / 2.0;
+            final double a = Math.atan2(ty, tx), g = Math.atan2(guess.dy, guess.dx);
+            double err = Math.abs(Math.toDegrees(a - g)) % 360;
+            if (err > 180) err = 360 - err;
+            final double td = Math.hypot(tx, ty);
+            bearingChecks.add(new BearingCheck(now, me.getNationId(),
+                x.getNationId(), guess, err, td,
+                (td == 0) ? 0 : tx / td, (td == 0) ? 0 : ty / td, known));
+        }
+    }
 
     /** Losses become memories of the nation that suffered them. */
     private static void remember(List<Observed> d, int turn,

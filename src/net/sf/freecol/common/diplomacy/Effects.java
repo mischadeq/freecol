@@ -59,6 +59,8 @@ public final class Effects {
     public static final int LAND_HORIZON = 30;
     /** Price to stay out of a King's war: per enemy soldier, at least. */
     public static final int KING_PRICE_PER_SOLDIER = 100, KING_MIN_PRICE = 500;
+    /** What finding an enemy at war is worth, in points of land. */
+    public static final double SCOUT_VALUE = 11;
     /** Muskets to arm one soldier. */
     public static final int MUSKETS_PER_SOLDIER = 50;
 
@@ -191,6 +193,16 @@ public final class Effects {
                 * Math.max((danger) ? 1 : 0.3, king);
             sa.note = (danger) ? "in danger"
                 : (king > 0.3) ? "the King's army" : "";
+            break;
+        }
+        case SCOUT: {
+            // Finding a nation we are at war with opens attacks on it
+            // (a fifth of an average colony); a threat we cannot place
+            // is worth a little to find too.
+            sa.land = (x.atWar()) ? SCOUT_VALUE : SCOUT_VALUE / 4;
+            sa.risk = (x.atWar()) ? 1 : 0;
+            sa.note = (x.bearing == null) ? "" : "look " + x.bearing.compass()
+                + ", ~" + Math.round(x.bearing.distance) + " tiles";
             break;
         }
         case ARM_TRIBE: {

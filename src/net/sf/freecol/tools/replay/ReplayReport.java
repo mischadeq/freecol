@@ -46,7 +46,64 @@ public final class ReplayReport {
             unprompted, flips, wars, warsWithReason;
     }
 
+    /** How good one nation's guesses about another were. */
+    public static final class BearingSummary {
+        public String observer, target;
+        /** Guesses made before the target's colonies were found. */
+        public int blind;
+        /** Of those, how many were usable (confident enough). */
+        public int usable;
+        /** Of the usable ones, how many pointed within 45 degrees. */
+        public int within45;
+        public double errorSum;
+        /** First turn with a usable guess that was right, or -1. */
+        public int firstGood = -1;
+        /** First turn a colony of the target was explored, or -1. */
+        public int firstKnown = -1;
+        public Replay.BearingCheck last;
+
+        public double meanError() {
+            return (usable == 0) ? 0 : errorSum / usable;
+        }
+    }
+
+    /** Confidence from which a guess counts as usable. */
+    public static final double USABLE = 0.3;
+    /** Error (degrees) within which a guess counts as right. */
+    public static final double GOOD = 45;
+
     private ReplayReport() {}
+
+
+    /**
+     * Sum up the bearing checks per observer and target.
+     *
+     * @param r The {@code Replay}.
+     * @return "observer|target" to {@code BearingSummary}.
+     */
+    public static Map<String, BearingSummary> bearings(Replay r) {
+        Map<String, BearingSummary> ret = new LinkedHashMap<>();
+        for (Replay.BearingCheck c : r.bearingChecks) {
+            BearingSummary s = ret.computeIfAbsent(c.observer + "|" + c.target,
+                                                   k -> new BearingSummary());
+            s.observer = c.observer;
+            s.target = c.target;
+            s.last = c;
+            if (c.known) {
+                if (s.firstKnown < 0) s.firstKnown = c.turn;
+                continue;
+            }
+            s.blind++;
+            if (c.guess.confidence < USABLE) continue;
+            s.usable++;
+            s.errorSum += c.error;
+            if (c.error <= GOOD) {
+                s.within45++;
+                if (s.firstGood < 0) s.firstGood = c.turn;
+            }
+        }
+        return ret;
+    }
 
 
     /**
@@ -175,6 +232,46 @@ public final class ReplayReport {
                 .append(",\"stayHow\":").append(str(w.stayOutHow))
                 .append('}');
         }
+        sb.append("],\"bearings\":[");
+        first = true;
+        for (BearingSummary b : bearings(r).values()) {
+            if (!first) sb.append(',');
+            first = false;
+            final Replay.BearingCheck c = b.last;
+            sb.append("{\"from\":").append(str(Action.shortId(b.observer)))
+                .append(",\"to\":").append(str(Action.shortId(b.target)))
+                .append(",\"blind\":").append(b.blind)
+                .append(",\"usable\":").append(b.usable)
+                .append(",\"good\":").append(b.within45)
+                .append(",\"err\":").append(fmt(b.meanError()))
+                .append(",\"firstGood\":").append(b.firstGood)
+                .append(",\"firstKnown\":").append(b.firstKnown)
+                .append(",\"lastTurn\":").append(c.turn)
+                .append(",\"guess\":").append(str(c.guess.compass()))
+                .append(",\"g\":[").append(fmt2(c.guess.dx)).append(',')
+                .append(fmt2(c.guess.dy)).append(']')
+                .append(",\"tr\":[").append(fmt2(c.trueDx)).append(',')
+                .append(fmt2(c.trueDy)).append(']')
+                .append(",\"dist\":").append(fmt(c.guess.distance))
+                .append(",\"conf\":").append(fmt(100 * c.guess.confidence))
+                .append(",\"lastErr\":").append(fmt(c.error))
+                .append(",\"trueDist\":").append(fmt(c.trueDistance))
+                .append(",\"known\":").append(c.known)
+                .append(",\"seen\":").append(c.guess.sightings)
+                .append(",\"track\":[");
+            boolean f2 = true;
+            for (Replay.BearingCheck x : r.bearingChecks) {
+                if (!x.observer.equals(b.observer)
+                    || !x.target.equals(b.target)) continue;
+                if (!f2) sb.append(',');
+                f2 = false;
+                sb.append('[').append(x.turn).append(',')
+                    .append(Math.round(x.error)).append(',')
+                    .append(Math.round(100 * x.guess.confidence)).append(',')
+                    .append(x.known ? 1 : 0).append(']');
+            }
+            sb.append("]}");
+        }
         sb.append("],\"rows\":[");
         first = true;
         for (Replay.Row row : r.rows) {
@@ -258,6 +355,10 @@ public final class ReplayReport {
 
     private static String fmt(double d) {
         return String.format(Locale.ROOT, "%.1f", d);
+    }
+
+    private static String fmt2(double d) {
+        return String.format(Locale.ROOT, "%.2f", d);
     }
 
     private static String q(String s) {

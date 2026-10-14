@@ -776,6 +776,52 @@ the Claude Doc "FreeCol: living diplomacy design").
   diplomat acting: arming, buying ships, scouting) is what makes wars
   common.
 
+### Where are they: guesses and scouting (2026-10-14)
+Mischa's idea: nobody gets the map for free, but a nation can work out
+roughly where the others live from what it sees of them.
+- **Guesses:** `common/diplomacy/Bearings` and `Sightings`. Once a turn
+  each nation notes, on the tiles it can see, the colonies, soldiers and
+  ships of the others (at most 4 of each kind per nation per turn). Each
+  one points from its biggest colony towards where that nation lives;
+  colonies count 3, soldiers 2, ships 1, a course 1.5; old ones fade over
+  30 turns. A unit seen twice gives a course: on land, or a ship along
+  the coast, coming nearer means it came from home; a ship sailing east
+  or west towards the open sea came from home, one sailing in goes home.
+  Visitors say little: sightings near our colony count less (squared, up
+  to 6 tiles) and a ship heading straight at us, away from us, or at our
+  door gives no course. The guess is the weighted average direction;
+  confidence is how much they agree times how many there are.
+- **Checked on your 243 saves (replay, new report section):** before
+  they ever found your colonies, the French guessed right (within 45
+  degrees) 21 times out of 21 usable guesses, the Spanish 19 of 25. The
+  English only ever saw your traders at their door and now say "no real
+  idea" instead of pointing the wrong way (the first version did, which
+  is how the visitor rules came about). No computer nation found a Dutch
+  colony in 244 turns.
+- **Scouting:** the diplomat's SCOUT move (at war, or the leader, with
+  no colony of theirs known and a guess). New `ScoutPlanner` (after the
+  military coordinator) sends one ship at a time: a warship, or an
+  empty trading ship that is not the only ship. New
+  `ScoutBearingMission` sails to open water at the guess, then zigzags
+  on (35 degrees left, then right, 8 tiles a leg); done when one of
+  their colonies is in sight, given up after 12 turns. The invasion
+  planner now uses the guesses too.
+- **Saved:** the computer players' sightings go into the save (the
+  "sightings" attribute of each AI player), and so does the mission.
+- **Companion page:** a "Where" row on each nation card: an arrow from
+  your biggest colony, solid to their colonies you have seen, dashed
+  and faint while it is a guess ("probably north-east, ~25 tiles, 4
+  seen"). Your own sightings are kept in
+  `companion/bearings-<game>-<player>.txt`.
+- **Tested:** `BearingsTest` (7), `SightingsTest` (2), a SCOUT test in
+  `DiplomacyTest`, `ScoutPlannerTest` (2: sends the frigate west, it
+  sails, survives save and load, stops when the colony is seen; open
+  water near a point), a replay summary test; all 530 tests green. In
+  the sandbox with the 1669 save, Spain at war with you and its last 30
+  turns of sightings: it chose to look north-west and sent the spare
+  galleon (26,26 to 16,17 in a turn). It made peace with you two turns
+  later anyway (its top move all along).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

@@ -41,7 +41,9 @@ public final class Action {
         TRADE_AGREEMENT(1, false, false, false),
         ARM(0, false, false, true),
         /** Sell muskets or horses to a tribe living next to a rival. */
-        ARM_TRIBE(1, false, false, true);
+        ARM_TRIBE(1, false, false, true),
+        /** Send a ship to look for a nation whose colonies we do not know. */
+        SCOUT(0, false, false, false);
 
         /** +1 friendly to the target, -1 hostile, 0 no target. */
         public final int side;
@@ -60,7 +62,7 @@ public final class Action {
         public boolean small() {
             return this == SELL_GOODS || this == BUY_GOODS
                 || this == TRADE_AGREEMENT || this == ARM_TRIBE
-                || this == ARM;
+                || this == ARM || this == SCOUT;
         }
 
         Kind(int side, boolean big, boolean political, boolean visible) {
@@ -143,6 +145,10 @@ public final class Action {
                                   int amount, int price) {
         return new Action(Kind.ARM_TRIBE, tribe, against, goods, amount,
                           price, null);
+    }
+
+    public static Action scout(String nation) {
+        return new Action(Kind.SCOUT, nation, null, null, 0, 0, null);
     }
 
     public static Action arm(int soldiers) {

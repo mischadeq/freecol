@@ -448,3 +448,6 @@ b.alarm, .alarm { color: var(--alarm); }
 .ilist li.warn::marker { color: var(--warn); }
 .ilist li.info::marker { color: var(--info); }
 .ilist.plain li { color: var(--text); }
+
+/* Where a nation lives (mod) */
+svg.where { vertical-align: -4px; color: inherit; }

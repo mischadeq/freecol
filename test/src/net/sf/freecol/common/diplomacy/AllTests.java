@@ -28,6 +28,8 @@ public class AllTests {
     public static Test suite() {
         TestSuite suite = new TestSuite("Test for net.sf.freecol.common.diplomacy");
         suite.addTestSuite(DiplomacyTest.class);
+        suite.addTestSuite(BearingsTest.class);
+        suite.addTestSuite(SightingsTest.class);
         return suite;
     }
 }

@@ -161,6 +161,7 @@ final class CompanionState {
         j.put("mapRev", this.mapRev);
         CompanionMarket.record(game, player);
         CompanionRaids.scan(game, player);
+        CompanionBearings.scan(game, player);
         j.put("marketRev", CompanionMarket.getRev());
         header(j, game, player);
 

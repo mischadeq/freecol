@@ -93,6 +93,16 @@ public final class ReplayMain {
                 s.agreedWorkedOut, s.unprompted, s.turns, s.flips, s.wars,
                 s.warsWithReason);
         }
+        System.out.println("where they think the others are"
+            + " (before finding a colony; usable = confidence >= 30%):");
+        for (ReplayReport.BearingSummary b : ReplayReport.bearings(r).values()) {
+            System.out.printf("  %-8s -> %-8s blind %3d, usable %3d, within 45"
+                + " deg %3d, mean error %3.0f, first good %4d, first known %4d,"
+                + " last: %s%n",
+                Action.shortId(b.observer), Action.shortId(b.target),
+                b.blind, b.usable, b.within45, b.meanError(), b.firstGood,
+                b.firstKnown, b.last.guess);
+        }
         for (Replay.War w : r.wars) {
             System.out.printf("war %s %s -> %s %s best score %s%n", w.label,
                 Action.shortId(w.seen.actor), Action.shortId(w.seen.other),

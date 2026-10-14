@@ -306,6 +306,22 @@ final class CompanionNations {
             j.put("muskets", muskets).put("horses", horses);
         }
 
+        // Where they live: their colonies we have seen, or a guess.
+        if (!mine) {
+            CompanionBearings.Where w = CompanionBearings.where(me, p);
+            if (w != null) {
+                j.key("where").obj()
+                    .put("known", w.known)
+                    .put("dir", w.compass)
+                    .put("dx", Math.round(100 * w.dx))
+                    .put("dy", Math.round(100 * w.dy))
+                    .put("dist", Math.round(w.distance))
+                    .put("seen", w.sightings)
+                    .put("conf", Math.round(100 * w.confidence))
+                    .end();
+            }
+        }
+
         // Sea fights over the last ten turns.
         if (!mine) {
             int[] r = CompanionRaids.totals(turn, 10).get(p.getNationId());

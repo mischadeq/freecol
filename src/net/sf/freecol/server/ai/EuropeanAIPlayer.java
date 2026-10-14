@@ -63,9 +63,12 @@ import javax.xml.stream.XMLStreamException;
 import net.sf.freecol.common.FreeColException;
 import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.io.FreeColXMLReader;
+import net.sf.freecol.common.io.FreeColXMLWriter;
 import net.sf.freecol.common.model.Ability;
 import net.sf.freecol.common.model.AbstractUnit;
 import net.sf.freecol.common.model.Building;
+import net.sf.freecol.common.diplomacy.Bearings;
+import net.sf.freecol.common.diplomacy.Sightings;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.ColonyTradeItem;
 import net.sf.freecol.common.model.Constants.IndianDemandAction;
@@ -108,6 +111,7 @@ import net.sf.freecol.common.util.CachingFunction;
 import net.sf.freecol.common.util.LogBuilder;
 import net.sf.freecol.common.util.RandomChoice;
 import net.sf.freecol.server.ai.military.MilitaryCoordinator;
+import net.sf.freecol.server.ai.military.ScoutPlanner;
 import net.sf.freecol.server.ai.mission.BuildColonyMission;
 import net.sf.freecol.server.ai.mission.CashInTreasureTrainMission;
 import net.sf.freecol.server.ai.mission.DefendSettlementMission;
@@ -2285,6 +2289,25 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
 
     /**
+     * Where we think the other nations live, from what we have seen of
+     * them (mod).  Saved with the game (the "sightings" attribute); the
+     * positions of single units, used for courses, are not.
+     * No initializer: it is read while the superclass is constructed
+     * (from a save), and an initializer would run after and wipe it.
+     */
+    private Bearings bearings;
+
+    /**
+     * Where we think the other nations live.
+     *
+     * @return The {@code Bearings}.
+     */
+    public Bearings getBearings() {
+        if (bearings == null) bearings = new Bearings();
+        return bearings;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -2328,6 +2351,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         
         determineStances(lb);
+        // What we can see of the others, for guessing where they live.
+        Sightings.look(getGame(), player, getBearings());
 
         if (colonyCount > 0) {
             lb.add("\n  Badly defended:"); // FIXME: prioritize defence
@@ -2357,6 +2382,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         
         final MilitaryCoordinator militaryCoordinator = new MilitaryCoordinator(this, militaryUnits);
         militaryCoordinator.determineMissions();
+        new ScoutPlanner(this).plan(lb);
         
         buildTransportMaps(lb);
         
@@ -3030,6 +3056,30 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     
 
     // Serialization
+
+    /** Where we think the others are (mod). */
+    private static final String SIGHTINGS_TAG = "sightings";
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void writeAttributes(FreeColXMLWriter xw)
+        throws XMLStreamException {
+        super.writeAttributes(xw);
+        if (getBearings().size() > 0) {
+            xw.writeAttribute(SIGHTINGS_TAG, getBearings().serialize(';'));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void readAttributes(FreeColXMLReader xr) throws XMLStreamException {
+        super.readAttributes(xr);
+        bearings = Bearings.parse(xr.getAttribute(SIGHTINGS_TAG, (String)null));
+    }
 
     // getXMLTagName not needed, uses parent
 }

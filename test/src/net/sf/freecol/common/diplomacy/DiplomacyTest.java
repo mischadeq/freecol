@@ -336,6 +336,40 @@ public class DiplomacyTest extends TestCase {
                      (Double)Effects.kingsWarPrice(w, fr)[0], 1e-9);
     }
 
+    public void testScoutForAnEnemyWeCannotPlace() {
+        WorldView w = world(DUTCH, NationCharacter.CONQUEROR, 10, 300);
+        NationView fr = other(w, FRENCH, 5, 300, Stance.WAR, 0.2);
+        other(w, ENGLISH, 10, 300, Stance.PEACE, 0.2);
+        other(w, SPANISH, 10, 300, Stance.PEACE, 0.2);
+        w.me.navy = 1;
+        // No sightings yet: nothing to look for.
+        assertFalse(has(w, Action.Kind.SCOUT));
+        fr.bearing = new Bearings.Bearing(FRENCH, 0, -1, 0.6, 20, 5);
+        assertTrue(has(w, Action.Kind.SCOUT));
+        assertTrue(Action.Kind.SCOUT.small());
+        final double war = score(w, Action.Kind.SCOUT);
+        assertTrue(war >= Diplomat.SMALL_THRESHOLD);
+        // Once we know a colony there is no need.
+        fr.places.add(place("colony:fr", FRENCH, false, new double[] { 2 }, 1));
+        assertFalse(has(w, Action.Kind.SCOUT));
+        // At peace and not the leader: not worth it.
+        fr.places.clear();
+        fr.stance = Stance.PEACE;
+        assertFalse(has(w, Action.Kind.SCOUT));
+        // No ships: we can not look.
+        fr.stance = Stance.WAR;
+        w.me.navy = 0;
+        w.carrierSpace = 0;
+        assertFalse(has(w, Action.Kind.SCOUT));
+    }
+
+    private static boolean has(WorldView w, Action.Kind kind) {
+        for (ScoredAction sa : Diplomat.rank(w)) {
+            if (sa.action.kind == kind) return true;
+        }
+        return false;
+    }
+
     private static double score(WorldView w, Action.Kind kind) {
         for (ScoredAction sa : Diplomat.rank(w)) {
             if (sa.action.kind == kind) return sa.total;

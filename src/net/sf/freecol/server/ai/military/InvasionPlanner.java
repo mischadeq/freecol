@@ -161,7 +161,8 @@ public final class InvasionPlanner {
             AIUnit aiu = aiPlayer.getAIMain().getAIUnit(u);
             if (aiu != null && onInvasion(aiu)) return sent;
         }
-        final WorldView w = WorldViewBuilder.build(game, player, true, null);
+        final WorldView w = WorldViewBuilder.build(game, player, true, null,
+                                                   aiPlayer.getBearings());
         final Situation s = new Situation(w);
         final CombatModel cm = game.getCombatModel();
         for (ScoredAction sa : Diplomat.rank(s)) {

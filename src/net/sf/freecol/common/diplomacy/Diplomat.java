@@ -213,6 +213,13 @@ public final class Diplomat {
                 }
             }
         }
+        // Look for nations we know only from sightings.
+        if (european && (w.carrierSpace > 0 || w.me.navy > 0)) {
+            for (NationView v : w.others.values()) {
+                if (!v.european || !v.places.isEmpty() || v.bearing == null) continue;
+                if (v.atWar() || v.id.equals(s.leader)) ret.add(Action.scout(v.id));
+            }
+        }
         if (european && w.armable > 0) {
             ret.add(Action.arm(Math.min(MAX_ARM, w.armable)));
         }

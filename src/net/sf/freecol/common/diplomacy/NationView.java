@@ -59,6 +59,8 @@ public final class NationView {
     public double near;
     /** Fear of it, 0..100. */
     public double fear;
+    /** Where it probably is, from sightings (null if never seen). */
+    public Bearings.Bearing bearing;
     /** Gold of my trade with it over the last 20 turns (tribes). */
     public double tradeWithMe;
 

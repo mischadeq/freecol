@@ -1791,6 +1791,26 @@
     }).join("") + "</div>";
   }
 
+  // Where a nation lives: an arrow from our biggest colony, firm when
+  // we have seen their colonies, faint while it is a guess.
+  function whereRow(n) {
+    const w = n.where;
+    const deg = Math.atan2(w.dy, w.dx) * 180 / Math.PI;
+    const sure = w.known || w.conf >= 30;
+    const op = w.known ? 1 : Math.max(0.3, Math.min(1, w.conf / 100));
+    const arrow = '<svg class="where" width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true" style="opacity:' + op.toFixed(2) + '">' +
+      '<circle r="8" fill="none" stroke="currentColor" stroke-opacity=".25"/>' +
+      '<g transform="rotate(' + deg.toFixed(0) + ')"><path d="M-5 0 H5 M1.5 -3.5 L5 0 L1.5 3.5" fill="none" stroke="' + esc(n.color) + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"' +
+      (w.known ? "" : ' stroke-dasharray="2.5 1.5"') + "/></g></svg>";
+    const text = w.known ? "<b>" + esc(w.dir) + "</b> · ~" + w.dist + " tiles"
+      : sure ? "probably <b>" + esc(w.dir) + "</b> · ~" + w.dist + " tiles · " + w.seen + " seen"
+      : '<span class="m">no real idea (' + esc(w.dir) + "?)</span>";
+    const tip = w.known
+      ? "Their " + w.seen + " colon" + (w.seen === 1 ? "y" : "ies") + " you have seen lie " + w.dir + " of your biggest colony, about " + w.dist + " tiles away."
+      : "A guess from what you have seen of them in the last 30 turns (" + w.seen + " sightings: colonies, soldiers, ships and which way they were going), " + w.conf + "% sure. The computer players guess the same way.";
+    return ["Where", arrow + " " + text, tip];
+  }
+
   function renderNatCards() {
     const N = nations.nations.slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
     const me = N.find((n) => n.me);
@@ -1853,6 +1873,7 @@
         }
         rows.push(["Navy", line, tip]);
       }
+      if (n.where) rows.push(whereRow(n));
       const seen = n.me ? "" : kindList(n.units);
       if (seen) rows.push(["Seen now", esc(seen), "Their units on the map that you can see right now."]);
       // Colonies, estimated per turn

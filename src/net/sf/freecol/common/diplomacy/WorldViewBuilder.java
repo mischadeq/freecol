@@ -86,6 +86,22 @@ public final class WorldViewBuilder {
      */
     public static WorldView build(Game game, Player me, boolean honest,
                                   Collection<Memory> extraMemories) {
+        return build(game, me, honest, extraMemories, null);
+    }
+
+    /**
+     * Build a world view, with what the nation guesses from sightings.
+     *
+     * @param game The {@code Game}.
+     * @param me The {@code Player} whose view it is.
+     * @param honest True for the honest view, false for hindsight.
+     * @param extraMemories Memories known from elsewhere, may be null.
+     * @param bearings Its sightings, may be null.
+     * @return The {@code WorldView}.
+     */
+    public static WorldView build(Game game, Player me, boolean honest,
+                                  Collection<Memory> extraMemories,
+                                  Bearings bearings) {
         final Specification spec = game.getSpecification();
         final Turn turn = game.getTurn();
         final int now = turn.getNumber();
@@ -131,6 +147,7 @@ public final class WorldViewBuilder {
         final double perColonist = (self.colonists == 0) ? 0
             : self.output / self.colonists;
         List<Player> met = new ArrayList<>();
+        final Tile origin = Sightings.origin(me);
         for (Player p : game.getLivePlayerList(me)) {
             if (p.isREF() || p.isUnknownEnemy() || p.isUndead()) continue;
             if (!me.hasContacted(p) && !p.hasContacted(me)) continue;
@@ -143,6 +160,13 @@ public final class WorldViewBuilder {
             v.tension = tension(me, p);
             v.opinion = Relations.opinion(v.tension, w.memories, v.id, now);
             v.near = nearness(self.places, v.places, p.isEuropean());
+            if (bearings != null && origin != null) {
+                v.bearing = bearings.bearing(v.id, origin.getX(), origin.getY(), now);
+                // Colonies not found yet, but seen around: guess how near.
+                if (v.places.isEmpty() && v.bearing != null && v.european) {
+                    v.near = (v.bearing.distance <= NEAR_TILES * 2) ? 0.5 : 0.2;
+                }
+            }
             v.fear = Relations.fear(self.army, v.army, v.near);
             w.others.put(v.id, v);
         }
