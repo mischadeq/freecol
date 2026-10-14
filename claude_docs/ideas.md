@@ -1193,6 +1193,34 @@ Mischa felt the page could be optimised. What was found and done:
 - **Not looked at:** the game-side build of the state itself (it
   already caches paths and route turns per turn).
 
+### Companion: honesty check, Diplomacy tab, page guide (2026-10-14)
+Mischa asked for a look at what each page shows, what it means, that
+nothing peeks at hidden data, and room for the coming steps.
+- **Page guide:** `claude_docs/plans/companion-ui.md`: every tab, what
+  it is for, where each figure comes from, whether it is honest, and
+  what is coming.
+- **Honesty fixes:** a nation's units "seen now" were counted from the
+  units the game last heard of; now only the tiles in sight (same for
+  the coloured dots on the map). A computer nation's war plans ("take
+  a colony from you", "revenge on you") were shown as its goals; now
+  only what it makes known: goods it wants to trade and that it wants
+  peace with you. A developer file name was removed from the Relations
+  drawer. Everything else checked and fine (list in the guide).
+- **New Diplomacy tab (key 5;** Military, Independence and History
+  move to 6, 7, 8): a table of you and each nation (stance, mood and
+  trust meters, local truce, coalitions, their strongest memory of
+  you), the wars and alliances between the others with their reasons,
+  the coalitions and their members, the offers, and a Tribes summary
+  (stance, mood, settlements known and visited, your missions).
+- **Not yet implemented, shown greyed with their step:** relations
+  graph (5d), joint attack plans, grievances and ultimatums (6), trade
+  agreements (4); for the tribes: friends and rivals, unrest meter,
+  calls for help and refugees, allied settlements (7). Also an
+  Overview widget for Diplomacy and Tribes; an Alerts subtitle.
+- **Tested:** `MoodsTest` (only public goals; a far-away unit out of
+  sight is not counted, the one next door is); the tab in headless
+  Chromium with made-up data. All 609 tests green.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

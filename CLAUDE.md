@@ -12,6 +12,9 @@ Read these first, in this order:
 4. `claude_docs/plans/step5-step7.md`: the next two steps, in detail
    (alliances, then native tribes; grievances after, trade agreements
    last).
+5. `claude_docs/plans/companion-ui.md`: what each companion tab shows,
+   where it comes from, the honesty check, and the "not yet
+   implemented" boxes to replace as steps are built.
 
 ## Working rules
 

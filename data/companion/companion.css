@@ -287,6 +287,25 @@ img.gi[data-g] { cursor: help; }
 .mrow.mh { background: none; cursor: default; color: var(--muted); font-size: 12px; }
 .mrow .num { text-align: right; }
 
+/* Diplomacy */
+.diptable { display: grid; gap: 2px; margin-bottom: 10px; }
+.dr { display: grid; grid-template-columns: minmax(110px, 1fr) 110px 150px 170px minmax(160px, 2fr); gap: 8px; align-items: center;
+  padding: 5px 10px; border-radius: 6px; background: var(--panel); font-size: 13px; }
+.dr.dh { background: none; color: var(--muted); font-size: 12px; }
+.dr.unmet { opacity: .6; }
+.dr .sw { vertical-align: -1px; }
+.dnotes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.dipcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.tribes { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.soongrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.soonhead { grid-column: 1 / -1; margin: 4px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.soon { border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; opacity: .7; font-size: 12px; }
+.soon b { display: block; font-size: 13px; }
+.soon p { margin: 2px 0 0; }
+.soontag { display: inline-block; white-space: nowrap; font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; margin-bottom: 3px; }
+@media (max-width: 700px) { .dr { grid-template-columns: 1fr 1fr; } }
+
 /* Offers */
 .offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
 .ocard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }

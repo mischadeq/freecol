@@ -81,13 +81,18 @@ public class MoodsTest extends FreeColTestCase {
         assertFalse(s, s.contains(Messages.message(spanish.getNationLabel())));
         assertFalse(s, s.contains("model.nation"));
 
-        // Goals about third nations only in public wars.
-        assertEquals("revenge on you", CompanionMoods.goal(
+        // Only goals a nation makes known: trade wishes and peace with
+        // you.  War plans stay secret, also against you.
+        assertNull(CompanionMoods.goal(
             new Goal(Goal.Type.REVENGE, DUTCH), game, me, m));
         assertNull(CompanionMoods.goal(
-            new Goal(Goal.Type.REVENGE, SPANISH), game, me, m));
-        assertNotNull(CompanionMoods.goal(
+            new Goal(Goal.Type.TAKE_COLONY, DUTCH), game, me, m));
+        assertNull(CompanionMoods.goal(
             new Goal(Goal.Type.TAKE_COLONY, ENGLISH), game, me, m));
+        assertNull(CompanionMoods.goal(
+            new Goal(Goal.Type.MAKE_PEACE, ENGLISH), game, me, m));
+        assertEquals("make peace with you", CompanionMoods.goal(
+            new Goal(Goal.Type.MAKE_PEACE, DUTCH), game, me, m));
         assertEquals("sell furs", CompanionMoods.goal(
             new Goal(Goal.Type.SELL_SURPLUS, "model.goods.furs"), game, me, m));
 
@@ -105,5 +110,37 @@ public class MoodsTest extends FreeColTestCase {
         v.opinion = Relations.opinion(tension, w.memories, id, w.turn);
         v.trust = Relations.trust(w.memories, id, w.turn);
         w.others.put(id, v);
+    }
+
+    /** Their units count only on the tiles we see now. */
+    public void testUnitsSeenOnlyInSight() {
+        net.sf.freecol.common.model.Game game
+            = net.sf.freecol.server.ServerTestHelper.startServerGame(getTestMap(false));
+        try {
+            net.sf.freecol.server.model.ServerPlayer dutch = getServerPlayer(game, DUTCH);
+            net.sf.freecol.server.model.ServerPlayer french = getServerPlayer(game, FRENCH);
+            net.sf.freecol.common.model.Colony home = net.sf.freecol.util.test
+                .FreeColTestUtils.getColonyBuilder().player(dutch)
+                .colonyTile(game.getMap().getTile(5, 5)).initialColonists(1).build();
+            dutch.exploreForSettlement(home);
+            final net.sf.freecol.common.model.UnitType soldier
+                = spec().getUnitType("model.unit.veteranSoldier");
+            new net.sf.freecol.server.model.ServerUnit(game,
+                game.getMap().getTile(6, 5), french, soldier);   // next door
+            new net.sf.freecol.server.model.ServerUnit(game,
+                game.getMap().getTile(15, 15), french, soldier); // far away
+            dutch.invalidateCanSeeTiles();
+            assertTrue(dutch.canSee(game.getMap().getTile(6, 5)));
+            assertFalse(dutch.canSee(game.getMap().getTile(15, 15)));
+            int[] v = new int[CompanionNations.MEASURES.length];
+            java.util.Arrays.fill(v, -1);
+            Json j = new Json().obj();
+            CompanionNations.estimates(j, game, dutch, french, v);
+            String s = j.end().toString();
+            // One soldier next door; the one far away is out of sight.
+            assertTrue(s, s.contains("\"units\":{\"soldier\":1}"));
+        } finally {
+            net.sf.freecol.server.ServerTestHelper.stopServerGame();
+        }
     }
 }

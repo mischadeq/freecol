@@ -884,7 +884,7 @@ final class CompanionState {
         j.key("others").arr();
         final net.sf.freecol.common.model.Map map = game.getMap();
         for (Tile t : map.getTileSet(t -> !t.hasSettlement()
-                && t.getUnitCount() > 0)) {
+                && t.getUnitCount() > 0 && player.canSee(t))) {
             {
                 Unit u = t.getFirstUnit();
                 if (u == null || u.getOwner() == player) continue;

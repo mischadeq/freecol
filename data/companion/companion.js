@@ -184,6 +184,8 @@
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
     if (shownWidgets().includes("expansion") && (s.turn !== expTurn || (exp && exp.reading))) loadExpansion(s.turn);
     if (shownWidgets().includes("offers") && (s.turn !== offTurn || Date.now() - offAt > 10000)) loadOffers(s.turn);
+    if ((shownWidgets().includes("diplomacy") || shownWidgets().includes("tribes")) &&
+        (s.turn !== dipTurn || Date.now() - dipAt > 10000)) loadDiplomacy(s.turn);
     if (shownWidgets().includes("independence") && s.myTurn &&
         (s.turn !== indepTurn || Date.now() - indepAt > 10000)) loadIndependence(s.turn);
     if (view.auto) fitView();
@@ -626,7 +628,7 @@
     try {
       const r = await fetch("/api/nations", { cache: "no-store" });
       const n = await r.json();
-      if (n.nations) { nations = n; natTurn = turn; renderNations(); }
+      if (n.nations) { nations = n; natTurn = turn; renderNations(); renderDiplomacy(); }
     } catch (e) { /* Try again next poll */ }
     natBusy = false;
   }
@@ -1009,7 +1011,7 @@
         (rows || '<p class="m">None of their settlements found yet.</p>') + "</div>";
     }).join("") || '<p class="m">You have not met any tribe yet.</p>';
     if (d.unmet) html += '<p class="m">' + d.unmet + (d.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>";
-    html += '<p class="m">Wanted goods: the first pays 50% more, the second 25%, the third 10%. Click an icon for the Colopedia, a settlement to show it on the map. See also claude_docs/tribes.md.</p>';
+    html += '<p class="m">Wanted goods: the first pays 50% more, the second 25%, the third 10%. Click an icon for the Colopedia, a settlement to show it on the map.</p>';
 
     const keep = box.scrollTop;
     box.innerHTML = html;
@@ -1692,17 +1694,20 @@
     { w: "military", label: "Military" },
     { w: "independence", label: "Independence" },
     { w: "expansion", label: "Expansion replay" },
-    { w: "offers", label: "Offers" }
+    { w: "offers", label: "Offers" },
+    { w: "diplomacy", label: "Diplomacy" },
+    { w: "tribes", label: "Tribes" }
   ];
   const TABS = {
     colonies: ["colonies", "goods"],
     trade: ["map", "offers", "network", "routes", "market"],
     nations: ["nations"],
+    diplomacy: ["diplomacy", "offers", "tribes"],
     military: ["military"],
     independence: ["independence"],
     history: ["expansion"]
   };
-  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military", "independence", "history"];
+  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "diplomacy", "military", "independence", "history"];
   let tab = store.get("fc.tab");
   if (!TAB_KEYS.includes(tab)) tab = "overview";
   let picks = null;
@@ -1735,6 +1740,7 @@
     if (t === "independence" && state) loadIndependence(state.turn);
     if (t === "history") loadExpansion();
     if (t === "trade") loadOffers(state ? state.turn : null);
+    if (t === "diplomacy") { loadOffers(state ? state.turn : null); loadDiplomacy(); }
     store.set("fc.tab", t);
     applyTab();
     $("main").scrollTop = 0;
@@ -1985,6 +1991,110 @@
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
     }).join("");
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- diplomacy
+
+  let dipRel = null, dipAt = 0, dipTurn = null;
+  async function loadDiplomacy(turn) {
+    dipAt = Date.now();
+    try {
+      const r = await fetch("/api/relations", { cache: "no-store" });
+      dipRel = await r.json();
+      dipTurn = turn != null ? turn : dipTurn;
+    } catch (e) { /* Try again next poll */ }
+    if (!nations && state && state.myTurn) loadNations(state.turn);
+    renderDiplomacy();
+  }
+
+  // A feature that is planned but not built yet: shown greyed, with its step.
+  function soon(title, step, text) {
+    return '<div class="soon"><span class="soontag">Not yet implemented \u00b7 ' + esc(step) + "</span><b>" + esc(title) +
+      '</b><p class="m">' + esc(text) + "</p></div>";
+  }
+
+  function renderDiplomacy() {
+    if (!$("dipYou")) return;
+    const N = nations ? nations.nations.filter((n) => !n.me) : [];
+    const anyMood = N.some((n) => n.mood);
+    // You and each nation.
+    let h = '<div class="dr dh"><span>Nation</span><span>Stance</span><span title="What they think of you">Mood</span>' +
+      '<span title="Kept deals, gifts and trade raise it; a broken word cuts it">Trust</span><span>Notes</span></div>';
+    h += N.map((n) => {
+      const m = n.mood, st = n.stance || "unContacted";
+      const a = m && (MOOD_LV[m.word] || MOOD_LV.neutral), t = m && (TRUST_LV[m.trust] || TRUST_LV.careful);
+      const notes = [];
+      if (m && m.truce) notes.push('<span class="tag info">Local truce</span>');
+      for (const c of (m && m.coalitions) || []) notes.push('<span class="tag ' + (c.you ? "alarm" : "warn") + '">Coalition against ' + esc(c.name) + "</span>");
+      if (m && m.remembers && m.remembers.length) notes.push('<span class="m" title="Their strongest memory of you">' + esc(m.remembers[0].text) + " (" + esc(m.remembers[0].year) + ")</span>");
+      return '<div class="dr' + (n.met ? "" : " unmet") + '"><span><i class="sw" style="background:' + esc(n.color) + '"></i> ' + esc(n.name) + "</span>" +
+        "<span>" + (n.met ? '<span class="tag ' + (STANCE_CLASS[st] || "m") + '">' + esc(cap(st.replace("ceaseFire", "cease fire").replace("unContacted", "not met"))) + "</span>" : '<span class="m">not met</span>') + "</span>" +
+        "<span>" + (a ? '<span class="tag ' + a[1] + '">' + meter(a[0], 4, a[1]) + " " + a[2] + "</span>" : '<span class="m">?</span>') + "</span>" +
+        "<span>" + (t ? '<span class="tag ' + t[1] + '">' + meter(t[0], 3, t[1]) + " " + t[2] + "</span>" : '<span class="m">?</span>') + "</span>" +
+        '<span class="dnotes">' + notes.join(" ") + "</span></div>";
+    }).join("");
+    $("dipYou").innerHTML = N.length ? h : '<p class="m">Waiting for the nation figures (they load at the start of your turn).</p>';
+
+    // Between the others: the wars and alliances the computer nations are in.
+    const pairs = new Map();
+    for (const n of N) {
+      for (const f of (n.mood && n.mood.feelings) || []) {
+        const key = [n.name, f.name].sort().join("|") + "|" + f.stance;
+        if (!pairs.has(key)) pairs.set(key, { a: n, b: f, stance: f.stance, why: [] });
+        if (f.why) pairs.get(key).why.push(n.name + ": " + f.why);
+      }
+    }
+    $("dipOthers").innerHTML = pairs.size ? [...pairs.values()].map((p) =>
+      '<div class="mrow"><span class="mname"><i class="sw" style="background:' + esc(p.a.color) + '"></i>' + esc(p.a.name) + "</span>" +
+      '<span class="tag ' + (p.stance === "war" ? "alarm" : "info") + '">' + (p.stance === "war" ? "at war" : "allied") + "</span>" +
+      '<span class="mname"><i class="sw" style="background:' + esc(p.b.color) + '"></i>' + esc(p.b.name) + "</span>" +
+      (p.why.length ? '<span class="m">' + esc(p.why.join("; ")) + "</span>" : "") + "</div>").join("")
+      : '<p class="m">' + (anyMood ? "No wars or alliances between the other nations." : "Known only in a single-player game (the computer nations run in this program).") + "</p>";
+
+    // Coalitions: who stands against whom.
+    const coal = new Map();
+    for (const n of N) {
+      for (const c of (n.mood && n.mood.coalitions) || []) {
+        if (!coal.has(c.name)) coal.set(c.name, { you: c.you, members: [] });
+        coal.get(c.name).members.push(n);
+      }
+    }
+    $("dipCoal").innerHTML = coal.size ? [...coal.entries()].map(([target, c]) =>
+      '<div class="mline"><span class="tag ' + (c.you ? "alarm" : "warn") + '">Against ' + esc(target) + "</span> " +
+      c.members.map((m) => '<i class="sw" style="background:' + esc(m.color) + '"></i> ' + esc(m.name)).join(", ") + "</div>").join("")
+      : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
+
+    $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
+      soon("Relations graph", "step 5d", "Every nation and tribe as a dot, lines for alliances and wars, a ring around each coalition: who stands with whom, at a glance.") +
+      soon("Joint attack plans", "after step 5", "Coalition members pick the same target and time their landings, instead of each attacking alone.") +
+      soon("Grievances and ultimatums", "step 6", "No war on you out of nowhere: first a complaint, then terms (\"withdraw or pay 500\"), then war if you ignore it. Shown here and on their card.") +
+      soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
+    $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +
+      "Their plans stay secret: you see only what they make known, such as goods they want to trade or that they want peace.";
+
+    renderTribes();
+  }
+
+  function renderTribes() {
+    if (!$("tribes")) return;
+    const T = (dipRel && dipRel.tribes) || [];
+    $("tribes").innerHTML = T.length ? T.map((t) => {
+      const sets = t.settlements || [];
+      const missions = sets.filter((s) => s.mission === "ours").length;
+      const visited = sets.filter((s) => s.visited).length;
+      return '<div class="ocard"><div class="ohead"><i class="sw" style="background:' + esc(t.color) + '"></i><b>' + esc(t.name) + "</b>" +
+        '<span class="tag ' + (STANCE[t.stance] || "m") + '">' + esc(t.stanceName || t.stance) + "</span>" +
+        (t.worst ? '<span class="tag ' + (MOOD[t.worst] || "m") + '" title="The angriest of their settlements you know">mood: ' + esc(t.worst) + "</span>" : "") + "</div>" +
+        "<div>" + sets.length + (sets.length === 1 ? " settlement" : " settlements") + ' known <span class="m">\u00b7 ' + visited + " visited \u00b7 " +
+        (missions === 0 ? "none" : missions) + " with your mission</span></div>" +
+        '<div class="m">' + esc(cap(t.aggression || "")) + " aggression</div></div>";
+    }).join("") + (dipRel.unmet ? '<p class="m">' + dipRel.unmet + (dipRel.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>" : "")
+      : '<p class="m">You have not met any tribe yet.</p>';
+    $("tribesSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
+      soon("Friends and rivals among the tribes", "step 7", "Tribes know each other from the start; each has an old rival and friends. Seen here when public, or when your missionaries tell you.") +
+      soon("Unrest meter", "step 7", "Before an uprising the tribes speak of war for a few turns: a meter per tribe, and a warning in the turn report.") +
+      soon("Calls for help and refugees", "step 7", "A tribe under attack calls its friends; survivors of a burned settlement move to a friendly one.") +
+      soon("Allied settlements", "step 7", "A settlement with a long, happy mission may join you: it stays native, you use its land and trade cheaply.");
   }
 
   // ---------------------------------------------------------------- offers
@@ -2582,7 +2692,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
-    if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
+    if (e.key >= "1" && e.key <= "8" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
     if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });
