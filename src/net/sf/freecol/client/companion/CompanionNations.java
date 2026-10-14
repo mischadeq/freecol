@@ -438,7 +438,10 @@ final class CompanionNations {
             for (int x : v) j.val(x);
             j.endArr();
             estimates(j, game, me, p, v);
-            if (p != me) verdicts(j, v, mine(rows, me));
+            if (p != me) {
+                verdicts(j, v, mine(rows, me));
+                CompanionMoods.put(j, CompanionMoods.moodOf(fcc, p), game, me);
+            }
             j.end();
         }
         j.endArr();

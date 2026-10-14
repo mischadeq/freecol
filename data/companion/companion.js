@@ -1791,6 +1791,46 @@
     }).join("") + "</div>";
   }
 
+  // How a computer nation feels about you (single player games only).
+  const MOOD_CHIP = {
+    friendly: ["ok", "🙂", "Friendly"], neutral: ["m", "😐", "Neutral"],
+    wary: ["warn", "🤨", "Wary of you"], hostile: ["alarm", "😠", "Hostile"]
+  };
+  const TRUST_CHIP = {
+    trusts: ["ok", "🤝", "Trusts you"], careful: ["m", "⚖️", "Careful"],
+    distrusts: ["alarm", "✋", "Does not trust you"]
+  };
+  function moodChips(n) {
+    const m = n.mood;
+    if (!m) return "";
+    const a = MOOD_CHIP[m.word] || MOOD_CHIP.neutral, t = TRUST_CHIP[m.trust] || TRUST_CHIP.careful;
+    return '<div class="nverd nmood">' +
+      '<span class="tag ' + a[0] + '" title="What they think of you, from the game\'s tension and what they remember.">' + a[1] + " " + a[2] + "</span>" +
+      '<span class="tag ' + t[0] + '" title="Kept deals, gifts and trade raise trust; a broken peace cuts it hard.">' + t[1] + " " + t[2] + "</span>" +
+      '<span class="tag info" title="Their long-term ambition, from their nation type.">🎯 ' + esc(cap(m.ambition)) + "</span></div>";
+  }
+  function moodRows(n) {
+    const m = n.mood, rows = [];
+    if (!m) return rows;
+    if (m.goals.length) {
+      rows.push(["Wants", m.goals.map((g) => '<span class="ncol">' + esc(g) + "</span>").join(""),
+        "What they are after right now (their diplomat's short-term goals)."]);
+    }
+    if (m.remembers.length) {
+      const one = (r) => (r.good ? "👍 " : "👎 ") + r.text + " (" + r.year + ")";
+      rows.push(["Remembers", m.remembers.slice(0, 3).map((r) =>
+        '<span class="ncol mem ' + (r.good ? "up" : "down") + '">' + esc(one(r)) + "</span>").join("") +
+        (m.remembers.length > 3 ? '<span class="m"> +' + (m.remembers.length - 3) + "</span>" : ""),
+        "What they remember about you, strongest first. All: " + m.remembers.map(one).join("; ") + "."]);
+    }
+    if (m.feelings.length) {
+      rows.push(["Feels", m.feelings.map((f) => '<span class="ncol"><i class="sw" style="background:' + esc(f.color) + '"></i> ' +
+        esc(f.name) + ": " + (f.stance === "war" ? "⚔ " : "🤝 ") + esc(f.word) + "</span>").join(""),
+        "How they feel about the nations they are at war or allied with (public: everybody knows who fights whom)."]);
+    }
+    return rows;
+  }
+
   // Where a nation lives: an arrow from our biggest colony, firm when
   // we have seen their colonies, faint while it is a guess.
   function whereRow(n) {
@@ -1873,6 +1913,7 @@
         }
         rows.push(["Navy", line, tip]);
       }
+      rows.push(...moodRows(n));
       if (n.where) rows.push(whereRow(n));
       const seen = n.me ? "" : kindList(n.units);
       if (seen) rows.push(["Seen now", esc(seen), "Their units on the map that you can see right now."]);
@@ -1884,7 +1925,7 @@
       return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
         "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') +
         (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
-        verdictChips(n, me) +
+        moodChips(n) + verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
     }).join("");
