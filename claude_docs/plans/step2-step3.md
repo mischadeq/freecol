@@ -124,6 +124,31 @@ Remembers: you sank 2 of their ships (1660), you made peace (1662)."
     it is next to the colony. The player can watch it come. If the ship
     is sunk or turned away, no deal. Purchase requests (BUY_GOODS) also
     send a ship, empty, with the gold.
+  - All of these open the game's normal trade screen (peace at the
+    start of the player's turn, goods when the ship arrives). The
+    companion log says when a trade ship sets out ("French ship with
+    200 furs heading for Jamestown, 3 turns").
+- **Public trade offers, a notice board (decided with Mischa,
+  2026-10-14):**
+  - A nation posts what it wants or sells: "Spain wants 100 muskets,
+    pays 600 gold, deliver to Havana within 8 turns" (or "France sells
+    200 furs for 400 gold, pick up at Quebec").
+  - Shown first only to the nation it likes most; if nobody takes it
+    in a few turns, to every nation it feels neutral or better about.
+    Never to a nation it hates or is at war with.
+  - The player accepts or declines **in the game** (a message in the
+    turn report). The companion page is only for reading: an "Offers"
+    list with price, place, deadline and turns left, and log lines.
+  - Accepting is a promise: the player ships the goods himself.
+    Deadline about twice the sailing time from his nearest colony plus
+    a few turns to get ready (6 to 15 turns), shown on the offer.
+  - On time: full price, memories TRADE + DEAL_KEPT.
+    A little late (up to half the deadline over): they still take the
+    goods at about 25% less, a small trust loss, no anger.
+    Very late: deal off, goods refused, no gold, DEAL_BROKEN.
+    Cancelling before the deadline: no gold, a small trust loss.
+  - The turn report announces new offers and reminds of deadlines
+    ("3 turns left to bring Spain 100 muskets").
 - Offers, from the diplomat's moves that score 5 or more:
   - **Peace terms** when the computer is losing a war with the player
     (MAKE_PEACE), with gold if its score says so.
@@ -131,8 +156,7 @@ Remembers: you sank 2 of their ships (1660), you made peace (1662)."
     gold, at the price the diplomat used.
   - **Purchase request** (BUY_GOODS): goods it is short of.
 - Rules (design, "Decisions"): at most one offer per nation per 5
-  turns; the same terms stay on the table for 5 turns; routine offers
-  can go to the companion log instead of a popup (Mischa to choose).
+  turns; the same terms stay on the table for 5 turns.
 - Every answer becomes a memory: accepted trade (TRADE), refused
   (REFUSED_OFFER); a deal not delivered (DEAL_BROKEN).
 - The diplomat's answer to the **player's** offers: today
