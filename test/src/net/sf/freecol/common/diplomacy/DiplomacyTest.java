@@ -196,6 +196,48 @@ public class DiplomacyTest extends TestCase {
         assertEquals(4, s.attacks.get(FRENCH).force);
     }
 
+    public void testBuyAShipToReachAnEnemy() {
+        WorldView w = world(SPANISH, NationCharacter.CONQUEROR, 20, 300);
+        w.attackers = CaptureSim.force(10, 4.5);
+        NationView fr = other(w, FRENCH, 1, 100, Stance.WAR, 0.5);
+        fr.places.add(new PlaceView("colony:9", "Far", FRENCH, 50, 50, 99,
+                                    true, 3, false, new double[] { 2 }, 1));
+        // No ship on sale, or no gold: nothing to buy.
+        assertFalse(has(w, Action.Kind.BUY_SHIP));
+        w.shipPrice = 2000;
+        w.shipSpace = 4;
+        w.me.gold = 1000;
+        assertFalse(has(w, Action.Kind.BUY_SHIP));
+        w.me.gold = 5000;
+        assertTrue(has(w, Action.Kind.BUY_SHIP));
+        assertTrue(Action.Kind.BUY_SHIP.small());
+        final double worth = score(w, Action.Kind.BUY_SHIP);
+        assertTrue("a weak colony across the sea is worth a ship: " + worth,
+                   worth >= Diplomat.threshold(Action.Kind.BUY_SHIP));
+        // A dearer ship is worth less.
+        w.shipPrice = 4000;
+        assertTrue(score(w, Action.Kind.BUY_SHIP) < worth);
+        // With room enough already, no need.
+        w.carrierSpace = 10;
+        assertFalse(has(w, Action.Kind.BUY_SHIP));
+        // Not at war: no need either.
+        w.carrierSpace = 0;
+        fr.stance = Stance.PEACE;
+        assertFalse(has(w, Action.Kind.BUY_SHIP));
+    }
+
+    public void testArmOnlyInDanger() {
+        WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 5, 300);
+        w.armable = 3;
+        w.musketPrice = 300;
+        assertFalse(Effects.inDanger(w));
+        final double calm = score(w, Action.Kind.ARM);
+        NationView en = other(w, ENGLISH, 20, 300, Stance.WAR, 0.9);
+        en.places.add(place("colony:en", ENGLISH, false, new double[] { 3 }, 1));
+        assertTrue(Effects.inDanger(w));
+        assertTrue(score(w, Action.Kind.ARM) > calm);
+    }
+
     public void testSellingABoycottedSurplus() {
         WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 5, 300);
         NationView en = other(w, ENGLISH, 5, 300, Stance.PEACE, 0.5);
@@ -344,6 +386,8 @@ public class DiplomacyTest extends TestCase {
         w.me.navy = 1;
         // No sightings yet: nothing to look for.
         assertFalse(has(w, Action.Kind.SCOUT));
+        fr.bearing = new Bearings.Bearing(FRENCH, 0, -1, 0.1, 20, 5);
+        assertFalse("too unsure to know where to look", has(w, Action.Kind.SCOUT));
         fr.bearing = new Bearings.Bearing(FRENCH, 0, -1, 0.6, 20, 5);
         assertTrue(has(w, Action.Kind.SCOUT));
         assertTrue(Action.Kind.SCOUT.small());

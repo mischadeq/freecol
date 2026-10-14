@@ -112,6 +112,7 @@ import net.sf.freecol.common.util.LogBuilder;
 import net.sf.freecol.common.util.RandomChoice;
 import net.sf.freecol.server.ai.military.MilitaryCoordinator;
 import net.sf.freecol.server.ai.military.ScoutPlanner;
+import net.sf.freecol.server.ai.military.WarPreparations;
 import net.sf.freecol.server.ai.mission.BuildColonyMission;
 import net.sf.freecol.server.ai.mission.CashInTreasureTrainMission;
 import net.sf.freecol.server.ai.mission.DefendSettlementMission;
@@ -1507,7 +1508,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
      * @param unitType The {@code UnitType} to train.
      * @return the new AIUnit created by this action. May be null.
      */
-    private AIUnit trainAIUnitInEurope(UnitType unitType) {
+    public AIUnit trainAIUnitInEurope(UnitType unitType) {
         if (unitType == null) {
             throw new RuntimeException("Invalid UnitType: " + this);
         }
@@ -2307,6 +2308,53 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return bearings;
     }
 
+    /** Turns colonists armed by the diplomat stay armed after danger. */
+    public static final int KEEP_ARMED = 20;
+
+    /**
+     * Units armed on the diplomat's word (mod), to the last turn they
+     * were needed.  The colony planner leaves them armed for
+     * {@link #KEEP_ARMED} turns after that.  Saved with the game.
+     * No initializer, as for {@link #bearings}.
+     */
+    private java.util.Map<String, Integer> keptArmed;
+
+    private java.util.Map<String, Integer> keptArmed() {
+        if (keptArmed == null) keptArmed = new HashMap<>();
+        return keptArmed;
+    }
+
+    /**
+     * Keep a unit armed, as of a turn.
+     *
+     * @param unit The {@code Unit}.
+     * @param turn The turn.
+     */
+    public void keepArmed(Unit unit, int turn) {
+        keptArmed().put(unit.getId(), turn);
+    }
+
+    /**
+     * Still in danger: keep all the units armed so far, as of this turn.
+     *
+     * @param turn The turn.
+     */
+    public void keepArmed(int turn) {
+        keptArmed().replaceAll((k, v) -> turn);
+    }
+
+    /**
+     * Should a unit stay armed (not be put back to work)?
+     *
+     * @param unit The {@code Unit}.
+     * @return True if the diplomat armed it and it is still needed.
+     */
+    public boolean isKeptArmed(Unit unit) {
+        if (unit == null || !unit.isArmed()) return false;
+        Integer t = keptArmed().get(unit.getId());
+        return t != null && getGame().getTurn().getNumber() - t <= KEEP_ARMED;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -2375,6 +2423,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         // Note order of operations below.  We allow rearrange et al to run
         // even when there are no movable units left because this expedites
         // mission assignment.
+        new WarPreparations(this).plan(lb);
+        clearAIUnits(); // armed colonists are military units now
         List<AIUnit> aiUnits = getAIUnits();
         final Set<AIUnit> militaryUnits = getAIUnits().stream()
                 .filter(MilitaryCoordinator.isUnitHandledByMilitaryCoordinator())
@@ -3059,6 +3109,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
     /** Where we think the others are (mod). */
     private static final String SIGHTINGS_TAG = "sightings";
+    /** Units kept armed (mod): "unitId:turn;...". */
+    private static final String KEPT_ARMED_TAG = "keptArmed";
 
     /**
      * {@inheritDoc}
@@ -3070,6 +3122,15 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (getBearings().size() > 0) {
             xw.writeAttribute(SIGHTINGS_TAG, getBearings().serialize(';'));
         }
+        if (!keptArmed().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            final int now = getGame().getTurn().getNumber();
+            for (java.util.Map.Entry<String, Integer> e : keptArmed().entrySet()) {
+                if (now - e.getValue() > KEEP_ARMED) continue;
+                sb.append(e.getKey()).append(':').append(e.getValue()).append(';');
+            }
+            if (sb.length() > 0) xw.writeAttribute(KEPT_ARMED_TAG, sb.toString());
+        }
     }
 
     /**
@@ -3079,6 +3140,18 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     protected void readAttributes(FreeColXMLReader xr) throws XMLStreamException {
         super.readAttributes(xr);
         bearings = Bearings.parse(xr.getAttribute(SIGHTINGS_TAG, (String)null));
+        keptArmed = new HashMap<>();
+        final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);
+        if (kept != null) {
+            for (String rec : kept.split(";")) {
+                final int i = rec.lastIndexOf(':');
+                if (i <= 0) continue;
+                try {
+                    keptArmed.put(rec.substring(0, i),
+                                  Integer.parseInt(rec.substring(i + 1)));
+                } catch (NumberFormatException nfe) {} // skip
+            }
+        }
     }
 
     // getXMLTagName not needed, uses parent

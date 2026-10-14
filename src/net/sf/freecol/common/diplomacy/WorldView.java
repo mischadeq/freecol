@@ -49,6 +49,8 @@ public final class WorldView {
     public int carrierSpace;
     /** Muskets and horses in store, and the price of muskets. */
     public int muskets, horses, musketPrice;
+    /** The cheapest ship for an army on sale in Europe: price and room. */
+    public int shipPrice, shipSpace;
     /** Colonists that could be armed (not needed to keep a colony). */
     public int armable;
     /** The soldier's attack (for guesses about other armies). */

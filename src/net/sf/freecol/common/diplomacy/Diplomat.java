@@ -216,8 +216,15 @@ public final class Diplomat {
         // Look for nations we know only from sightings.
         if (european && (w.carrierSpace > 0 || w.me.navy > 0)) {
             for (NationView v : w.others.values()) {
-                if (!v.european || !v.places.isEmpty() || v.bearing == null) continue;
+                if (!v.european || !v.places.isEmpty() || v.bearing == null
+                    || v.bearing.confidence < Bearings.USABLE) continue;
                 if (v.atWar() || v.id.equals(s.leader)) ret.add(Action.scout(v.id));
+            }
+        }
+        // Buy a ship to carry an army to an enemy across the sea.
+        if (european && w.shipPrice > 0 && w.me.gold >= w.shipPrice) {
+            for (String id : s.withShip.keySet()) {
+                ret.add(Action.buyShip(id, w.shipSpace, w.shipPrice));
             }
         }
         if (european && w.armable > 0) {

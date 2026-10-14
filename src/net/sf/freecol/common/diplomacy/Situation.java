@@ -52,6 +52,12 @@ public final class Situation {
         }
     }
 
+    /**
+     * The best attack on each enemy if we bought the ship on sale
+     * (only where that is better than what we can do now).
+     */
+    public final Map<String, Attack> withShip = new HashMap<>();
+
     /** Share of a colony's value a tribe's raid costs. */
     public static final double NATIVE_RAID_SHARE = 0.25;
 
@@ -71,10 +77,18 @@ public final class Situation {
         final PlaceView weakest = w.weakestColony();
         Map<String, Double> take = new HashMap<>();
         for (NationView v : w.others.values()) {
-            Attack best = bestAttack(w, v, myLands);
+            Attack best = bestAttack(w, v, myLands, w.carrierSpace);
             if (best != null) {
                 attacks.put(v.id, best);
                 take.put(v.id, best.result.chance);
+            }
+            if (w.shipSpace > 0 && v.atWar()) {
+                Attack more = bestAttack(w, v, myLands,
+                                         w.carrierSpace + w.shipSpace);
+                if (more != null && (best == null
+                        || more.expected() > best.expected() + 1e-9)) {
+                    withShip.put(v.id, more);
+                }
             }
             if (weakest != null && v.army > 0) {
                 int n = (int)Math.round(v.army / 2);
@@ -98,14 +112,14 @@ public final class Situation {
      * two).  Across the sea only as many as the ships carry.
      */
     private static Attack bestAttack(WorldView w, NationView v,
-                                     Set<Integer> myLands) {
+                                     Set<Integer> myLands, int space) {
         if (w.attackers.length == 0) return null;
         final int half = Math.max(1, (w.attackers.length + 1) / 2);
         Attack best = null;
         for (PlaceView p : v.places) {
             int force = half;
             if (!myLands.contains(p.land)) {
-                if (v.european || p.coastal) force = Math.min(force, w.carrierSpace);
+                if (v.european || p.coastal) force = Math.min(force, space);
                 else force = 0;
             }
             if (force <= 0) continue;

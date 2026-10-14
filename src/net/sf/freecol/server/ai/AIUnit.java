@@ -374,10 +374,18 @@ public final class AIUnit extends TransportableAIObject {
                 && (Map.isSameLocation(m.getTarget(), colony.getTile())
                     || colony.getUnitCount() <= 1))
             // FIXME: drop this when the AI stops building excessive armies
-            || m instanceof DefendSettlementMission
+            // (mod: but not the colonists its diplomat armed)
+            || (m instanceof DefendSettlementMission && !keptArmed())
             || m instanceof IdleAtSettlementMission
             || m instanceof WorkInsideColonyMission
             );
+    }
+
+    /** Did the owner's diplomat arm this unit and still need it? (mod) */
+    private boolean keptArmed() {
+        AIPlayer owner = getAIOwner();
+        return owner instanceof EuropeanAIPlayer
+            && ((EuropeanAIPlayer)owner).isKeptArmed(getUnit());
     }
 
     public boolean tryWorkInsideColonyMission(AIColony aiColony, LogBuilder lb) {

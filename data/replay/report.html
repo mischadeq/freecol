@@ -76,7 +76,8 @@ td.year { white-space: nowrap; font-family: var(--mono); font-size: .85rem; colo
 .chip.k-make_peace, .chip.k-peace { border-color: var(--peace); color: var(--peace); }
 .chip.k-alliance { border-color: var(--ally); color: var(--ally); }
 .chip.k-sell_goods, .chip.k-buy_goods, .chip.k-trade_agreement, .chip.k-incite, .chip.k-arm_tribe { border-color: var(--trade); color: var(--trade); }
-.chip.k-arm, .chip.k-units_lost, .chip.k-ships_damaged, .chip.k-colony_lost { border-color: var(--arm); color: var(--muted); }
+.chip.k-buy_ship { border-color: var(--attack); color: var(--attack); }
+.chip.k-arm, .chip.k-scout, .chip.k-units_lost, .chip.k-ships_damaged, .chip.k-colony_lost { border-color: var(--arm); color: var(--muted); }
 .chip.theirs { border-style: dashed; }
 .chip.forced::after { content: " · King"; font-size: .78rem; }
 .chip.chosen { font-weight: 700; border-width: 2px; }
@@ -163,7 +164,7 @@ const CHAR = { trading_empire: "trading empire", conqueror: "conqueror", balance
   settler: "settler", independence_first: "independence first", tribe: "tribe" };
 const KIND_COLOR = { declare_war: "--war", attack_colony: "--attack", make_peace: "--peace", alliance: "--ally",
   incite: "--trade", sell_goods: "--trade", buy_goods: "--trade", trade_agreement: "--trade", arm: "--arm",
-  arm_tribe: "--trade" };
+  arm_tribe: "--trade", scout: "--arm", buy_ship: "--attack" };
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -181,6 +182,8 @@ function moveWords(m) {
     case "trade_agreement": return m.a + " " + m.g + "/turn to " + to;
     case "arm": return "arm " + m.a;
     case "arm_tribe": return m.a + " " + m.g + " to " + to + " (vs " + NAME(m.vs) + ")";
+    case "scout": return "look for " + to;
+    case "buy_ship": return "buy a ship (" + m.pr + " gold) to reach " + to;
     default: return m.l;
   }
 }

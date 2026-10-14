@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import net.sf.freecol.common.model.AbstractUnit;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.CombatModel;
 import net.sf.freecol.common.model.Game;
@@ -191,6 +192,36 @@ public final class WorldViewBuilder {
         return w;
     }
 
+    /**
+     * The ship for an army on sale in Europe: the cheapest that carries
+     * at least {@link #ARMY_SHIP_SPACE} units, else the cheapest.
+     */
+    private static void shipOnSale(WorldView w, Player me, Specification spec) {
+        if (!me.isEuropean() || me.getEurope() == null || me.getMarket() == null
+            || me.getPlayerType() != Player.PlayerType.COLONIAL) return;
+        int bestPrice = 0, bestSpace = 0;
+        boolean bestBig = false;
+        for (UnitType ut : spec.getUnitTypeList()) {
+            if (!ut.isNaval() || ut.getSpace() <= 0 || !ut.hasPrice()
+                || !ut.isAvailableTo(me)) continue;
+            final int price = me.getEuropeanPurchasePrice(new AbstractUnit(ut,
+                Specification.DEFAULT_ROLE_ID, 1));
+            if (price <= 0 || price >= Integer.MAX_VALUE / 2) continue;
+            final boolean big = ut.getSpace() >= ARMY_SHIP_SPACE;
+            if (bestPrice == 0 || (big && !bestBig)
+                || (big == bestBig && price < bestPrice)) {
+                bestPrice = price;
+                bestSpace = ut.getSpace();
+                bestBig = big;
+            }
+        }
+        w.shipPrice = bestPrice;
+        w.shipSpace = bestSpace;
+    }
+
+    /** Room a ship should have to be worth buying for an army. */
+    public static final int ARMY_SHIP_SPACE = 4;
+
     private static void fillSelf(WorldView w, Player me, Specification spec,
                                  CombatModel cm) {
         List<Double> att = new ArrayList<>();
@@ -215,6 +246,7 @@ public final class WorldViewBuilder {
             spare += Math.max(0, c.getUnitCount() - 2);
         }
         w.armable = Math.min(spare, w.muskets / 50);
+        shipOnSale(w, me, spec);
         if (market != null && musketsType != null) {
             w.musketPrice = market.getPaidForSale(musketsType);
         }

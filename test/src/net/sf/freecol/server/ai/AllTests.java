@@ -38,6 +38,7 @@ public class AllTests {
         suite.addTestSuite(EuropeanAIPlayerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.InvasionPlannerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.ScoutPlannerTest.class);
+        suite.addTestSuite(net.sf.freecol.server.ai.military.WarPreparationsTest.class);
         //$JUnit-END$
         suite.addTest(net.sf.freecol.server.ai.mission.AllTests.suite());
         return suite;

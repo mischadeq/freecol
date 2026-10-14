@@ -43,7 +43,9 @@ public final class Action {
         /** Sell muskets or horses to a tribe living next to a rival. */
         ARM_TRIBE(1, false, false, true),
         /** Send a ship to look for a nation whose colonies we do not know. */
-        SCOUT(0, false, false, false);
+        SCOUT(0, false, false, false),
+        /** Buy a ship in Europe to carry an army to an enemy across the sea. */
+        BUY_SHIP(0, false, false, false);
 
         /** +1 friendly to the target, -1 hostile, 0 no target. */
         public final int side;
@@ -62,7 +64,7 @@ public final class Action {
         public boolean small() {
             return this == SELL_GOODS || this == BUY_GOODS
                 || this == TRADE_AGREEMENT || this == ARM_TRIBE
-                || this == ARM || this == SCOUT;
+                || this == ARM || this == SCOUT || this == BUY_SHIP;
         }
 
         Kind(int side, boolean big, boolean political, boolean visible) {
@@ -151,6 +153,18 @@ public final class Action {
         return new Action(Kind.SCOUT, nation, null, null, 0, 0, null);
     }
 
+    /**
+     * Buy a ship to reach an enemy across the sea.
+     *
+     * @param target The nation to reach.
+     * @param space Room on the ship, in units.
+     * @param price The price in Europe.
+     * @return The {@code Action}.
+     */
+    public static Action buyShip(String target, int space, int price) {
+        return new Action(Kind.BUY_SHIP, target, null, null, space, price, null);
+    }
+
     public static Action arm(int soldiers) {
         return new Action(Kind.ARM, null, null, null, soldiers, 0, null);
     }
@@ -182,6 +196,8 @@ public final class Action {
                 .append(shortId(goods)).append(" @").append(price);
         } else if (kind == Kind.ARM) {
             sb.append(' ').append(amount);
+        } else if (kind == Kind.BUY_SHIP) {
+            sb.append(' ').append(amount).append(" places @").append(price);
         }
         if (place != null) sb.append(" at ").append(place);
         return sb.toString();

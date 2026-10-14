@@ -61,6 +61,13 @@ public final class Effects {
     public static final int KING_PRICE_PER_SOLDIER = 100, KING_MIN_PRICE = 500;
     /** What finding an enemy at war is worth, in points of land. */
     public static final double SCOUT_VALUE = 11;
+    /**
+     * A bought ship counts this share of the attack it makes possible
+     * (it takes turns to get there, and the attack may not happen).
+     */
+    public static final double SHIP_USE = 0.8;
+    /** Share of a ship's price that counts as spent (the ship stays ours). */
+    public static final double SHIP_COST_SHARE = 0.4;
     /** Muskets to arm one soldier. */
     public static final int MUSKETS_PER_SOLDIER = 50;
 
@@ -187,12 +194,27 @@ public final class Effects {
                 : w.me.output / w.me.colonists;
             sa.gold = -a.amount * (MUSKETS_PER_SOLDIER * w.musketPrice
                                    + perColonist * HORIZON) / 100;
-            final boolean danger = w.exposure() > 0 || w.maxFear() > 40;
+            final boolean danger = inDanger(w);
             final double king = kingThreat(w);
             sa.security = a.amount * SOLDIER_POINTS
                 * Math.max((danger) ? 1 : 0.3, king);
             sa.note = (danger) ? "in danger"
                 : (king > 0.3) ? "the King's army" : "";
+            break;
+        }
+        case BUY_SHIP: {
+            final Situation.Attack more = s.withShip.get(x.id);
+            final Situation.Attack now = s.attacks.get(x.id);
+            if (more != null) {
+                final double gain = more.expected()
+                    + more.result.chance * more.place.freed
+                    - ((now == null) ? 0
+                        : now.expected() + now.result.chance * now.place.freed);
+                sa.land = SHIP_USE * gain;
+                sa.note = String.format(Locale.ROOT, "to reach %s %.0f%%",
+                    more.place.name, 100 * more.result.chance);
+            }
+            sa.gold = -SHIP_COST_SHARE * a.price / 100.0;
             break;
         }
         case SCOUT: {
@@ -247,6 +269,17 @@ public final class Effects {
      * {@link #KING_REBELS}% rebels, growing to full at 30 points more,
      * and only while his army is larger than mine.
      */
+    /**
+     * Is a nation in danger: enemies able to reach it, or a neighbour
+     * it fears?
+     *
+     * @param w The {@code WorldView}.
+     * @return True if in danger.
+     */
+    public static boolean inDanger(WorldView w) {
+        return w.exposure() > 0 || w.maxFear() > 40;
+    }
+
     static double kingThreat(WorldView w) {
         if (w.kingArmy <= w.me.army) return 0;
         return Math.max(0, Math.min(1, (w.rebels - KING_REBELS) / 30.0));

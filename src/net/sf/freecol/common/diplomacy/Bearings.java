@@ -116,6 +116,8 @@ public final class Bearings {
         }
     }
 
+    /** Confidence from which a guess is worth acting on. */
+    public static final double USABLE = 0.3;
     /** Sightings fade to nothing over this many turns. */
     public static final int FADE = 30;
     /** Sightings kept per nation (the oldest go first). */

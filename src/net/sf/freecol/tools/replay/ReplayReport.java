@@ -68,7 +68,8 @@ public final class ReplayReport {
     }
 
     /** Confidence from which a guess counts as usable. */
-    public static final double USABLE = 0.3;
+    public static final double USABLE
+        = net.sf.freecol.common.diplomacy.Bearings.USABLE;
     /** Error (degrees) within which a guess counts as right. */
     public static final double GOOD = 45;
 

@@ -822,6 +822,42 @@ roughly where the others live from what it sees of them.
   galleon (26,26 to 16,17 in a turn). It made peace with you two turns
   later anyway (its top move all along).
 
+### The computer arms its colonists and buys ships (2026-10-14)
+Next of the small moves: the computer now does what its diplomat says.
+- **Arming:** new `server/ai/military/WarPreparations`, run each turn
+  before the military coordinator. When the diplomat's ARM move scores
+  5 or more (in danger, or the King's army), up to 4 colonists a turn
+  take the muskets in store (a dragoon when there are horses too),
+  least skilled first, never leaving a colony under 2 workers. They get
+  a defend mission, so the coordinator can also send them to attack.
+- **Found while doing it:** the colony planner counted every defender
+  as a free worker ("FIXME: drop this when the AI stops building
+  excessive armies") and took the muskets back each turn. That is why
+  computer nations had fewer soldiers than colonies. Colonists the
+  diplomat armed now stay armed while the nation is in danger and for
+  20 turns after (kept in the save, "keptArmed").
+- **Buying a ship:** new move BUY_SHIP. When an enemy colony across the
+  sea would be worth taking but the ships have no room for the army,
+  the diplomat weighs buying the cheapest ship that carries 4: worth
+  80% of the attack it makes possible, minus 40% of its price (the ship
+  stays ours). In a test, a 6-colonist colony scores 12.9 for a 2000
+  gold merchantman; a 2-colonist colony is not worth one.
+- **Scouting fix:** scouting needs a guess at least 30% sure. Before,
+  the English "looked south-west, ~3 tiles" for 20 turns on a guess
+  that was really "no idea".
+- **In the sandbox** (1669 save, 3 turns): the French, at war with the
+  Arawak and "in danger", armed 6 colonists over two turns (5 to 11
+  soldiers) and sent three artillery at Xaymaca. Nobody bought a ship:
+  no computer nation in that game is at war with someone across the
+  sea that it knows.
+- **Tested:** `WarPreparationsTest` (arms in danger, the dragoon, kept
+  armed and released after 20 turns; buys a ship only with gold),
+  `DiplomacyTest` (buy a ship, arming worth more in danger, no scout on
+  an unsure guess); all 534 tests green.
+- **Not yet:** looking around with no guess at all (the English case);
+  buying soldiers on the diplomat's word (the old Europe buying rules
+  still run as before).
+
 ## Ideas, not started
 
 ### Unit groups, next steps
