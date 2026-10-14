@@ -995,6 +995,70 @@ the diplomat instead of the tension rule.
   then; autosaves the game already deleted can not be read (FreeCol
   keeps one per turn unless "delete autosaves" is on).
 
+### Step 3b built: offers, the notice board, trade ships (2026-10-14)
+Computer nations now start deals with the human player, and the player
+can post his own. Decided with Mischa: peace and gold by messenger,
+goods by ship; a public notice board; the player answers in the game,
+the companion page only shows.
+- **How the player answers:** a dialog at the start of his turn
+  (Accept / Decline), plus a line in the turn report. The game's trade
+  screen could not be used for messenger offers: it needs a unit next
+  to the colony, both ways (`DiplomacyMessage` checks it). New
+  `OfferMessage` (offer to the player, his answer, his own posts).
+  No counter-offers in this dialog.
+- **Peace terms by messenger:** a computer nation at war with the
+  player whose diplomat scores peace at 5 or more offers it, with gold
+  (a fifth of its treasury, at most 1000) when it is losing. Accept:
+  peace and the gold at once. Decline: "turned down their offer" is
+  remembered. The terms stay 5 turns.
+- **Notice board:** the diplomat's best trade move becomes a public
+  notice, "wanted: 100 muskets, 600 gold, deliver to Havana" or "for
+  sale: 200 furs, fetch at Quebec". Seen first by the nation it likes
+  most, after 3 turns by every nation it feels at least neutral about,
+  never by an enemy; up 10 turns. Accepting is a promise: a ship of the
+  player next to the colony at the start of the computer's turn, with
+  the goods (or the room and the gold), completes it. Deadline: twice
+  the sailing time plus 4 (6..15 turns). On time: full price,
+  remembered as a kept deal and a trade. A little late (up to half the
+  deadline over): 25% less, "delivered late" (small trust loss). Very
+  late: no deal, "broke your word" (trust cut hard). Reminders at 3 and
+  1 turns left. No way to cancel yet.
+- **Trade ships:** when the diplomat's best trade is with the player
+  and a ship is free (empty, nothing to do but hauling), the computer
+  loads the goods (or takes the gold) and sails to the player's nearest
+  coastal colony (`TradeVoyageMission`); next to it, the game's trade
+  screen opens with the deal. The turn report says when it sets out.
+  Computer ships on such a voyage may trade with foreign colonies
+  without Jan de Witt (the player's own ships still need him).
+- **The player posts offers:** Reports > Post a Trade Offer (want or
+  sell, goods, amount, gold, coastal colony). Every computer nation
+  weighs it on its turn; one that does not dislike the player and
+  gains 10% on it (at its diplomat's values) sends a ship.
+- **The player's offers judged by the diplomat** (`DealValue`): goods
+  at their Europe price (1.5x when short, nothing for boycotted goods
+  given away), peace and alliances at the diplomat's score (a point is
+  100 gold); no alliance with a nation it does not like. The old rule
+  counted goods the computer gives away as a gain.
+- At most one offer of its own per nation per 5 turns. All offers are
+  saved with the game.
+- **Companion:** Trade tab, "Offers": every offer the player was shown,
+  took or posted, with state chips and a countdown bar (green, orange,
+  red when late).
+- **Tested:** `OfferTest` (who sees a notice when, deadlines, late and
+  too late prices, stale, save/parse), `DealValueTest`, `AIOffersTest`
+  (peace accepted moves stance and gold, declined is remembered,
+  delivered on time / late / too late, goods fetched, offers saved and
+  told once, the trade ship's berth, deal and saved mission, the ship
+  opening the trade through the server, the player's post taken by the
+  Dutch who send a ship, one offer per 5 turns, an alliance from a
+  hated nation refused). All tests green.
+- **Not yet (or to try in a game):** no counter-offers in the offer
+  dialog; no cancelling a promise; computer nations do not take each
+  other's notices (only the player can); peace terms are never asked
+  of the player by the computer for his wars (only offered); the
+  diplomat's sale prices are rough (80% of Europe's for sales, 120%
+  for purchases).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

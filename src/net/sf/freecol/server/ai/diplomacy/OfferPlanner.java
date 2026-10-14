@@ -289,7 +289,7 @@ public final class OfferPlanner {
      * @param outlook The diplomat's outlook.
      * @return The new {@code Offer}, or null.
      */
-    Offer post(Outlook outlook) {
+    public Offer post(Outlook outlook) {
         final int now = now();
         for (Offer o : ai.getOffers()) {
             if (me().getNationId().equals(o.from) && now - o.posted < GAP) {

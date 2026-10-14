@@ -355,4 +355,19 @@ public class AIOffersTest extends FreeColTestCase {
             if (o.id.equals(copy.id)) assertEquals(Offer.State.TAKEN, o.state);
         }
     }
+
+    /** One offer per nation per five turns. */
+    public void testOneOfferPerFiveTurns() {
+        setUpGame();
+        final int now = game.getTurn().getNumber();
+        Offer old = new Offer("offer:old", Offer.Kind.SELL, DUTCH,
+            muskets.getId(), 100, 300, havana.getId(), havana.getName(),
+            now, 8);
+        ai.getOffers().add(old);
+        OfferPlanner planner = new OfferPlanner(ai);
+        for (int t = 0; t < OfferPlanner.GAP; t++) {
+            assertNull("turn " + t, planner.post(ai.getOutlook()));
+            nextTurns(1);
+        }
+    }
 }

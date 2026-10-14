@@ -53,18 +53,30 @@ Read these first, in this order:
   weights per `NationCharacter`). Thresholds: 20 for big moves, 5 for
   small ones. `Effects` holds what each move is worth. `Memory` and
   `Relations` give opinion; `Bearings`/`Sightings` guess where unseen
-  nations live.
+  nations live. Live memories: `Memories` (from `Snapshot` + `TurnDiff`,
+  now here), trust from them. `Outlook` = view + situation + ranking,
+  built once a turn by `EuropeanAIPlayer.getOutlook()`. `Commitments`
+  (war/peace choices hold 10 turns), `Mood` (for the companion cards),
+  `Offer` (peace terms, notice board, trade ships), `DealValue` (what
+  a deal's items are worth to the diplomat).
 - `server/ai/military/`: what the computer does with the diplomat's
   word: `InvasionPlanner` (attacks, also across the sea),
   `ScoutPlanner` (+ `mission/ScoutBearingMission`), `WarPreparations`
   (arm colonists, buy a ship). Called from
   `EuropeanAIPlayer.startWorking` and `MilitaryCoordinator`.
+- `server/ai/diplomacy/OfferPlanner`: offers to the human player (peace
+  by messenger, notices, trade voyages via
+  `mission/TradeVoyageMission`), deliveries and deadlines, answers
+  (`OfferMessage`), offers the player posts. War and peace between
+  computer nations: `EuropeanAIPlayer.determineStances`.
 - `tools/replay/`: replays a series of saves, compares the diplomat with
-  what nations really did. `Snapshot` + `TurnDiff` turn two saves into
-  observed events.
+  what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from
-  `CompanionNations`, `CompanionRelations`, ...; page in
-  `data/companion/`).
+  `CompanionNations`, `CompanionRelations`, `CompanionMoods`,
+  `CompanionOffers`, ...; page in `data/companion/`). It is read only:
+  the player answers and acts in the game. `CompanionArchive` keeps
+  every turn (also read from old autosaves) for the long charts and the
+  History tab. No emojis on the page: colours, meters and charts.
 
 ## Things that bit us
 
