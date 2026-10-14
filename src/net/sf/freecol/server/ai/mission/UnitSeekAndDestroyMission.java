@@ -215,7 +215,10 @@ public final class UnitSeekAndDestroyMission extends Mission {
             return Integer.MIN_VALUE;
         }
         if (loc instanceof Unit) {
-            scoreUnitPath(aiUnit, path, (Unit) loc);
+            // Mod: the score was computed and then dropped here (since
+            // commit 91a611c74), so units in the open were never chosen
+            // as targets.
+            return scoreUnitPath(aiUnit, path, (Unit) loc);
         }
         
         return Integer.MIN_VALUE;

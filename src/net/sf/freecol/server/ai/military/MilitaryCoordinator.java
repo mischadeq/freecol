@@ -86,6 +86,8 @@ public final class MilitaryCoordinator {
          */
         this.unusedUnits = identitySet(militaryUnits.stream()
                 .filter(u -> !u.getUnit().isInEurope() || !u.hasMission())
+                // Mod: units on their way to a far attack keep going.
+                .filter(u -> !InvasionPlanner.onInvasion(u))
                 .collect(Collectors.toList())
                 );
         
@@ -115,6 +117,10 @@ public final class MilitaryCoordinator {
         // Do not move away artillery from attacked zones:
         keepUnitsInColonies(defensiveMap.getAttackedColonies(), artilleryUnits, always());        
         keepUnitsInColonies(defensiveMap.getAttackedColonies(), dragoonUnits, maxDefenders(1));
+
+        // Mod: at war, attack what the diplomat thinks worth taking,
+        // across the sea too, with spare units (never a colony's last).
+        planInvasion(artilleryUnits, dragoonUnits, otherMilitaryUnits);
         
         if (player.isAggressive()) {
             final List<AIColony> importantWaterColonies = defensiveMap.getColoniesExposedWater().stream()
@@ -173,6 +179,24 @@ public final class MilitaryCoordinator {
             transportMilitaryUnitsFromEurope(ourColonies.get(0), unusedUnits);
         }
         assignWanderHostile();
+    }
+
+    private void planInvasion(Set<AIUnit> artilleryUnits, Set<AIUnit> dragoonUnits,
+                              Set<AIUnit> otherUnits) {
+        final Set<Settlement> attacked = new HashSet<>(), threatened = new HashSet<>();
+        for (AIColony ac : defensiveMap.getAttackedColonies()) attacked.add(ac.getColony());
+        for (AIColony ac : defensiveMap.getThreatenedColonies()) threatened.add(ac.getColony());
+        final List<AIUnit> candidates = new ArrayList<>(unusedUnits);
+        final net.sf.freecol.common.util.LogBuilder lb
+            = new net.sf.freecol.common.util.LogBuilder(64);
+        final InvasionPlanner planner = new InvasionPlanner(player);
+        planner.bookWaitingArmies(lb);
+        for (AIUnit sent : planner.plan(candidates, attacked, threatened, lb)) {
+            unusedUnits.remove(sent);
+            artilleryUnits.remove(sent);
+            dragoonUnits.remove(sent);
+            otherUnits.remove(sent);
+        }
     }
 
     private void attackEnemySettlements(Set<AIUnit> artilleryUnits, Set<AIUnit> dragoonUnits) {

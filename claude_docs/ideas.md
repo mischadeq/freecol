@@ -743,6 +743,39 @@ the Claude Doc "FreeCol: living diplomacy design").
   raid, the King's army, small-move bar, arming a tribe, staying out of
   a King's war), `ReplayTest` +1 (arms sold to a tribe).
 
+### Step 1 built: wars can be fought (2026-10-14)
+- **Targeting bug fixed:** `UnitSeekAndDestroyMission.scorePath` dropped
+  the score of enemy units in the open (since upstream commit
+  91a611c74), so computer soldiers only ever went for settlements, and
+  never took a target of opportunity in the open.
+- **Attacks across the sea:** new `server/ai/military/InvasionPlanner`,
+  called from `MilitaryCoordinator` every turn. At war, it asks the
+  nation's diplomat (honest view) which attack is worth it (score 20 or
+  more), picks the smallest force of spare units that takes the place
+  65% of the time (at most 8), gives them a seek-and-destroy mission on
+  it, raises their transport priority to 200 and books them on the
+  ships at once; units already on their way are left alone and booked
+  again each turn while they wait. Spare: waiting in Europe, or not the
+  last armed unit of its colony, and never from a colony under attack.
+  One attack at a time; by sea only with free room on a ship.
+- **Found while testing:** the client crashed at end of turn in
+  `followTradeRoute` when a trade route's working stop list ran empty
+  (an IndexOutOfBounds in your 1669 save); guarded (separate commit).
+- **Tested:** `UnitSeekAndDestroyMissionTest.testFindsEnemyUnitsInTheOpen`
+  (fails without the fix); `InvasionPlannerTest` (4: smallest winning
+  force, ships an army to another island with a transport destination,
+  a whole AI turn puts the army on the move, colonies under attack keep
+  their units); server AI tests (43) green. In the sandbox with the
+  1669 save and the English put at war with the Dutch: the English
+  diplomat chose Valkenburg, sent an artillery from Nonsuch and one from
+  Europe, and with a galleon to carry them the Europe one sailed.
+- **What it shows about the game:** the computer nations rarely can
+  attack anyone: they have explored almost nothing (Spain at war with
+  the Iroquois and Apache knows none of their villages), have fewer
+  armed units than colonies, and one or two small ships. Step 3 (the
+  diplomat acting: arming, buying ships, scouting) is what makes wars
+  common.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

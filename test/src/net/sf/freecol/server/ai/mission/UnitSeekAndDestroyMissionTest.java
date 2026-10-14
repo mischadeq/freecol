@@ -85,6 +85,37 @@ public class UnitSeekAndDestroyMissionTest extends FreeColTestCase {
                    aiUnit.getMission());
     }
 
+    public void testFindsEnemyUnitsInTheOpen() {
+        Game game = ServerTestHelper.startServerGame(getTestMap());
+        Map map = game.getMap();
+        AIMain aiMain = ServerTestHelper.getServer().getAIMain();
+        Role soldierRole = spec().getRole("model.role.soldier");
+
+        ServerPlayer player1 = getServerPlayer(game, "model.nation.dutch");
+        Unit attacker = new ServerUnit(game, map.getTile(2, 2), player1,
+                                       veteranType, soldierRole);
+        AIUnit aiUnit = aiMain.getAIUnit(attacker);
+        assertNotNull(aiUnit);
+
+        // An unarmed colonist of an enemy, in the open two tiles away.
+        ServerPlayer player2 = getServerPlayer(game, "model.nation.french");
+        Unit victim = new ServerUnit(game, map.getTile(2, 4), player2,
+            spec().getUnitType("model.unit.freeColonist"));
+
+        player1.setStance(player2, Stance.PEACE);
+        player2.setStance(player1, Stance.PEACE);
+        assertNull("No target at peace",
+            UnitSeekAndDestroyMission.findMissionTarget(aiUnit, 4, false, false));
+
+        player1.setStance(player2, Stance.WAR);
+        player2.setStance(player1, Stance.WAR);
+        assertEquals("A unit in the open is a target at war", victim,
+            UnitSeekAndDestroyMission.findMissionTarget(aiUnit, 4, false, false));
+        // ...but not when only settlements are wanted.
+        assertNull(UnitSeekAndDestroyMission.findMissionTarget(aiUnit, 4,
+                                                               true, false));
+    }
+
     public void testDoNotPursueUnitsInColonies(){
         Game game = ServerTestHelper.startServerGame(getTestMap());
         Map map = game.getMap();
