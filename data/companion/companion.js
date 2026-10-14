@@ -1962,7 +1962,7 @@
   }
 
   const OFFER_STATE = {
-    open: ["info", "open"], taken: ["warn", "promised"], done: ["ok", "done"], late: ["warn", "done late"],
+    open: ["info", "open"], sailing: ["info", "sailing"], taken: ["warn", "promised"], done: ["ok", "done"], late: ["warn", "done late"],
     failed: ["alarm", "failed"], declined: ["m", "declined"], expired: ["m", "expired"], cancelled: ["m", "called off"]
   };
   function renderOffers(list) {
@@ -1974,6 +1974,9 @@
       const st = OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else if (o.kind === "ship_sell" || o.kind === "ship_buy") what = "Ship " + (o.kind === "ship_sell" ? "bringing " : "coming to buy ") +
+        (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) + " for <b>" + num(o.gold) + "</b> gold · to " + esc(o.place) +
+        ' <span class="m">(the trade screen opens when it arrives)</span>';
       else what = (o.kind === "want" ? "Wants " : "Sells ") + (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) +
         " for <b>" + num(o.gold) + "</b> gold · " + (o.kind === "want" ? "deliver to " : "fetch at ") + esc(o.place);
       let clock = "";

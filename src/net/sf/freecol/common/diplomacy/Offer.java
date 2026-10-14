@@ -51,7 +51,16 @@ public final class Offer {
         /** We want goods, and pay. */
         WANT,
         /** We sell goods. */
-        SELL
+        SELL,
+        /** Our ship brings goods to sell to one nation's colony. */
+        SHIP_SELL,
+        /** Our ship comes with gold to buy goods at one nation's colony. */
+        SHIP_BUY;
+
+        /** Answered in the game's trade screen when the ship arrives. */
+        public boolean byShip() {
+            return this == SHIP_SELL || this == SHIP_BUY;
+        }
     }
 
     public enum State {
@@ -122,7 +131,7 @@ public final class Offer {
      * @return True if so.
      */
     public boolean visibleTo(String nation, int now) {
-        if (state != State.OPEN) return false;
+        if (state != State.OPEN || kind.byShip()) return false;
         final int i = audience.indexOf(nation);
         if (i < 0) return false;
         return i == 0 || kind == Kind.PEACE || now - posted >= FIRST_LOOK;
@@ -156,7 +165,7 @@ public final class Offer {
 
     /** Nobody took it in time (or peace terms ran out). */
     public boolean stale(int now) {
-        return state == State.OPEN
+        return state == State.OPEN && !kind.byShip()
             && now - posted >= ((kind == Kind.PEACE) ? PEACE_TURNS : OPEN_TURNS);
     }
 

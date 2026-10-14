@@ -47,7 +47,11 @@ import net.sf.freecol.common.networking.ChangeSet;
 import net.sf.freecol.common.networking.ChangeSet.See;
 import net.sf.freecol.common.networking.OfferMessage;
 import net.sf.freecol.common.util.LogBuilder;
+import net.sf.freecol.server.ai.AIUnit;
 import net.sf.freecol.server.ai.EuropeanAIPlayer;
+import net.sf.freecol.server.ai.mission.Mission;
+import net.sf.freecol.server.ai.mission.TradeVoyageMission;
+import net.sf.freecol.server.ai.mission.TransportMission;
 import net.sf.freecol.server.model.ServerGame;
 import net.sf.freecol.server.model.ServerPlayer;
 
@@ -232,6 +236,15 @@ public final class OfferPlanner {
     /** Show an open offer to every human who can see it now, once. */
     private void tell(Offer o, ChangeSet cs) {
         if (o.state != Offer.State.OPEN) return;
+        if (o.kind.byShip()) { // a heads-up, the trade screen comes later
+            final Player h = game().getPlayerByNationId(o.audience.get(0));
+            if (h != null && !o.told.contains(h.getNationId())) {
+                o.told.add(h.getNationId());
+                message(cs, h, (o.kind == Offer.Kind.SHIP_SELL)
+                    ? "offer.shipSell" : "offer.shipBuy", o, o.gold);
+            }
+            return;
+        }
         for (Player h : humans()) {
             final String id = h.getNationId();
             if (o.told.contains(id) || !o.visibleTo(id, now())) continue;
@@ -273,8 +286,9 @@ public final class OfferPlanner {
         for (Offer o : ai.getOffers()) {
             if (now - o.posted < GAP) return null;
         }
-        Offer peace = peaceTerms(outlook);
-        return (peace != null) ? peace : notice(outlook);
+        Offer o = peaceTerms(outlook);
+        if (o == null) o = voyage(outlook);
+        return (o != null) ? o : notice(outlook);
     }
 
     /** Peace terms to a human enemy, if the diplomat wants peace. */
@@ -304,6 +318,76 @@ public final class OfferPlanner {
             return o;
         }
         return null;
+    }
+
+    /**
+     * A trade voyage: the diplomat's best trade with a human nation,
+     * carried by a free ship of ours (empty, with no job but hauling).
+     */
+    private Offer voyage(Outlook outlook) {
+        final int now = now();
+        for (ScoredAction sa : outlook.ranked) {
+            final Action a = sa.action;
+            if ((a.kind != Action.Kind.BUY_GOODS
+                 && a.kind != Action.Kind.SELL_GOODS)
+                || sa.total < Diplomat.SMALL_THRESHOLD) continue;
+            final Player h = game().getPlayerByNationId(a.target);
+            if (h == null || h.isAI() || h.isREF()
+                || me().getStance(h) == Stance.WAR
+                || me().getStance(h) == Stance.UNCONTACTED) continue;
+            final GoodsType gt = game().getSpecification().getGoodsType(a.goods);
+            if (gt == null) continue;
+            final boolean sell = a.kind == Action.Kind.SELL_GOODS;
+            final int gold = a.amount * a.price;
+            if (!sell && me().getGold() < gold) continue;
+            for (Unit u : new ArrayList<>(me().getUnitSet())) {
+                if (!freeShip(u)) continue;
+                final Colony home = u.getTile().getColony();
+                if (sell && (home == null || home.getOwner() != me()
+                             || home.getGoodsCount(gt) < a.amount)) continue;
+                final Colony dest = nearestPort(h, u.getTile());
+                if (dest == null) continue;
+                if (sell) {
+                    home.removeGoods(gt, a.amount);
+                    u.addGoods(gt, a.amount);
+                }
+                Offer o = new Offer(id(now), (sell) ? Offer.Kind.SHIP_SELL
+                    : Offer.Kind.SHIP_BUY, me().getNationId(), a.goods,
+                    a.amount, gold, dest.getId(), dest.getName(), now, 0);
+                o.audience.add(h.getNationId());
+                final AIUnit aiu = ai.getAIMain().getAIUnit(u);
+                aiu.changeMission(new TradeVoyageMission(ai.getAIMain(), aiu,
+                                                         dest, o.id));
+                return o;
+            }
+        }
+        return null;
+    }
+
+    /** An empty ship of ours with nothing better to do than hauling. */
+    public boolean freeShip(Unit u) {
+        if (!u.isNaval() || !u.canCarryGoods() || !u.hasTile()
+            || u.isDamaged() || u.getCargoSpaceTaken() > 0) return false;
+        final AIUnit aiu = ai.getAIMain().getAIUnit(u);
+        if (aiu == null) return false;
+        final Mission m = aiu.getMission();
+        return m == null || !m.isValid()
+            || (m instanceof TransportMission && ((TransportMission)m).isEmpty());
+    }
+
+    /** A player's coastal colony nearest to a tile. */
+    private static Colony nearestPort(Player p, Tile from) {
+        Colony best = null;
+        int bestD = Integer.MAX_VALUE;
+        for (Colony c : p.getColonyList()) {
+            if (!c.isConnectedPort()) continue;
+            final int d = c.getTile().getDistanceTo(from);
+            if (d < bestD) {
+                bestD = d;
+                best = c;
+            }
+        }
+        return best;
     }
 
     /** A notice from the diplomat's best trade move. */

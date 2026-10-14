@@ -54,7 +54,7 @@ public class AIOffersTest extends FreeColTestCase {
     private Game game;
     private ServerPlayer dutch, english;
     private EuropeanAIPlayer ai;
-    private Colony havana;
+    private Colony havana, jamestown;
 
 
     @Override
@@ -70,14 +70,15 @@ public class AIOffersTest extends FreeColTestCase {
         for (int y = 2; y < 18; y++) {
             for (int x = 2; x <= 8; x++) mb.setTileType(x, y, plains);
         }
+        mb.setTileType(19, 0, spec().getTileType("model.tile.highSeas"));
         game = ServerTestHelper.startServerGame(mb.build());
         dutch = getServerPlayer(game, DUTCH);
         english = getServerPlayer(game, ENGLISH);
         english.setAI(false);
         havana = FreeColTestUtils.getColonyBuilder().player(dutch)
             .colonyTile(game.getMap().getTile(8, 10)).initialColonists(3).build();
-        FreeColTestUtils.getColonyBuilder().player(english)
-            .colonyTile(game.getMap().getTile(3, 10)).initialColonists(2).build();
+        jamestown = FreeColTestUtils.getColonyBuilder().player(english)
+            .colonyTile(game.getMap().getTile(2, 10)).initialColonists(2).build();
         ai = (EuropeanAIPlayer)ServerTestHelper.getServer().getAIMain()
             .getAIPlayer(dutch);
     }
@@ -251,5 +252,67 @@ public class AIOffersTest extends FreeColTestCase {
                 english, dutch, items, 1);
         assertFalse(ai.acceptDiplomaticTrade(dt)
             == net.sf.freecol.common.model.DiplomaticTrade.TradeStatus.ACCEPT_TRADE);
+    }
+
+    /** A computer ship sails to the player's colony and opens a trade. */
+    public void testTradeVoyage() throws Exception {
+        setUpGame();
+        final GoodsType furs = spec().getGoodsType("model.goods.furs");
+        Unit ship = new ServerUnit(game, havana.getTile(), dutch,
+            spec().getUnitType("model.unit.merchantman"));
+        OfferPlanner planner = new OfferPlanner(ai);
+        assertTrue("empty, no job", planner.freeShip(ship));
+        ship.addGoods(furs, 100);
+        assertFalse("has cargo", planner.freeShip(ship));
+
+        final int now = game.getTurn().getNumber();
+        Offer o = new Offer("offer:ship", Offer.Kind.SHIP_SELL, DUTCH,
+            furs.getId(), 100, 400, jamestown.getId(), jamestown.getName(),
+            now, 0);
+        o.audience.add(ENGLISH);
+        ai.getOffers().add(o);
+        assertFalse("answered in the trade screen", o.visibleTo(ENGLISH, now));
+        AIUnit aiu = ServerTestHelper.getServer().getAIMain().getAIUnit(ship);
+        net.sf.freecol.server.ai.mission.TradeVoyageMission m
+            = new net.sf.freecol.server.ai.mission.TradeVoyageMission(
+                ServerTestHelper.getServer().getAIMain(), aiu, jamestown, o.id);
+        aiu.changeMission(m);
+        assertNull(m.invalidReason());
+        net.sf.freecol.common.model.Tile berth
+            = net.sf.freecol.server.ai.mission.TradeVoyageMission.berth(jamestown, ship);
+        assertNotNull(berth);
+        assertFalse(berth.isLand());
+        assertTrue(berth.isAdjacent(jamestown.getTile()));
+        // The deal: the furs for the gold.
+        net.sf.freecol.common.model.DiplomaticTrade dt = m.deal(o);
+        assertNotNull(dt);
+        assertEquals(2, dt.getItems().size());
+        assertEquals(400, dt.getGoldGivenBy(english));
+
+        // At the berth it opens the trade through the server (in this
+        // test the "human" is answered by a computer helper, so the
+        // session completes at once: the ship's moves are spent).
+        ship.setLocation(berth);
+        ship.setMovesLeft(ship.getInitialMovesLeft());
+        game.setCurrentPlayer(dutch);
+        m.doMission(new LogBuilder(64));
+        assertEquals(Offer.State.DONE, o.state);
+        assertEquals(0, ship.getMovesLeft());
+
+        // A new voyage of the same ship is kept in a save.
+        o.state = Offer.State.OPEN;
+        aiu.changeMission(new net.sf.freecol.server.ai.mission.TradeVoyageMission(
+            ServerTestHelper.getServer().getAIMain(), aiu, jamestown, o.id));
+        // The voyage is kept in a save.
+        java.io.File file = java.io.File.createTempFile("voyage", ".fsg");
+        file.deleteOnExit();
+        ServerTestHelper.getServer().saveGame(file, null, null);
+        net.sf.freecol.server.FreeColServer loaded
+            = ServerTestHelper.startServer(file, false, true);
+        AIUnit aiu2 = loaded.getAIMain().getAIUnit(
+            loaded.getGame().getFreeColGameObject(ship.getId(), Unit.class));
+        assertTrue(aiu2.getMission()
+            instanceof net.sf.freecol.server.ai.mission.TradeVoyageMission);
+        assertEquals(jamestown.getId(), aiu2.getMission().getTarget().getId());
     }
 }
