@@ -110,10 +110,20 @@ Remembers: you sank 2 of their ships (1660), you made peace (1662)."
 
 - Through the game's own diplomacy screen: `AIMessage.askDiplomacy(aiPlayer,
   our, other, DiplomaticTrade)` proposes a trade; `our`/`other` are
-  units or colonies. `AIPlayer` already uses it (around line 330). Find
-  out whether a computer nation can open it without a unit next to the
-  player's colony; if not, the offer comes with a ship or scout that
-  sails to the nearest colony of the player (that is also more fun).
+  units or colonies. `AIPlayer` already uses it (around line 330).
+- **Checked (2026-10-14):** the game needs a unit next to the other's
+  colony; `DiplomacyMessage.serverHandler` refuses an offer otherwise
+  ("not adjacent", "Both units null").
+- **Decided with Mischa (2026-10-14): a mix.**
+  - **Peace terms and gold-only deals come by messenger:** instant, at
+    the start of the player's turn, no unit needed. This needs a new
+    server path (a session without the adjacency check, from the
+    computer's capital colony to the player's).
+  - **Goods require ships:** the goods are loaded on a ship that sails
+    to the player's nearest coastal colony; the trade screen opens when
+    it is next to the colony. The player can watch it come. If the ship
+    is sunk or turned away, no deal. Purchase requests (BUY_GOODS) also
+    send a ship, empty, with the gold.
 - Offers, from the diplomat's moves that score 5 or more:
   - **Peace terms** when the computer is losing a war with the player
     (MAKE_PEACE), with gold if its score says so.
