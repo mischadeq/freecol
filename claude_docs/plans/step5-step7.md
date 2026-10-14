@@ -24,9 +24,10 @@ proposal, so work can start before he answers.
   INCITE or on coalitions yet.
 - Between computer nations, alliances already come from the diplomat
   (step 3a, both sides must want it, choices hold 10 turns).
-- **Tribes do not know each other.** `ServerPlayer.csContact` ignores
-  native-to-native contact, so tribes never have a stance, a war or an
-  alliance with each other.
+- **Tribes have no stance towards each other.** `ServerPlayer.csContact`
+  ignores native-to-native contact, so tribes never have a war or an
+  alliance with each other. (They should simply know each other from
+  the start: see 7a.)
 - A tribe's stance towards a European follows only its own tension
   (`NativeAIPlayer.determineStances`). Braves defend, wander, bring
   gifts and make demands (`NativeAIPlayer.startWorking`). Each
@@ -145,10 +146,14 @@ the events from history in the design ("Native tribes").
 
 ### 7a. Tribes think and know each other
 
-- **Contact between tribes.** Let tribes meet when their lands touch
-  or their braves meet (lift the native-to-native exception in
-  `csContact`, without the first-contact diplomacy screen). They get
-  stances towards each other.
+- **Tribes know each other from the start** (decided with Mischa,
+  2026-10-14): they have lived there since forever, so every tribe
+  knows every other tribe and all their settlements from turn one; no
+  European-style first contact. At game start (and on loading an older
+  save) every pair of tribes is set to peace, and each tribe's honest
+  view includes all native settlements. Their stances towards each
+  other can then change (war, alliance). The native-to-native exception
+  in `csContact` stays: there is nothing to meet.
 - **The diplomat for tribes.** `NativeAIPlayer` builds an `Outlook`
   each turn (honest view: its settlements, what its braves and lands
   see, its own alarm and tension). Characters per tribe from the
@@ -240,7 +245,8 @@ the events from history in the design ("Native tribes").
 
 ### 7h. Tests and done
 
-- Unit: tribes meet when their lands touch; opinions between tribes
+- Unit: every tribe knows every other tribe and its settlements from
+  the start (also after loading an older save); opinions between tribes
   (neighbours, rival, shared enemy); a call for help is answered by
   friends and not by rivals; refugees move to the right settlement;
   a settlement breaks off only under the conditions and stays native;
