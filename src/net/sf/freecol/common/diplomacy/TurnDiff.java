@@ -165,6 +165,13 @@ public final class TurnDiff {
                                     0, "you said so");
             }
         }
+        // A computer diplomat's own choice, when known.
+        if (b.declared.contains(Snapshot.key(x, y))) {
+            return new Observed(Observed.What.WAR, x, y, false, 0, "its diplomat");
+        }
+        if (b.declared.contains(Snapshot.key(y, x))) {
+            return new Observed(Observed.What.WAR, y, x, false, 0, "its diplomat");
+        }
         final int tx = Math.max(a.tension(x, y), b.tension(x, y));
         final int ty = Math.max(a.tension(y, x), b.tension(y, x));
         if (tx >= WAR_TENSION || ty >= WAR_TENSION) {

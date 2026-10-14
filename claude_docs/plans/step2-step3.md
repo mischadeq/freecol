@@ -149,6 +149,18 @@ Remembers: you sank 2 of their ships (1660), you made peace (1662)."
     Cancelling before the deadline: no gold, a small trust loss.
   - The turn report announces new offers and reminds of deadlines
     ("3 turns left to bring Spain 100 muskets").
+- **Checked (2026-10-14):** today the computer never starts a deal and
+  never sails to a foreign colony to trade; its ships only haul its own
+  cargo (`TransportMission`, the longest-waiting cargo first),
+  privateer, invade or scout. So all of 3b is new: a **trade voyage**
+  mission (load, sail to the colony, open the trade screen; register in
+  `AIUnit.readChild`). It takes an idle or empty ship, a busy one only
+  when the deal scores clearly more than its hauling; invasions keep
+  their ships; no ship and a good deal: the diplomat may buy one.
+- **After that (decided with Mischa): the player posts offers too.** A
+  small screen in the game: "I want 100 muskets for 600 gold" or "I
+  sell 200 furs". Each computer nation's diplomat scores it; one that
+  takes it sends a trade voyage, same mission, same deadline rules.
 - Offers, from the diplomat's moves that score 5 or more:
   - **Peace terms** when the computer is losing a war with the player
     (MAKE_PEACE), with gold if its score says so.

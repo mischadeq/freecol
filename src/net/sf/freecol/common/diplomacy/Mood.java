@@ -53,13 +53,16 @@ public final class Mood {
         public final double opinion, trust;
         /** Our stance towards it. */
         public final Stance stance;
+        /** Why we chose that stance, in words ("" if not our choice). */
+        public final String why;
         /** Memories that still count, strongest first. */
         public final List<Memory> memories;
 
         Feeling(String about, double opinion, double trust, Stance stance,
-                List<Memory> memories) {
+                String why, List<Memory> memories) {
             this.about = about;
             this.stance = stance;
+            this.why = (why == null) ? "" : why;
             this.opinion = opinion;
             this.trust = trust;
             this.memories = Collections.unmodifiableList(memories);
@@ -98,14 +101,35 @@ public final class Mood {
      * @return The {@code Mood}.
      */
     public static Mood of(Outlook o) {
+        return of(o, null);
+    }
+
+    /**
+     * The mood of a nation from its outlook and its war and peace
+     * choices.
+     *
+     * @param o The {@code Outlook}.
+     * @param c Its {@code Commitments}, may be null.
+     * @return The {@code Mood}.
+     */
+    public static Mood of(Outlook o, Commitments c) {
         final WorldView w = o.view;
         Map<String, Feeling> f = new LinkedHashMap<>();
         for (NationView v : w.others.values()) {
-            f.put(v.id, new Feeling(v.id, v.opinion, v.trust, v.stance,
+            final Commitments.Choice ch = (c == null) ? null : c.get(v.id);
+            final String why = (ch != null && stanceOf(ch.kind) == v.stance)
+                ? ch.why : null;
+            f.put(v.id, new Feeling(v.id, v.opinion, v.trust, v.stance, why,
                 Memories.about(v.id, w.turn, w.memories)));
         }
         return new Mood(w.me.id, w.turn, w.character,
                         new ArrayList<>(o.situation.goals), f);
+    }
+
+    private static Stance stanceOf(Action.Kind k) {
+        return (k == Action.Kind.DECLARE_WAR) ? Stance.WAR
+            : (k == Action.Kind.MAKE_PEACE) ? Stance.PEACE
+            : Stance.ALLIANCE;
     }
 
     public Feeling about(String id) {

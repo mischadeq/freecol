@@ -31,6 +31,7 @@ public class AllTests {
         suite.addTestSuite(BearingsTest.class);
         suite.addTestSuite(SightingsTest.class);
         suite.addTestSuite(MemoriesTest.class);
+        suite.addTestSuite(CommitmentsTest.class);
         return suite;
     }
 }

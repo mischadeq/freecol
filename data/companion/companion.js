@@ -1825,8 +1825,8 @@
     }
     if (m.feelings.length) {
       rows.push(["Feels", m.feelings.map((f) => '<span class="ncol"><i class="sw" style="background:' + esc(f.color) + '"></i> ' +
-        esc(f.name) + ": " + (f.stance === "war" ? "⚔ " : "🤝 ") + esc(f.word) + "</span>").join(""),
-        "How they feel about the nations they are at war or allied with (public: everybody knows who fights whom)."]);
+        esc(f.name) + ": " + (f.stance === "war" ? "⚔ " : "🤝 ") + esc(f.word) + (f.why ? ' <span class="m">· ' + esc(f.why) + "</span>" : "") + "</span>").join(""),
+        "How they feel about the nations they are at war or allied with (public: everybody knows who fights whom), and why they chose that war or alliance."]);
     }
     return rows;
   }

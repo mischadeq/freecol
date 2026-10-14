@@ -142,6 +142,18 @@ public class MemoriesTest extends TestCase {
         }
     }
 
+    public void testDiplomatsWarBreaksTheDeal() {
+        // No hatred, but the English diplomat chose it: not the King.
+        Snapshot a = snap(10), b = snap(11);
+        peace(a, FRENCH, ENGLISH);
+        war(b, FRENCH, ENGLISH);
+        b.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        Memories french = new Memories();
+        french.add(new Memory(Memory.Kind.TREATY, ENGLISH, 5, 1));
+        french.remember(FRENCH, TurnDiff.diff(a, b, new HashSet<>()), a, a.turn);
+        assertHas(french, Memory.Kind.DEAL_BROKEN, ENGLISH, 1);
+    }
+
     public void testKingsWarBreaksNoDeal() {
         Snapshot a = snap(10), b = snap(11);
         peace(a, FRENCH, ENGLISH);

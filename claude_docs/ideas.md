@@ -915,6 +915,45 @@ game, and the player can read their mood on the companion cards.
   units lost by a nation at war with two or more others are not
   blamed on anyone (the save does not say who killed them).
 
+### Step 3a built: computer nations choose war and peace (2026-10-14)
+Between two computer nations, war, peace and alliances now come from
+the diplomat instead of the tension rule.
+- **How:** `EuropeanAIPlayer.determineStances` asks the diplomat (the
+  turn's `Outlook`) for DECLARE_WAR / MAKE_PEACE / ALLIANCE towards
+  each other computer nation; it acts at a score of 20 or more.
+- **Both sides:** a war is one side's choice; peace needs the other's
+  diplomat not to be against it (score 0 or more), an alliance needs it
+  to want one too (5 or more).
+- **Commitment** (new `common/diplomacy/Commitments`): a choice holds
+  at least 10 turns; after that a different choice must score 30% more
+  than the old one did. A shock lifts both: war declared on us (not by
+  the King), a colony of ours taken or destroyed. Choices and the last
+  shock are saved with the game ("stanceChoices").
+- **Why, in words:** each choice keeps its main reason ("revenge",
+  "wants their colonies", "war is too dangerous", "hates them", ...).
+  The companion card shows it in the "Feels" row:
+  "Spain: ⚔ hostile · revenge".
+- **Unchanged:** wars with the human player (old tension rule, war on
+  you should come with a grievance first: step 6), with the tribes, the
+  King's wars, the REF.
+- **Who declared:** a save does not say; the replay guesses from
+  tension. In a live game the computer diplomats now tell the snapshot
+  which wars they chose, so a broken peace gives `DEAL_BROKEN` and a
+  shock even when the declarer was not hateful.
+- **Tested:** `CommitmentsTest` (only strong war/peace/alliance moves,
+  the 10-turn hold, 30% better, a shock lifts it, what is a shock,
+  reasons in words, save/parse), `AIStancesTest` (the diplomat decides
+  only between computer nations; angry is not enough for war; old rule
+  towards the human; choices saved and loaded), `MemoriesTest` (a
+  diplomat's war breaks a peace). All 570 tests green.
+- **To look at:** full hatred (tension 1100) with nothing else to gain
+  scores exactly 20, just enough for a war "because it hates them".
+  That matches the old rule (war at 1010); should a war need a real
+  gain too?
+- **Not yet:** the replay check on Mischa's saves ("own wars with a
+  reason"); the replay still guesses declarers from tension. Offers
+  (3b) not started.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

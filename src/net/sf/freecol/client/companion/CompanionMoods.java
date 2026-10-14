@@ -117,6 +117,7 @@ final class CompanionMoods {
                 .put("color", q.getNationColor())
                 .put("stance", (o.stance == Stance.WAR) ? "war" : "alliance")
                 .put("word", o.mood())
+                .put("why", o.why)
                 .end();
         }
         j.endArr();

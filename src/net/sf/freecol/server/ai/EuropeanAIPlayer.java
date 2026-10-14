@@ -67,11 +67,16 @@ import net.sf.freecol.common.io.FreeColXMLWriter;
 import net.sf.freecol.common.model.Ability;
 import net.sf.freecol.common.model.AbstractUnit;
 import net.sf.freecol.common.model.Building;
+import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Bearings;
+import net.sf.freecol.common.diplomacy.Commitments;
+import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.Memories;
 import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.Mood;
+import net.sf.freecol.common.diplomacy.Observed;
 import net.sf.freecol.common.diplomacy.Outlook;
+import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Sightings;
 import net.sf.freecol.common.diplomacy.Snapshot;
 import net.sf.freecol.common.diplomacy.TurnDiff;
@@ -1548,27 +1553,95 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     // Diplomacy support
 
     /**
-     * Determines the stances towards each player.
+     * Determines the stances towards each player: between computer
+     * nations on the diplomat's word (mod), else from tension.
      *
      * @param lb A {@code LogBuilder} to log to.
+     * @return True if a stance changed.
      */
-    private void determineStances(LogBuilder lb) {
+    boolean determineStances(LogBuilder lb) {
         final Player player = getPlayer();
+        final int now = getGame().getTurn().getNumber();
+        boolean changed = false;
         lb.mark();
 
         for (Player p : getGame().getLivePlayerList(player)) {
-            Stance newStance = determineStance(p);
+            ScoredAction why = null;
+            Stance newStance;
+            if (usesDiplomat(p)) {
+                why = getCommitments().decide(p.getNationId(),
+                    player.getStance(p), getOutlook().ranked, now);
+                newStance = (why == null) ? player.getStance(p)
+                    : stanceOf(why.action.kind);
+                if (why != null && newStance != Stance.WAR
+                    && !agrees(p, why.action.kind)) {
+                    newStance = player.getStance(p);
+                }
+            } else {
+                newStance = determineStance(p);
+            }
             if (newStance != player.getStance(p)) {
                 if (newStance == Stance.WAR && peaceHolds(p)) {
                     ; // Peace treaty holds for now
                 } else {
                     getAIMain().getFreeColServer().getInGameController()
                         .changeStance(player, newStance, p, true);
-                    lb.add(" ", p.getDebugName(), "->", newStance, ", ");
+                    if (why != null) {
+                        getCommitments().chose(p.getNationId(), why, now);
+                    }
+                    changed = true;
+                    lb.add(" ", p.getDebugName(), "->", newStance,
+                        (why == null) ? "" : " (" + Commitments.why(why) + ")",
+                        ", ");
                 }
             }
         }
         if (lb.grew("\n  Stance changes:")) lb.shrink(", ");
+        return changed;
+    }
+
+    /**
+     * Does the diplomat choose war and peace towards another nation
+     * (mod)?  Only between computer nations; towards the human player,
+     * the tribes and the King's forces the old tension rule stays.
+     *
+     * @param p The other {@code Player}.
+     * @return True if the diplomat decides.
+     */
+    boolean usesDiplomat(Player p) {
+        final Player player = getPlayer();
+        return !player.isREF() && player.isEuropean()
+            && p.isAI() && p.isEuropean() && !p.isREF()
+            && getAIMain().getAIPlayer(p) instanceof EuropeanAIPlayer;
+    }
+
+    private static Stance stanceOf(Action.Kind kind) {
+        switch (kind) {
+        case DECLARE_WAR: return Stance.WAR;
+        case MAKE_PEACE: return Stance.PEACE;
+        default: return Stance.ALLIANCE;
+        }
+    }
+
+    /**
+     * Does the other nation agree to peace or an alliance?  Its own
+     * diplomat must not be against peace, and must want the alliance.
+     *
+     * @param p The other {@code Player}.
+     * @param kind MAKE_PEACE or ALLIANCE.
+     * @return True if it agrees.
+     */
+    private boolean agrees(Player p, Action.Kind kind) {
+        final AIPlayer o = getAIMain().getAIPlayer(p);
+        if (!(o instanceof EuropeanAIPlayer)) return true;
+        final String me = getPlayer().getNationId();
+        for (ScoredAction sa : ((EuropeanAIPlayer)o).getOutlook().ranked) {
+            if (sa.action.kind == kind && me.equals(sa.action.target)) {
+                return sa.total >= ((kind == Action.Kind.ALLIANCE)
+                    ? Diplomat.SMALL_THRESHOLD : 0);
+            }
+        }
+        return false;
     }
 
     /**
@@ -2328,6 +2401,18 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
      */
     private Snapshot lastSnapshot;
 
+    /**
+     * Our last choice of war, peace or alliance towards each computer
+     * nation (mod).  Saved with the game.  No initializer, as for
+     * {@link #bearings}.
+     */
+    private Commitments commitments;
+
+    public Commitments getCommitments() {
+        if (commitments == null) commitments = new Commitments();
+        return commitments;
+    }
+
     /** The diplomat's outlook, only while this turn's work is done. */
     private Outlook outlook;
 
@@ -2375,9 +2460,28 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     public void rememberTurn() {
         final Snapshot now = Snapshot.of(getGame());
         if (lastSnapshot != null && lastSnapshot.turn < now.turn) {
-            getMemories().remember(getPlayer().getNationId(),
-                TurnDiff.diff(lastSnapshot, now, Collections.emptySet()),
-                lastSnapshot, lastSnapshot.turn);
+            // Who declared the new wars: the computer diplomats know
+            // (the victim hears it), the save does not.
+            for (Player p : getGame().getLiveEuropeanPlayerList()) {
+                final AIPlayer o = getAIMain().getAIPlayer(p);
+                if (!(o instanceof EuropeanAIPlayer)) continue;
+                final Commitments c = ((EuropeanAIPlayer)o).getCommitments();
+                for (Player q : getGame().getLiveEuropeanPlayerList()) {
+                    final Commitments.Choice ch = c.get(q.getNationId());
+                    if (ch != null && ch.kind == Action.Kind.DECLARE_WAR
+                        && ch.turn >= lastSnapshot.turn) {
+                        now.declared.add(Snapshot.key(p.getNationId(),
+                                                      q.getNationId()));
+                    }
+                }
+            }
+            final String me = getPlayer().getNationId();
+            final List<Observed> d = TurnDiff.diff(lastSnapshot, now,
+                                                   Collections.emptySet());
+            getMemories().remember(me, d, lastSnapshot, lastSnapshot.turn);
+            if (Commitments.isShock(me, d, lastSnapshot)) {
+                getCommitments().shock(now.turn);
+            }
         }
         getMemories().fade(now.turn);
         lastSnapshot = now;
@@ -2514,16 +2618,17 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
         }
         
-        determineStances(lb);
         // What we can see of the others, for guessing where they live.
         Sightings.look(getGame(), player, getBearings());
         // What happened to us since last turn; the diplomat looks at
-        // the world once for the whole turn (mod).
+        // the world once for the whole turn, again after a new war or
+        // peace (mod).
         if (!player.isREF()) {
             rememberTurn();
             outlook = makeOutlook();
-            mood = Mood.of(outlook);
         }
+        if (determineStances(lb) && !player.isREF()) outlook = makeOutlook();
+        if (!player.isREF()) mood = Mood.of(outlook, getCommitments());
 
         if (colonyCount > 0) {
             lb.add("\n  Badly defended:"); // FIXME: prioritize defence
@@ -3237,6 +3342,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String KEPT_ARMED_TAG = "keptArmed";
     /** What we remember (mod): "KIND:nation:turn:count;...". */
     private static final String MEMORIES_TAG = "memories";
+    /** Our war and peace choices (mod), see {@link Commitments}. */
+    private static final String STANCE_CHOICES_TAG = "stanceChoices";
 
     /**
      * {@inheritDoc}
@@ -3260,6 +3367,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (getMemories().size() > 0) {
             xw.writeAttribute(MEMORIES_TAG, getMemories().serialize(';'));
         }
+        final String choices = getCommitments().serialize();
+        if (!choices.isEmpty()) xw.writeAttribute(STANCE_CHOICES_TAG, choices);
     }
 
     /**
@@ -3270,6 +3379,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         super.readAttributes(xr);
         bearings = Bearings.parse(xr.getAttribute(SIGHTINGS_TAG, (String)null));
         memories = Memories.parse(xr.getAttribute(MEMORIES_TAG, (String)null));
+        commitments = Commitments.parse(xr.getAttribute(STANCE_CHOICES_TAG,
+                                                        (String)null));
         keptArmed = new HashMap<>();
         final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);
         if (kept != null) {
