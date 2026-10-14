@@ -126,6 +126,7 @@ public final class WorldViewBuilder {
             NationCharacter.forNationType(me.getNationType().getId(),
                                           me.isEuropean()));
         w.soldierAttack = sp;
+        w.coalitionLine = Coalition.line(spec.getDifficultyLevel());
         fillSelf(w, me, spec, cm);
         if (me.isEuropean() && me.getMonarch() != null
             && me.getMonarch().getExpeditionaryForce() != null) {

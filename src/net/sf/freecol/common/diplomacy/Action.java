@@ -45,7 +45,9 @@ public final class Action {
         /** Send a ship to look for a nation whose colonies we do not know. */
         SCOUT(0, false, false, false),
         /** Buy a ship in Europe to carry an army to an enemy across the sea. */
-        BUY_SHIP(0, false, false, false);
+        BUY_SHIP(0, false, false, false),
+        /** Answer an ally's call to arms: war on its attacker. */
+        JOIN_WAR(-1, true, true, false);
 
         /** +1 friendly to the target, -1 hostile, 0 no target. */
         public final int side;
@@ -163,6 +165,17 @@ public final class Action {
      */
     public static Action buyShip(String target, int space, int price) {
         return new Action(Kind.BUY_SHIP, target, null, null, space, price, null);
+    }
+
+    /**
+     * Join an ally's war.
+     *
+     * @param enemy The nation that attacked the ally.
+     * @param ally The ally.
+     * @return The {@code Action} (target the enemy, against the ally).
+     */
+    public static Action joinWar(String enemy, String ally) {
+        return new Action(Kind.JOIN_WAR, enemy, ally, null, 0, 0, null);
     }
 
     public static Action arm(int soldiers) {

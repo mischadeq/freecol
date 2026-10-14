@@ -155,6 +155,10 @@ public final class TurnDiff {
 
     private static Observed war(Snapshot a, Snapshot b, String x, String y,
                                 Set<String> declaredByHuman) {
+        // The King's order or a nation's own declaration, when the
+        // server told us (a live game); else guess as below.
+        final Observed known = known(b, x, y);
+        if (known != null) return known;
         // The human player's own word comes first: tension rises
         // after an attack, so it can not tell who started.
         String human = human(a, x, y);
@@ -180,6 +184,25 @@ public final class TurnDiff {
         }
         return new Observed(Observed.What.WAR, x, y, true, 0,
                             "nobody hateful: the King");
+    }
+
+    /** A war whose declarer the server told us, or null. */
+    private static Observed known(Snapshot b, String x, String y) {
+        // The King's order, when known: forced on the declarer.
+        if (b.kings.contains(Snapshot.key(x, y))) {
+            return new Observed(Observed.What.WAR, x, y, true, 0, "the King");
+        }
+        if (b.kings.contains(Snapshot.key(y, x))) {
+            return new Observed(Observed.What.WAR, y, x, true, 0, "the King");
+        }
+        // A nation's own choice, when known.
+        if (b.declared.contains(Snapshot.key(x, y))) {
+            return new Observed(Observed.What.WAR, x, y, false, 0, "its own choice");
+        }
+        if (b.declared.contains(Snapshot.key(y, x))) {
+            return new Observed(Observed.What.WAR, y, x, false, 0, "its own choice");
+        }
+        return null;
     }
 
     private static Observed peace(Snapshot a, Snapshot b, String x,

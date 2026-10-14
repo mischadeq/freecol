@@ -84,7 +84,7 @@ public final class Threat {
      */
     public static String leaderToContain(WorldView w) {
         String best = null;
-        double top = COALITION_LINE;
+        double top = w.coalitionLine;
         for (Map.Entry<String, Double> e : all(w).entrySet()) {
             if (e.getKey().equals(w.me.id)) continue;
             if (e.getValue() >= top) {

@@ -287,6 +287,30 @@ img.gi[data-g] { cursor: help; }
 .mrow.mh { background: none; cursor: default; color: var(--muted); font-size: 12px; }
 .mrow .num { text-align: right; }
 
+/* Offers */
+.offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.ocard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.ocard.yours { border-color: #5c4a26; }
+.ohead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ohead .m { margin-left: auto; font-size: 12px; }
+.owhat { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.oclock { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.oclock .nbar { max-width: none; flex: 1; }
+.oclock i.ok { background: var(--ok); }
+.oclock i.warn { background: var(--warn); }
+.oclock i.alarm { background: var(--alarm); }
+
+/* Expansion replay */
+.exptools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.exptools input[type=range] { flex: 1 1 240px; }
+.expwrap { position: relative; background: #0b0d10; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+#expCanvas { width: 100%; display: block; }
+.explegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2px 18px; margin: 8px 0; }
+.explrow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.explrow .nbar { max-width: none; flex: 1; }
+.explrow .mval { width: auto; min-width: 64px; }
+#expChart { width: 100%; display: block; margin-top: 6px; cursor: pointer; }
+
 /* Nations ranking */
 .natsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 8px; }
 .nchip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
@@ -427,8 +451,18 @@ body.nomap #mapSec { display: none; }
 .nverd { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; }
 .nverd .tag { cursor: help; }
 .nmood { margin-bottom: 4px; }
-.ncol.mem.up { color: var(--ok); }
-.ncol.mem.down { color: var(--alarm); }
+.ncol.mem { border-left: 3px solid var(--line); }
+.ncol.mem.good { border-left-color: var(--ok); color: var(--text); }
+.ncol.mem.bad { border-left-color: var(--alarm); color: var(--text); }
+.ncol.rel.war { border-left: 3px solid var(--alarm); }
+.ncol.rel.ally { border-left: 3px solid var(--info); }
+.info { color: var(--info); }
+.seg { display: inline-flex; gap: 2px; vertical-align: 0; }
+.seg i { width: 6px; height: 8px; border-radius: 1px; background: var(--panel2); display: inline-block; }
+.seg.ok i.on { background: var(--ok); }
+.seg.warn i.on { background: var(--warn); }
+.seg.alarm i.on { background: var(--alarm); }
+.seg.m i.on { background: var(--muted); }
 .ncol .sw { width: 9px; height: 9px; vertical-align: -1px; }
 
 /* Independence */
@@ -455,3 +489,7 @@ b.alarm, .alarm { color: var(--alarm); }
 
 /* Where a nation lives (mod) */
 svg.where { vertical-align: -4px; color: inherit; }
+
+/* Plain buttons (expansion replay) */
+.btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--gold); }

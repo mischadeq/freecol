@@ -91,7 +91,8 @@ final class CompanionMoods {
         j.key("mood").obj()
             .put("word", f.mood())
             .put("trust", f.trustWord())
-            .put("ambition", ambition(m));
+            .put("ambition", ambition(m))
+            .put("truce", Mood.TRUCE.equals(f.why));
         j.key("goals").arr();
         for (Goal g : m.goals) {
             final String s = goal(g, game, me, m);
@@ -106,6 +107,16 @@ final class CompanionMoods {
                 .end();
         }
         j.endArr();
+        // Coalitions are public.
+        j.key("coalitions").arr();
+        for (String t : m.coalitionTargets) {
+            final Player q = game.getPlayerByNationId(t);
+            if (q == null) continue;
+            j.obj().put("name", (q == me) ? "you"
+                    : Messages.message(q.getNationLabel()))
+                .put("you", q == me).end();
+        }
+        j.endArr();
         // Their feelings about others: only wars and alliances are public.
         j.key("feelings").arr();
         for (Mood.Feeling o : m.feelings.values()) {
@@ -117,6 +128,7 @@ final class CompanionMoods {
                 .put("color", q.getNationColor())
                 .put("stance", (o.stance == Stance.WAR) ? "war" : "alliance")
                 .put("word", o.mood())
+                .put("why", o.why)
                 .end();
         }
         j.endArr();
@@ -189,7 +201,9 @@ final class CompanionMoods {
             : "you damaged " + n + " ships";
         case SETTLEMENT_DESTROYED: return "you destroyed a settlement";
         case DEAL_KEPT: return "you kept the peace";
-        case DEAL_BROKEN: return "you broke the peace";
+        case DEAL_BROKEN: return "you broke your word";
+        case DEAL_LATE: return "you delivered late";
+        case BETRAYER: return "you turned on your ally";
         case GIFT: return "your gift";
         case TRADE: return "trade with you";
         case HELPED_IN_WAR: return "you fought their enemy";

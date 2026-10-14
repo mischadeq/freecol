@@ -142,6 +142,18 @@ public class MemoriesTest extends TestCase {
         }
     }
 
+    public void testDiplomatsWarBreaksTheDeal() {
+        // No hatred, but the English diplomat chose it: not the King.
+        Snapshot a = snap(10), b = snap(11);
+        peace(a, FRENCH, ENGLISH);
+        war(b, FRENCH, ENGLISH);
+        b.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        Memories french = new Memories();
+        french.add(new Memory(Memory.Kind.TREATY, ENGLISH, 5, 1));
+        french.remember(FRENCH, TurnDiff.diff(a, b, new HashSet<>()), a, a.turn);
+        assertHas(french, Memory.Kind.DEAL_BROKEN, ENGLISH, 1);
+    }
+
     public void testKingsWarBreaksNoDeal() {
         Snapshot a = snap(10), b = snap(11);
         peace(a, FRENCH, ENGLISH);
@@ -150,6 +162,53 @@ public class MemoriesTest extends TestCase {
         french.add(new Memory(Memory.Kind.TREATY, ENGLISH, 5, 1));
         french.remember(FRENCH, TurnDiff.diff(a, b, new HashSet<>()), a, a.turn);
         assertEquals(0, french.size());
+    }
+
+    public void testTheServerSaysWhoDeclared() {
+        // No tension at all: once guessed as the King's.  The server
+        // knows: the English chose it, or the English King ordered it.
+        Snapshot a = snap(10), b = snap(11);
+        peace(a, FRENCH, ENGLISH);
+        war(b, FRENCH, ENGLISH);
+        b.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        Observed o = TurnDiff.diff(a, b, new HashSet<>()).get(0);
+        assertEquals(ENGLISH, o.actor);
+        assertFalse(o.forced);
+        Snapshot c = snap(11);
+        war(c, FRENCH, ENGLISH);
+        c.kings.add(Snapshot.key(ENGLISH, FRENCH));
+        o = TurnDiff.diff(a, c, new HashSet<>()).get(0);
+        assertEquals(ENGLISH, o.actor);
+        assertTrue(o.forced);
+    }
+
+    public void testEveryoneSeesABetrayal() {
+        Snapshot a = snap(10), b = snap(11);
+        a.stances.put(Snapshot.key(ENGLISH, FRENCH), Stance.ALLIANCE);
+        a.stances.put(Snapshot.key(FRENCH, ENGLISH), Stance.ALLIANCE);
+        war(b, FRENCH, ENGLISH);
+        b.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        assertHas(remember(DUTCH, a, b), Memory.Kind.BETRAYER, ENGLISH, 1);
+        assertHas(remember(FRENCH, a, b), Memory.Kind.DEAL_BROKEN, ENGLISH, 1);
+        // The King's war on an ally is no betrayal.
+        Snapshot c = snap(11);
+        war(c, FRENCH, ENGLISH);
+        c.kings.add(Snapshot.key(ENGLISH, FRENCH));
+        assertEquals(0, remember(DUTCH, a, c).size());
+        assertEquals(0, remember(FRENCH, a, c).size());
+    }
+
+    public void testSeparatePeaceIsBrokenWord() {
+        // The Dutch and the French, allies, at war with Spain; the
+        // French make peace alone.
+        Snapshot a = snap(10), b = snap(11);
+        a.stances.put(Snapshot.key(DUTCH, FRENCH), Stance.ALLIANCE);
+        a.stances.put(Snapshot.key(FRENCH, DUTCH), Stance.ALLIANCE);
+        war(a, DUTCH, SPANISH);
+        war(b, DUTCH, SPANISH);
+        war(a, FRENCH, SPANISH);
+        peace(b, FRENCH, SPANISH);
+        assertHas(remember(DUTCH, a, b), Memory.Kind.DEAL_BROKEN, FRENCH, 1);
     }
 
     public void testAColonyTakenFromOurEnemyIsHelp() {

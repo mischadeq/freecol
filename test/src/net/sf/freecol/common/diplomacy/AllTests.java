@@ -31,6 +31,10 @@ public class AllTests {
         suite.addTestSuite(BearingsTest.class);
         suite.addTestSuite(SightingsTest.class);
         suite.addTestSuite(MemoriesTest.class);
+        suite.addTestSuite(CommitmentsTest.class);
+        suite.addTestSuite(OfferTest.class);
+        suite.addTestSuite(DealValueTest.class);
+        suite.addTestSuite(CoalitionTest.class);
         return suite;
     }
 }

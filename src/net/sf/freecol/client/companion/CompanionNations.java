@@ -98,24 +98,10 @@ final class CompanionNations {
         final boolean refresh = turn != refreshedTurn;
         refreshedTurn = turn;
         List<Object[]> rows = new ArrayList<>();
+        final List<Settlement> seen = seen(game, me, false);
         for (Player p : game.getLiveEuropeanPlayerList()) {
             if (p.isREF()) continue;
             final boolean met = p == me || me.hasContacted(p);
-
-            // Colony sizes as seen on the map (all of ours).
-            int known = 0, colonists = 0;
-            List<Integer> sizes = new ArrayList<>();
-            for (Tile t : game.getMap().getTileSet(Tile::hasSettlement)) {
-                Settlement s = t.getSettlement();
-                if (s.getOwner() != p) continue;
-                known++;
-                int n = (s instanceof Colony)
-                    ? ((Colony)s).getApparentUnitCount() : 0;
-                colonists += n;
-                sizes.add(n);
-            }
-            sizes.sort(java.util.Comparator.reverseOrder());
-
             NationSummary ns = null;
             if (p == me) {
                 ns = new NationSummary(me, me);
@@ -130,35 +116,97 @@ final class CompanionNations {
                     ns = null;
                 }
             }
-            int[] v = new int[MEASURES.length];
-            java.util.Arrays.fill(v, -1);
-            v[0] = (ns != null) ? ns.getNumberOfSettlements() : known;
-            v[1] = colonists;
-            v[2] = (known > 0) ? Math.round(10f * colonists / known) : -1;
-            if (ns != null) {
-                v[3] = ns.getNumberOfUnits();
-                v[4] = ns.getMilitaryStrength();
-                v[5] = ns.getNavalStrength();
-                v[6] = ns.getGold();
-                v[7] = ns.getSoL();
-                v[8] = ns.getFoundingFathers();
-                v[9] = ns.getTax();
-            }
-            // Output in gold per turn: ours exact, theirs estimated
-            // from their colonists (see NationEstimate).
-            if (p == me) {
-                double sum = 0;
-                for (Colony c : me.getColonyList()) {
-                    sum += NationEstimate.colonyValue(c, me.getMarket());
-                }
-                v[10] = (int)Math.round(sum);
-            } else {
-                v[10] = NationEstimate.output(colonists,
-                    NationEstimate.valuePerColonist(me));
-            }
+            List<Integer> sizes = new ArrayList<>();
+            final int[] v = measures(me, p, ns, seen, sizes);
+            final int known = sizes.size();
             rows.add(new Object[] { p, v, met, known, sizes });
         }
         return rows;
+    }
+
+    /**
+     * The settlements a player knows of, as he last saw them.
+     *
+     * @param game The {@code Game}.
+     * @param me The {@code Player}.
+     * @param saved True for a game read from a save (every player's
+     *     view is kept there), false for the client's own game (which
+     *     is the player's view already).
+     * @return The settlements.
+     */
+    static List<Settlement> seen(Game game, Player me, boolean saved) {
+        List<Settlement> ret = new ArrayList<>();
+        for (Tile t : game.getMap().getTileSet(Tile::hasSettlement)) {
+            final Tile v = (saved) ? t.getPlayerView(me) : t;
+            if (v != null && v.getSettlement() != null) ret.add(v.getSettlement());
+        }
+        return ret;
+    }
+
+    /**
+     * One nation's figures, in {@link #MEASURES} order (-1 unknown).
+     *
+     * @param me The player looking.
+     * @param p The nation.
+     * @param ns Its summary (the Foreign Affairs report), may be null.
+     * @param seen The settlements the player knows of.
+     * @param sizes Filled with the sizes of its known colonies,
+     *     biggest first.
+     * @return The figures.
+     */
+    static int[] measures(Player me, Player p, NationSummary ns,
+                          List<Settlement> seen, List<Integer> sizes) {
+        int known = 0, colonists = 0;
+        for (Settlement s : seen) {
+            if (s.getOwner() == null
+                || !p.getNationId().equals(s.getOwner().getNationId())) continue;
+            known++;
+            int n = (s instanceof Colony)
+                ? ((Colony)s).getApparentUnitCount() : 0;
+            colonists += n;
+            sizes.add(n);
+        }
+        sizes.sort(java.util.Comparator.reverseOrder());
+        int[] v = new int[MEASURES.length];
+        java.util.Arrays.fill(v, -1);
+        v[0] = (ns != null) ? ns.getNumberOfSettlements() : known;
+        v[1] = colonists;
+        v[2] = (known > 0) ? Math.round(10f * colonists / known) : -1;
+        if (ns != null) {
+            v[3] = ns.getNumberOfUnits();
+            v[4] = ns.getMilitaryStrength();
+            v[5] = ns.getNavalStrength();
+            v[6] = ns.getGold();
+            v[7] = ns.getSoL();
+            v[8] = ns.getFoundingFathers();
+            v[9] = ns.getTax();
+        }
+        // Output in gold per turn: ours exact, theirs estimated
+        // from their colonists (see NationEstimate).
+        if (p == me) {
+            double sum = 0;
+            for (Colony c : me.getColonyList()) {
+                sum += NationEstimate.colonyValue(c, me.getMarket());
+            }
+            v[10] = (int)Math.round(sum);
+        } else {
+            v[10] = NationEstimate.output(colonists,
+                NationEstimate.valuePerColonist(me));
+        }
+        return v;
+    }
+
+    /**
+     * Fill turns the page did not see (before it ran) from the archive
+     * of old saves.
+     *
+     * @param older Turn to nation id to figures.
+     */
+    static synchronized void backfill(Map<Integer, Map<String, int[]>> older) {
+        for (Map.Entry<Integer, Map<String, int[]>> e : older.entrySet()) {
+            if (history.containsKey(e.getKey())) continue;
+            history.put(e.getKey(), new TreeMap<>(e.getValue()));
+        }
     }
 
     /**
@@ -395,6 +443,8 @@ final class CompanionNations {
             refreshedTurn = -1;
             load(file(game, me));
         }
+        // Turns before the page ran, from the archive of old saves.
+        backfill(CompanionArchive.of(game, me).measures());
         final int turn = game.getTurn().getNumber();
         final List<Object[]> rows = gather(fcc, game, me);
         Map<String, int[]> now = history.computeIfAbsent(turn, t -> new TreeMap<>());
@@ -410,9 +460,13 @@ final class CompanionNations {
         if (changed) save(file(game, me));
         if (!json) return null;
 
+        final int[] reading = CompanionArchive.of(game, me).progress();
         Json j = new Json().obj().put("turn", turn)
             .put("deWitt", me.hasAbility(
                 net.sf.freecol.common.model.Ability.BETTER_FOREIGN_AFFAIRS_REPORT));
+        if (reading != null) {
+            j.key("reading").arr().val(reading[0]).val(reading[1]).endArr();
+        }
         j.key("measures").arr();
         for (String m : MEASURES) j.val(m);
         j.endArr();

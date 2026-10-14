@@ -37,6 +37,9 @@ public class AllTests {
         suite.addTestSuite(TensionTest.class);
         suite.addTestSuite(EuropeanAIPlayerTest.class);
         suite.addTestSuite(AIMemoriesTest.class);
+        suite.addTestSuite(AIStancesTest.class);
+        suite.addTestSuite(AIOffersTest.class);
+        suite.addTestSuite(AIAlliancesTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.InvasionPlannerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.ScoutPlannerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.WarPreparationsTest.class);

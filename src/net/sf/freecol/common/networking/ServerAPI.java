@@ -465,6 +465,27 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Answer an offer from a computer nation (mod).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, boolean accept) {
+        return send(new OfferMessage(offerId, accept));
+    }
+
+    /**
+     * Post an offer on the notice board (mod).
+     *
+     * @param offer The {@code Offer}.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean postOffer(net.sf.freecol.common.diplomacy.Offer offer) {
+        return ask(new OfferMessage(offer, true));
+    }
+
+    /**
      * Server query-response for disbanding a unit.
      *
      * @param unit The {@code Unit} to operate on.

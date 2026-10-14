@@ -102,6 +102,11 @@ public final class Snapshot {
     public final Map<String, Troop> troops = new HashMap<>();
     /** Last arms sale of a nation to a settlement: "nation|settlement|goods" to turn. */
     public final Map<String, Integer> armsSales = new HashMap<>();
+    /** Wars a computer diplomat chose ("a|b": a declared on b), when
+        known (a live game); a save does not say. */
+    public final java.util.Set<String> declared = new java.util.HashSet<>();
+    /** Wars the King ordered ("a|b": a's King declared on b), when known. */
+    public final java.util.Set<String> kings = new java.util.HashSet<>();
     /** History events as "nation|type|other|turn". */
     public final List<String> events = new ArrayList<>();
 

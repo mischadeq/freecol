@@ -68,6 +68,8 @@ public final class Effects {
     public static final double SHIP_USE = 0.8;
     /** Share of a ship's price that counts as spent (the ship stays ours). */
     public static final double SHIP_COST_SHARE = 0.4;
+    /** What keeping our word to an ally is worth (at normal trust). */
+    public static final double KEEP_WORD = 10;
     /** Muskets to arm one soldier. */
     public static final int MUSKETS_PER_SOLDIER = 50;
 
@@ -107,6 +109,21 @@ public final class Effects {
             sa.security = -SOLDIER_POINTS * threatOf(x);
             sa.relations = -10 - 3 * alliesOf(w, x.id);
             sa.risk += counterRisk(s, x.id);
+            break;
+        }
+        case JOIN_WAR: {
+            // A war on the enemy, but not alone, and keeping our word.
+            final ScoredAction war = of(Action.war(a.target), s);
+            final NationView ally = w.others.get(a.against);
+            sa.land = war.land;
+            sa.gold = war.gold;
+            sa.trade = war.trade;
+            sa.security = war.security / 2;
+            sa.risk = war.risk / 2;
+            sa.relations = (ally == null) ? 0
+                : KEEP_WORD * ally.trust / Relations.DEFAULT_TRUST
+                    + ally.opinion / 10;
+            sa.note = "keeps its word";
             break;
         }
         case ATTACK_COLONY: {

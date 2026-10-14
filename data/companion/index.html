@@ -23,7 +23,7 @@
     <button id="chipAlerts" class="chip" title="Go to the alerts">
       <span class="dot alarm"></span><span id="nAlerts">0</span> alerts</button>
     <span id="chipPending" class="chip" title="Units with go-to orders or trade routes not carried out yet this turn">
-      <span class="sym">&#9654;&#9654;</span> <span id="nPending">0</span> orders</span>
+      <span class="sym">&raquo;</span> <span id="nPending">0</span> orders</span>
     <span id="chipIdle" class="chip" title="Units waiting for orders">
       <span class="sym">&#9711;</span> <span id="nIdle">0</span> idle</span>
     <span id="turnState" class="chip quiet"></span>
@@ -41,7 +41,8 @@
   <button class="tab" data-tab="nations" title="Every nation in plain figures (4)">Nations</button>
   <button class="tab" data-tab="military" title="Your forces against theirs (5)">Military</button>
   <button class="tab" data-tab="independence" title="You against the King's army (6)">Independence</button>
-  <button id="pickToggle" class="pickbtn" title="Choose what the Overview shows">&#9881; Widgets</button>
+  <button class="tab" data-tab="history" title="Replay how every empire grew, turn by turn (7)">History</button>
+  <button id="pickToggle" class="pickbtn" title="Choose what the Overview shows">Widgets</button>
 </nav>
 <div id="picker" class="picker" hidden></div>
 
@@ -92,6 +93,26 @@
     <section id="indepSec" data-w="independence">
       <h2>Independence <span class="sub">you against the King's army; every fight is a dice roll: attack against defence</span></h2>
       <div id="indep" class="indep"></div>
+    </section>
+    <section id="expSec" data-w="expansion">
+      <h2>Expansion <span class="sub">how every empire grew, turn by turn, as you saw it: colonies and the land they own</span></h2>
+      <div class="exptools">
+        <button id="expPlay" class="btn">Play</button>
+        <input id="expTurn" type="range" min="0" max="0" value="0">
+        <b id="expLabel"></b>
+        <label class="m">Speed <select id="expSpeed"><option value="600">slow</option><option value="250" selected>normal</option><option value="90">fast</option></select></label>
+      </div>
+      <div class="expwrap"><canvas id="expCanvas"></canvas><div id="exptip" class="tip" hidden></div></div>
+      <div id="expLegend" class="explegend"></div>
+      <div class="mchart">
+        <div class="mhead"><b>Land owned</b> <span class="m">tiles per nation; click to jump to a turn</span></div>
+        <div class="mwrap"><svg id="expChart" role="img"></svg></div>
+      </div>
+      <p id="expNote" class="note m"></p>
+    </section>
+    <section id="offersSec" data-w="offers">
+      <h2>Offers <span class="sub">peace terms and the notice board; you answer in the game, deals are done by ship</span></h2>
+      <div id="offers" class="offers"></div>
     </section>
     <section id="routesSec" data-w="routes">
       <h2>Trade routes <span class="sub">what each route unloaded in the last 10 turns</span></h2>

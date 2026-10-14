@@ -915,6 +915,257 @@ game, and the player can read their mood on the companion cards.
   units lost by a nation at war with two or more others are not
   blamed on anyone (the save does not say who killed them).
 
+### Step 3a built: computer nations choose war and peace (2026-10-14)
+Between two computer nations, war, peace and alliances now come from
+the diplomat instead of the tension rule.
+- **How:** `EuropeanAIPlayer.determineStances` asks the diplomat (the
+  turn's `Outlook`) for DECLARE_WAR / MAKE_PEACE / ALLIANCE towards
+  each other computer nation; it acts at a score of 20 or more.
+- **Both sides:** a war is one side's choice; peace needs the other's
+  diplomat not to be against it (score 0 or more), an alliance needs it
+  to want one too (5 or more).
+- **Commitment** (new `common/diplomacy/Commitments`): a choice holds
+  at least 10 turns; after that a different choice must score 30% more
+  than the old one did. A shock lifts both: war declared on us (not by
+  the King), a colony of ours taken or destroyed. Choices and the last
+  shock are saved with the game ("stanceChoices").
+- **Why, in words:** each choice keeps its main reason ("revenge",
+  "wants their colonies", "war is too dangerous", "hates them", ...).
+  The companion card shows it in the "Feels" row:
+  "Spain: ⚔ hostile · revenge".
+- **Unchanged:** wars with the human player (old tension rule, war on
+  you should come with a grievance first: step 6), with the tribes, the
+  King's wars, the REF.
+- **Who declared:** a save does not say; the replay guesses from
+  tension. In a live game the computer diplomats now tell the snapshot
+  which wars they chose, so a broken peace gives `DEAL_BROKEN` and a
+  shock even when the declarer was not hateful.
+- **Tested:** `CommitmentsTest` (only strong war/peace/alliance moves,
+  the 10-turn hold, 30% better, a shock lifts it, what is a shock,
+  reasons in words, save/parse), `AIStancesTest` (the diplomat decides
+  only between computer nations; angry is not enough for war; old rule
+  towards the human; choices saved and loaded), `MemoriesTest` (a
+  diplomat's war breaks a peace). All 570 tests green.
+- **To look at:** full hatred (tension 1100) with nothing else to gain
+  scores exactly 20, just enough for a war "because it hates them".
+  That matches the old rule (war at 1010); should a war need a real
+  gain too?
+- **Not yet:** the replay check on Mischa's saves ("own wars with a
+  reason"); the replay still guesses declarers from tension. Offers
+  (3b) not started.
+- **Decided with Mischa:** a war out of pure hatred stays in ("a nation
+  I have vexed since the start should hate me and try to get rid of
+  me").
+
+### Companion: no emojis, charts back to the start, History tab (2026-10-14)
+- **No emojis** (Mischa: colours, charts and meters instead). Mood and
+  trust are coloured chips with a small segment meter (hostile 1 of 4
+  .. friendly 4 of 4; distrusts 1 of 3 .. trusts 3 of 3); memories
+  and wars/alliances get a green/red/blue edge; ambition is a plain
+  chip; the sea-fight line says "Sea fights:". The gear on "Widgets"
+  and the ▶▶ on "orders" (both can show as colour emoji) are gone. In
+  the game: the trade route editor's ✓, ⚠ and ✕ are gone (the lines
+  are already coloured; the remove button is a plain X). Plain text
+  symbols stay (★ capital, ✝ mission, the original ✧ in the menu bar).
+- **Archive** (new `client/companion/CompanionArchive`): per turn the
+  empire figures, the settlements (place, owner, size) and who owned
+  each tile, as the player saw it. Recorded every turn while the page
+  runs; once per game, in a background thread, it reads the game's old
+  autosaves (only this game's, only missing turns) to fill the turns
+  before the page ran. Kept in `companion/expansion-<game>-<player>.txt`
+  in the user data folder (runs of owned tiles, small).
+  Honest: from a save only the player's view of each tile (new
+  `Tile.getPlayerView`) and the Foreign Affairs report.
+- **Empire chart goes back to the start:** the turns before the page
+  ran come from the archive. The note under the chart says while old
+  saves are being read ("Reading old autosaves: 40 of 230").
+- **History tab (key 7): expansion replay.** A big map: every
+  nation's land in its colour (tribes faint), colonies as dots growing
+  with their size, native settlements as small squares. Play/pause, a
+  turn slider, slow/normal/fast. Legend: land tiles (bar) and colonies
+  per nation at that turn ("6 / 7 colonies": seen on the map / in the
+  Foreign Affairs report). Below, a "Land owned" line chart per nation
+  with a cursor; click it to jump to a turn. Also an Overview widget.
+- **Tested:** `ArchiveTest` (a frame from a save shows only what the
+  player had seen; written and read back the same; reads a real save
+  from a folder, skips another game's, reads each turn once), the page
+  rendered in headless Chromium with made-up data (no script errors,
+  play and slider work). All tests green.
+- **Not yet:** the land backdrop is the map as known now, not as known
+  then; autosaves the game already deleted can not be read (FreeCol
+  keeps one per turn unless "delete autosaves" is on).
+
+### Step 3b built: offers, the notice board, trade ships (2026-10-14)
+Computer nations now start deals with the human player, and the player
+can post his own. Decided with Mischa: peace and gold by messenger,
+goods by ship; a public notice board; the player answers in the game,
+the companion page only shows.
+- **How the player answers:** a dialog at the start of his turn
+  (Accept / Decline), plus a line in the turn report. The game's trade
+  screen could not be used for messenger offers: it needs a unit next
+  to the colony, both ways (`DiplomacyMessage` checks it). New
+  `OfferMessage` (offer to the player, his answer, his own posts).
+  No counter-offers in this dialog.
+- **Peace terms by messenger:** a computer nation at war with the
+  player whose diplomat scores peace at 5 or more offers it, with gold
+  (a fifth of its treasury, at most 1000) when it is losing. Accept:
+  peace and the gold at once. Decline: "turned down their offer" is
+  remembered. The terms stay 5 turns.
+- **Notice board:** the diplomat's best trade move becomes a public
+  notice, "wanted: 100 muskets, 600 gold, deliver to Havana" or "for
+  sale: 200 furs, fetch at Quebec". Seen first by the nation it likes
+  most, after 3 turns by every nation it feels at least neutral about,
+  never by an enemy; up 10 turns. Accepting is a promise: a ship of the
+  player next to the colony at the start of the computer's turn, with
+  the goods (or the room and the gold), completes it. Deadline: twice
+  the sailing time plus 4 (6..15 turns). On time: full price,
+  remembered as a kept deal and a trade. A little late (up to half the
+  deadline over): 25% less, "delivered late" (small trust loss). Very
+  late: no deal, "broke your word" (trust cut hard). Reminders at 3 and
+  1 turns left. No way to cancel yet.
+- **Trade ships:** when the diplomat's best trade is with the player
+  and a ship is free (empty, nothing to do but hauling), the computer
+  loads the goods (or takes the gold) and sails to the player's nearest
+  coastal colony (`TradeVoyageMission`); next to it, the game's trade
+  screen opens with the deal. The turn report says when it sets out.
+  Computer ships on such a voyage may trade with foreign colonies
+  without Jan de Witt (the player's own ships still need him).
+- **The player posts offers:** Reports > Post a Trade Offer (want or
+  sell, goods, amount, gold, coastal colony). Every computer nation
+  weighs it on its turn; one that does not dislike the player and
+  gains 10% on it (at its diplomat's values) sends a ship.
+- **The player's offers judged by the diplomat** (`DealValue`): goods
+  at their Europe price (1.5x when short, nothing for boycotted goods
+  given away), peace and alliances at the diplomat's score (a point is
+  100 gold); no alliance with a nation it does not like. The old rule
+  counted goods the computer gives away as a gain.
+- At most one offer of its own per nation per 5 turns. All offers are
+  saved with the game.
+- **Companion:** Trade tab, "Offers": every offer the player was shown,
+  took or posted, with state chips and a countdown bar (green, orange,
+  red when late).
+- **Tested:** `OfferTest` (who sees a notice when, deadlines, late and
+  too late prices, stale, save/parse), `DealValueTest`, `AIOffersTest`
+  (peace accepted moves stance and gold, declined is remembered,
+  delivered on time / late / too late, goods fetched, offers saved and
+  told once, the trade ship's berth, deal and saved mission, the ship
+  opening the trade through the server, the player's post taken by the
+  Dutch who send a ship, one offer per 5 turns, an alliance from a
+  hated nation refused). All tests green.
+- **Not yet (or to try in a game):** no counter-offers in the offer
+  dialog; no cancelling a promise; computer nations do not take each
+  other's notices (only the player can); peace terms are never asked
+  of the player by the computer for his wars (only offered); the
+  diplomat's sale prices are rough (80% of Europe's for sales, 120%
+  for purchases).
+
+### Step 5a built: alliances are defensive pacts (2026-10-14)
+In the base game an alliance meant almost nothing. Now:
+- **Who declared a war is known.** The server notes every declaration
+  and whether the King ordered it (new `WarDeclarations`; the King's
+  order runs through `WarDeclarations.asKing`). The turn diff uses it,
+  so the player's own declarations are no longer taken for the King's
+  (the step 2 limitation is gone). Not saved: after a load the last
+  round's wars are guessed from tension again.
+- **Calls to arms.** When a nation declares war on our ally (not the
+  King), we are called. A computer ally scores `JOIN_WAR` (the war's
+  own worth, half its risk because it does not fight alone, plus
+  keeping its word: 10 at normal trust, more when it likes the ally)
+  and joins at 0 or more. The player gets a dialog. Joining: the ally
+  remembers "you fought their enemy". Refusing: the alliance ends and
+  the ally remembers "you broke your word". The turn report tells the
+  player when his computer ally joins or refuses.
+- **Betrayal is public.** Every nation that sees a nation declare war
+  on its own ally remembers it as a betrayer (`BETRAYER`: opinion -10,
+  trust -15). An ally that makes a separate peace with the common
+  enemy broke its word.
+- **The King's wars do not call allies** (Mischa: local allies against
+  global enemies). When a King's war sets two New World allies
+  against each other, it is not betrayal. A loyal ally (trust at least
+  50 and not disliking the other, measured before the King's order)
+  keeps a **local truce**: its soldiers do not attack the partner (new
+  check in `Mission.invalidAttackReason`, and `InvasionPlanner` skips
+  its colonies), it offers peace (to the player: peace terms; two
+  loyal computer allies make peace on the second one's turn). A
+  disloyal one fights. A partner that attacks during the truce ends it
+  and is remembered as having broken its word. Truces are saved with
+  the choices (`Commitments`).
+- **Allies share what they see:** an ally's sightings feed our guesses
+  of where the others live.
+- **Invitations:** a computer nation whose diplomat scores an alliance
+  with the player at 20 or more invites him (dialog).
+- **Tested:** `AIAlliancesTest` (the King's war is noted as his; a
+  computer ally joins or leaves; the player is called, accepting means
+  war, refusing ends the alliance and is remembered; a loyal ally keeps
+  a truce, offers peace and its soldiers leave the partner alone; a
+  disloyal one fights; two loyal computers make peace), `MemoriesTest`
+  (the server says who declared; betrayal seen by all, not for the
+  King's war; separate peace), `CommitmentsTest` (truces saved). All
+  599 tests green.
+- **Not yet:** a truce broken by the partner is only noticed through
+  losses and captured colonies. Soldiers standing in an ally's colony:
+  never (Mischa).
+
+### Step 5b built: joint wars (2026-10-14)
+- A computer nation at war whose diplomat scores paying another nation
+  to join (its `INCITE` move) at 20 or more asks it: "join our war
+  against Spain, 500 gold now; the colonies you take are yours". When
+  it has less gold than the price, it promises the colony it plans to
+  take instead ("and Havana if we take it"), as Mischa decided: only
+  conquered colonies, a division of the spoils.
+- A computer partner weighs it with its own diplomat (the war itself
+  plus the gold, plus 15 points for a promised colony) and joins at 20
+  or more; refusing is remembered as a refused offer. The player gets a
+  dialog. Accepting declares the war at once and the gold moves.
+- The joint war is kept as the offer (state "taken"). When the inviter
+  takes the promised colony, it hands it over (remembered as a kept
+  deal). A partner that makes peace alone while the inviter still
+  fights broke its word; the inviter itself makes no separate peace
+  while its partner fights. At most one joint-war offer per 5 turns.
+- **Tested:** `AIAlliancesTest` (the player joins for gold, the
+  promised colony is handed over, his separate peace is remembered and
+  the inviter is no longer bound; a computer partner goes to war and is
+  paid). All tests green.
+- **Not yet:** a partner's promised colony of its own conquest is not
+  asked for; the target cannot buy a partner out yet.
+
+### Step 5c built: coalitions against a runaway leader (2026-10-14)
+- **The line by difficulty** (Mischa): a nation whose threat (60% army
+  share, 40% output share) reaches 0.40 on very easy, 0.38, 0.35 on
+  medium, 0.32, 0.30 on very hard is a runaway leader (new
+  `Coalition.line`, in every world view).
+- **Forming.** A balance keeper (the French in the classic rules)
+  starts a coalition at the line, any other nation when the leader is
+  0.05 over it. Computer nations that see the same leader and like the
+  founder join at once; the player is invited (dialog). Members are
+  allied with each other (5a pacts). One coalition per target; a
+  founder whose invitations all fail waits 10 turns before trying
+  again. A human target is told in the turn report: "A coalition has
+  formed against you: France, Holland".
+- **Acting.** Attacked: the pacts call the members. Attacking: when the
+  members' armies together are 1.2 times the target's and the
+  founder's war score plus 10 reaches 20, the founder declares war and
+  calls every member: computer members join (`JOIN_WAR` plus 10) or
+  leave the coalition and the alliance (remembered as a broken word);
+  the player gets a call to arms.
+- **Ending.** When the target's threat stays under 0.25 for 10 turns,
+  or fewer than two members are left (a lone founder waits 5 turns for
+  answers). Members who go to war with the founder or ally with the
+  target drop out. Saved with the founder ("coalitions").
+- **Companion:** cards show "Coalition against Spain" (red when it is
+  against you) and "Local truce" in a King's war; the Offers list
+  shows calls to arms, alliance and coalition invitations and joint
+  wars.
+- **Tested:** `CoalitionTest` (line by difficulty, the line decides the
+  leader, ends when calm, waits for answers, save/parse),
+  `AIAlliancesTest` (a coalition forms against a runaway Spain, the
+  Dutch join, the player is invited and becomes allied with every
+  member, only one coalition per target; at war, members are called
+  and fight or leave; coalitions are saved). All 608 tests green.
+- **Next (Mischa):** the relations graph on the companion page (5d),
+  after step 7; a coalition planning its attacks together. Open: the
+  target buying a member out (Yamasee War).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

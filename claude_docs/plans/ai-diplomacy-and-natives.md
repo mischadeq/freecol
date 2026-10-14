@@ -225,6 +225,15 @@ decisions are logged so we can see why it did something.
    causes, coalitions form against runaway leaders, and nobody spams
    offers.
 
+**Order after step 3 (decided with Mischa, 2026-10-14):** steps 0 to 3
+are built. Next, in this order:
+
+1. Step 5: alliances, joint wars and coalitions.
+2. Step 7: native tribes.
+3. Step 6: grievances and ultimatums before war.
+4. Step 8: tuning.
+5. Step 4: trade agreements, last for now.
+
 ## Decisions (2026-10-13)
 
 | Question | Decision |

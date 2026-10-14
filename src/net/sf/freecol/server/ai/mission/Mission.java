@@ -338,6 +338,10 @@ public abstract class Mission extends AIObject {
                     || (unit.hasAbility(Ability.PIRACY)
                         && player.getStance(other) != Stance.ALLIANCE)))
             ? "target-european-war-absent"
+            : (player.isEuropean() && aiUnit.getAIOwner() instanceof EuropeanAIPlayer
+                && ((EuropeanAIPlayer)aiUnit.getAIOwner()).getCommitments()
+                    .inTruce(other.getNationId()))
+            ? "target-local-truce" // mod: a King's war on a loyal ally
             : null;
     }
 

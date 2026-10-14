@@ -140,6 +140,12 @@ public final class Memories {
                 }
                 break;
             case WAR:
+                if (!o.forced && !me.equals(o.other) && !me.equals(o.actor)
+                    && o.other != null
+                    && before.stance(o.actor, o.other) == Stance.ALLIANCE) {
+                    // Everyone sees a nation turn on its ally.
+                    add(new Memory(Memory.Kind.BETRAYER, o.actor, turn, 1));
+                }
                 if (me.equals(o.other) || me.equals(o.actor)) {
                     final String them = me.equals(o.actor) ? o.other : o.actor;
                     final boolean treaty = removeTreaty(them);
@@ -151,6 +157,16 @@ public final class Memories {
                 }
                 break;
             case PEACE:
+                // Our ally made peace with our common enemy, alone.
+                for (String[] p : new String[][] { { o.actor, o.other },
+                                                   { o.other, o.actor } }) {
+                    if (p[0] == null || p[1] == null || me.equals(p[0])
+                        || me.equals(p[1])) continue;
+                    if (before.stance(me, p[0]) == Stance.ALLIANCE
+                        && before.stance(me, p[1]) == Stance.WAR) {
+                        add(new Memory(Memory.Kind.DEAL_BROKEN, p[0], turn, 1));
+                    }
+                }
                 if (me.equals(o.other) || me.equals(o.actor)) {
                     final String them = me.equals(o.actor) ? o.other : o.actor;
                     removeTreaty(them);

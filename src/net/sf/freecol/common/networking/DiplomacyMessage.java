@@ -351,7 +351,9 @@ public class DiplomacyMessage extends ObjectMessage {
                 ? ((!ourUnit.isCarrier())
                     ? serverPlayer.clientError("Unit is not a carrier: "
                         + ourUnit)
-                    : (!serverPlayer.hasAbility(Ability.TRADE_WITH_FOREIGN_COLONIES))
+                    // Computer trade voyages (mod) need no de Witt.
+                    : (!serverPlayer.hasAbility(Ability.TRADE_WITH_FOREIGN_COLONIES)
+                        && !serverPlayer.isAI())
                     ? serverPlayer.clientError("Player lacks ability"
                         + " to trade with other Europeans: " + serverPlayer)
                     : (otherColony == null)
@@ -361,7 +363,8 @@ public class DiplomacyMessage extends ObjectMessage {
                 : ((!otherUnit.isCarrier())
                     ? serverPlayer.clientError("Unit is not a carrier: "
                         + otherUnit)
-                    : (!otherPlayer.hasAbility(Ability.TRADE_WITH_FOREIGN_COLONIES))
+                    : (!otherPlayer.hasAbility(Ability.TRADE_WITH_FOREIGN_COLONIES)
+                        && !otherPlayer.isAI())
                     ? serverPlayer.clientError("Player lacks ability"
                         + " to trade with other Europeans: " + otherPlayer)
                     : igc.diplomacy(serverPlayer, ourColony, otherUnit,

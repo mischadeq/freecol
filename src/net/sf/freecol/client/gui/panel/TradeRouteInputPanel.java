@@ -494,7 +494,7 @@ public final class TradeRouteInputPanel extends FreeColPanel {
             buttons.setOpaque(false);
             buttons.add(smallButton("↑", "up", () -> moveStop(index, -1), i > 0));
             buttons.add(smallButton("↓", "down", () -> moveStop(index, 1), i < n - 1));
-            buttons.add(smallButton("✕", "remove", () -> removeStop(index), true));
+            buttons.add(smallButton("X", "remove", () -> removeStop(index), true));
             row.add(buttons);
             this.stopsPanel.add(row);
         }
@@ -589,11 +589,11 @@ public final class TradeRouteInputPanel extends FreeColPanel {
         List<StringTemplate> ws = RoutePlan.warnings(this.stops, this.minHolds,
                                                      getMyPlayer());
         if (ws.isEmpty()) {
-            this.warningsPanel.add(label("✓ " + Messages.message(PREFIX + "ok"),
+            this.warningsPanel.add(label(Messages.message(PREFIX + "ok"),
                                          this.cGood));
         }
         for (StringTemplate w : ws) {
-            this.warningsPanel.add(label("⚠ " + Messages.message(w), this.cAlarm));
+            this.warningsPanel.add(label(Messages.message(w), this.cAlarm));
         }
     }
 

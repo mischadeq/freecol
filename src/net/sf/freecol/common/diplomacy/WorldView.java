@@ -65,6 +65,8 @@ public final class WorldView {
     public final java.util.Set<String> enemiesAtGates = new java.util.HashSet<>();
     /** What it remembers. */
     public final List<Memory> memories = new ArrayList<>();
+    /** Threat at which a coalition forms (by difficulty level). */
+    public double coalitionLine = Threat.COALITION_LINE;
     /** Stances between other nations ("a|b" to stance); wars are public. */
     private final Map<String, Stance> between = new HashMap<>();
 
