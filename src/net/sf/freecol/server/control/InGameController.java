@@ -1897,6 +1897,32 @@ public final class InGameController extends Controller {
 
 
     /**
+     * A player answers an offer of a computer nation (mod).
+     *
+     * @param serverPlayer The {@code ServerPlayer} answering.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @return A {@code ChangeSet} encapsulating this action.
+     */
+    public ChangeSet answerOffer(ServerPlayer serverPlayer, String id,
+                                 boolean accept) {
+        final ChangeSet cs = new ChangeSet();
+        final net.sf.freecol.server.ai.AIMain aiMain
+            = getFreeColServer().getAIMain();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer
+                && new net.sf.freecol.server.ai.diplomacy.OfferPlanner(
+                    (net.sf.freecol.server.ai.EuropeanAIPlayer)ai)
+                .answer(serverPlayer, id, accept, cs)) {
+                getGame().sendToOthers(serverPlayer, cs);
+                return cs;
+            }
+        }
+        return serverPlayer.clientError("No such offer: " + id);
+    }
+
+    /**
      * Disband a unit.
      *
      * @param serverPlayer The owner of the unit.

@@ -251,6 +251,18 @@ public final class CompanionServer {
                     json = "{}";
                 }
                 send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/offers".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionOffers.build(CompanionOffers.known(this.fcc,
+                                this.fcc.getMyPlayer()),
+                            this.fcc.getGame(), this.fcc.getMyPlayer()));
+                } catch (Exception e) {
+                    json = "{}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
             } else if ("/api/expansion".equals(path)) {
                 String json;
                 try {

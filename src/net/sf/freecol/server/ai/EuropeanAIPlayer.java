@@ -75,6 +75,7 @@ import net.sf.freecol.common.diplomacy.Memories;
 import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.Mood;
 import net.sf.freecol.common.diplomacy.Observed;
+import net.sf.freecol.common.diplomacy.Offer;
 import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Sightings;
@@ -123,6 +124,7 @@ import net.sf.freecol.common.util.CachingFunction;
 import net.sf.freecol.common.util.LogBuilder;
 import net.sf.freecol.common.util.RandomChoice;
 import net.sf.freecol.server.ai.military.MilitaryCoordinator;
+import net.sf.freecol.server.ai.diplomacy.OfferPlanner;
 import net.sf.freecol.server.ai.military.ScoutPlanner;
 import net.sf.freecol.server.ai.military.WarPreparations;
 import net.sf.freecol.server.ai.mission.BuildColonyMission;
@@ -2413,6 +2415,18 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return commitments;
     }
 
+    /**
+     * Our offers to the human players (mod): peace terms and notices,
+     * open, taken or recently finished.  Saved with the game.  No
+     * initializer, as for {@link #bearings}.
+     */
+    private List<Offer> offers;
+
+    public List<Offer> getOffers() {
+        if (offers == null) offers = new ArrayList<>();
+        return offers;
+    }
+
     /** The diplomat's outlook, only while this turn's work is done. */
     private Outlook outlook;
 
@@ -2628,7 +2642,10 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             outlook = makeOutlook();
         }
         if (determineStances(lb) && !player.isREF()) outlook = makeOutlook();
-        if (!player.isREF()) mood = Mood.of(outlook, getCommitments());
+        if (!player.isREF()) {
+            mood = Mood.of(outlook, getCommitments());
+            new OfferPlanner(this).plan(outlook, lb);
+        }
 
         if (colonyCount > 0) {
             lb.add("\n  Badly defended:"); // FIXME: prioritize defence
@@ -3342,6 +3359,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String KEPT_ARMED_TAG = "keptArmed";
     /** What we remember (mod): "KIND:nation:turn:count;...". */
     private static final String MEMORIES_TAG = "memories";
+    /** Our offers (mod), see {@link Offer#serialize}, ';' separated. */
+    private static final String OFFERS_TAG = "offers";
     /** Our war and peace choices (mod), see {@link Commitments}. */
     private static final String STANCE_CHOICES_TAG = "stanceChoices";
 
@@ -3369,6 +3388,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         final String choices = getCommitments().serialize();
         if (!choices.isEmpty()) xw.writeAttribute(STANCE_CHOICES_TAG, choices);
+        if (!getOffers().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (Offer o : getOffers()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(o.serialize());
+            }
+            xw.writeAttribute(OFFERS_TAG, sb.toString());
+        }
     }
 
     /**
@@ -3381,6 +3408,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         memories = Memories.parse(xr.getAttribute(MEMORIES_TAG, (String)null));
         commitments = Commitments.parse(xr.getAttribute(STANCE_CHOICES_TAG,
                                                         (String)null));
+        offers = new ArrayList<>();
+        final String os = xr.getAttribute(OFFERS_TAG, (String)null);
+        if (os != null && !os.isEmpty()) {
+            for (String rec : os.split(";")) {
+                final Offer o = Offer.parse(rec);
+                if (o != null) offers.add(o);
+            }
+        }
         keptArmed = new HashMap<>();
         final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);
         if (kept != null) {

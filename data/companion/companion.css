@@ -287,6 +287,18 @@ img.gi[data-g] { cursor: help; }
 .mrow.mh { background: none; cursor: default; color: var(--muted); font-size: 12px; }
 .mrow .num { text-align: right; }
 
+/* Offers */
+.offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.ocard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.ohead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ohead .m { margin-left: auto; font-size: 12px; }
+.owhat { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.oclock { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.oclock .nbar { max-width: none; flex: 1; }
+.oclock i.ok { background: var(--ok); }
+.oclock i.warn { background: var(--warn); }
+.oclock i.alarm { background: var(--alarm); }
+
 /* Expansion replay */
 .exptools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .exptools input[type=range] { flex: 1 1 240px; }

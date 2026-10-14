@@ -49,6 +49,8 @@ public final class Memory {
         TREATY(0, Memories.PROBATION, 0),
         /** A peace or alliance with them that held. */
         DEAL_KEPT(10, 40, 15),
+        /** They delivered what they promised, but late. */
+        DEAL_LATE(-2, 15, -5),
         /** They broke a fresh peace or attacked their ally (us). */
         DEAL_BROKEN(-40, 60, -40),
         /** They gave us something for nothing. */

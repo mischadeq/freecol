@@ -190,7 +190,8 @@ final class CompanionMoods {
             : "you damaged " + n + " ships";
         case SETTLEMENT_DESTROYED: return "you destroyed a settlement";
         case DEAL_KEPT: return "you kept the peace";
-        case DEAL_BROKEN: return "you broke the peace";
+        case DEAL_BROKEN: return "you broke your word";
+        case DEAL_LATE: return "you delivered late";
         case GIFT: return "your gift";
         case TRADE: return "trade with you";
         case HELPED_IN_WAR: return "you fought their enemy";

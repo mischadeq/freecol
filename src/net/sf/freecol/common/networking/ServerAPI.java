@@ -465,6 +465,17 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Answer an offer from a computer nation (mod).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, boolean accept) {
+        return send(new OfferMessage(offerId, accept));
+    }
+
+    /**
      * Server query-response for disbanding a unit.
      *
      * @param unit The {@code Unit} to operate on.

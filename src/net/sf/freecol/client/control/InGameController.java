@@ -3650,6 +3650,76 @@ public final class InGameController extends FreeColClientHolder {
         }
     }
 
+    /** Offers from computer nations waiting for our turn (mod). */
+    private final java.util.List<net.sf.freecol.common.diplomacy.Offer> pendingOffers
+        = new java.util.ArrayList<>();
+
+    /**
+     * An offer from a computer nation arrived (mod): ask at once during
+     * our turn, else at the start of it.
+     *
+     * Called from OfferMessage.
+     *
+     * @param offer The {@code Offer}.
+     */
+    public void offerHandler(net.sf.freecol.common.diplomacy.Offer offer) {
+        synchronized (this.pendingOffers) {
+            this.pendingOffers.add(offer);
+        }
+        if (currentPlayerIsMyPlayer()) showOffers();
+    }
+
+    /** Ask about every waiting offer, one dialog each. */
+    private void showOffers() {
+        final java.util.List<net.sf.freecol.common.diplomacy.Offer> l;
+        synchronized (this.pendingOffers) {
+            l = new java.util.ArrayList<>(this.pendingOffers);
+            this.pendingOffers.clear();
+        }
+        for (net.sf.freecol.common.diplomacy.Offer o : l) {
+            final StringTemplate t = offerTemplate(o);
+            if (t == null) continue;
+            invokeLater(() -> {
+                    final boolean yes = getGUI().modalConfirmDialog(t,
+                        "offer.accept", "offer.decline");
+                    askServer().answerOffer(o.id, yes);
+                });
+        }
+    }
+
+    /**
+     * The question for an offer.
+     *
+     * @param o The {@code Offer}.
+     * @return The {@code StringTemplate}, or null if it can not be shown.
+     */
+    private StringTemplate offerTemplate(net.sf.freecol.common.diplomacy.Offer o) {
+        final Player from = getGame().getPlayerByNationId(o.from);
+        if (from == null) return null;
+        final GoodsType gt = (o.goods == null) ? null
+            : getSpecification().getGoodsType(o.goods);
+        final String key;
+        switch (o.kind) {
+        case PEACE:
+            key = (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
+            break;
+        case WANT:
+            key = "offer.want";
+            break;
+        default:
+            key = "offer.sell";
+            break;
+        }
+        StringTemplate t = StringTemplate.template(key)
+            .addStringTemplate("%nation%", from.getNationLabel())
+            .addAmount("%amount%", o.amount)
+            .addAmount("%gold%", o.gold)
+            .addAmount("%turns%", o.deadline)
+            .addName("%colony%", o.placeName);
+        if (gt != null) t.addNamed("%goods%", gt);
+        return t;
+    }
+
     /**
      * Disbands the active unit.
      *
@@ -5679,6 +5749,8 @@ public final class InGameController extends FreeColClientHolder {
             }
             // Sea fights during the other nations' turns.
             noteFights();
+            // Offers that came during the others' turns (mod).
+            showOffers();
             // Keep the route history in step with the turn (and forget
             // turns that are being played again).
             try {

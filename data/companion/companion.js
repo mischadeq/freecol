@@ -164,6 +164,7 @@
     // The nation figures need the server, so only ask during our turn.
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
     if (shownWidgets().includes("expansion") && (s.turn !== expTurn || (exp && exp.reading))) loadExpansion(s.turn);
+    if (shownWidgets().includes("offers") && (s.turn !== offTurn || Date.now() - offAt > 10000)) loadOffers(s.turn);
     if (shownWidgets().includes("independence") && s.myTurn &&
         (s.turn !== indepTurn || Date.now() - indepAt > 10000)) loadIndependence(s.turn);
     if (view.auto) fitView();
@@ -1655,11 +1656,12 @@
     { w: "nations", label: "Nations" },
     { w: "military", label: "Military" },
     { w: "independence", label: "Independence" },
-    { w: "expansion", label: "Expansion replay" }
+    { w: "expansion", label: "Expansion replay" },
+    { w: "offers", label: "Offers" }
   ];
   const TABS = {
     colonies: ["colonies", "goods"],
-    trade: ["map", "network", "routes", "market"],
+    trade: ["map", "offers", "network", "routes", "market"],
     nations: ["nations"],
     military: ["military"],
     independence: ["independence"],
@@ -1697,6 +1699,7 @@
     tab = t;
     if (t === "independence" && state) loadIndependence(state.turn);
     if (t === "history") loadExpansion();
+    if (t === "trade") loadOffers(state ? state.turn : null);
     store.set("fc.tab", t);
     applyTab();
     $("main").scrollTop = 0;
@@ -1944,6 +1947,49 @@
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
     }).join("");
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- offers
+
+  let offTurn = null, offAt = 0;
+  async function loadOffers(turn) {
+    offAt = Date.now();
+    try {
+      const r = await fetch("/api/offers", { cache: "no-store" });
+      const d = await r.json();
+      if (d.offers) { offTurn = turn; renderOffers(d.offers); }
+    } catch (e) { /* Try again next poll */ }
+  }
+
+  const OFFER_STATE = {
+    open: ["info", "open"], taken: ["warn", "promised"], done: ["ok", "done"], late: ["warn", "done late"],
+    failed: ["alarm", "failed"], declined: ["m", "declined"], expired: ["m", "expired"], cancelled: ["m", "called off"]
+  };
+  function renderOffers(list) {
+    if (!list.length) {
+      $("offers").innerHTML = '<p class="m">No offers yet. Computer nations post them on the notice board (first to the nation they like most) and send peace terms when they want out of a war with you.</p>';
+      return;
+    }
+    $("offers").innerHTML = list.map((o) => {
+      const st = OFFER_STATE[o.state] || ["m", o.state];
+      let what;
+      if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else what = (o.kind === "want" ? "Wants " : "Sells ") + (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) +
+        " for <b>" + num(o.gold) + "</b> gold · " + (o.kind === "want" ? "deliver to " : "fetch at ") + esc(o.place);
+      let clock = "";
+      if (o.left != null) {
+        const used = Math.max(0, Math.min(1, (o.deadline - o.left) / o.deadline));
+        const cls = o.left > 3 ? "ok" : o.left >= 0 ? "warn" : "alarm";
+        clock = '<div class="oclock" title="Turns left to complete the deal; late pays less, very late ends it">' +
+          '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * used) + '%"></i></span> ' +
+          (o.left >= 0 ? o.left + " turns left" : (-o.left) + " turns late, pays " + num(o.priceNow)) + "</div>";
+      } else if (o.kind !== "peace" && o.state === "open") {
+        clock = '<div class="m">' + o.deadline + " turns to deliver once accepted</div>";
+      }
+      return '<div class="ocard"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.from) + "</b>" +
+        '<span class="tag ' + st[0] + '">' + st[1] + '</span><span class="m">' + esc(o.posted) + "</span></div>" +
+        '<div class="owhat">' + what + (o.paid ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
+    }).join("");
   }
 
   // ---------------------------------------------------------------- expansion replay
