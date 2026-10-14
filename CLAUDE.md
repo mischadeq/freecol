@@ -8,7 +8,10 @@ Read these first, in this order:
 1. `claude_docs/ideas.md`: what is built (newest entries just above
    "Ideas, not started") and what is waiting.
 2. `claude_docs/plans/ai-diplomacy-and-natives.md`: the full design.
-3. `claude_docs/plans/step2-step3.md`: the next two steps, in detail.
+3. `claude_docs/plans/step2-step3.md`: steps 2 and 3 (built).
+4. `claude_docs/plans/step5-step7.md`: the next two steps, in detail
+   (alliances, then native tribes; grievances after, trade agreements
+   last).
 
 ## Working rules
 
