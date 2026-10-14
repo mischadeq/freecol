@@ -62,10 +62,9 @@ proposal, so work can start before he answers.
 - **Allies fight together.**
   - `InvasionPlanner` may target colonies of the ally's enemy when we
     joined that war.
-  - A new small mission `DefendAllyMission`: spare soldiers next to an
-    ally's colony with enemies at its gates go and stand in it, if the
-    ally lets allied units in. Check first whether the game allows
-    units in an allied colony; if not, they stand next to it.
+  - ~~A `DefendAllyMission` (soldiers standing in an ally's colony).~~
+    **Never** (Mischa, 2026-10-14): no units in another nation's
+    colony, not even an ally's.
 - **Allies share what they see** in the honest view: an ally's
   sightings feed our `Bearings`, and an ally's explored colonies count
   as known. A small, cheap change with a big effect on war plans.
@@ -300,6 +299,19 @@ is short.
    against one European nation (the player or a computer nation), like
    the Pueblo Revolt of 1680. **In** (Mischa): 5 turns of unrest with
    warnings first, shorter on harder levels.
+
+## After 5a-5c (Mischa, 2026-10-14)
+
+- **5d, the relations graph:** yes, after step 7 (so the tribes are in
+  it too).
+- **Soldiers in an ally's colony:** never.
+- **A coalition plans its attacks together:** yes, a later round:
+  members pick the same target colony and time their landings, instead
+  of each attacking on its own.
+- **The target buying a member out** (asked what it means): the nation
+  a coalition stands against offers one member gold, or a colony, to
+  leave the coalition and stay out of the war (the Cherokee changing
+  sides in the Yamasee War). Waiting for Mischa's answer.
 
 ## Not in these steps
 

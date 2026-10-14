@@ -1102,9 +1102,9 @@ In the base game an alliance meant almost nothing. Now:
   (the server says who declared; betrayal seen by all, not for the
   King's war; separate peace), `CommitmentsTest` (truces saved). All
   599 tests green.
-- **Not yet:** soldiers going to stand in an ally's colony
-  (`DefendAllyMission`); a truce broken by the partner is only noticed
-  through losses and captured colonies.
+- **Not yet:** a truce broken by the partner is only noticed through
+  losses and captured colonies. Soldiers standing in an ally's colony:
+  never (Mischa).
 
 ### Step 5b built: joint wars (2026-10-14)
 - A computer nation at war whose diplomat scores paying another nation
@@ -1162,9 +1162,9 @@ In the base game an alliance meant almost nothing. Now:
   Dutch join, the player is invited and becomes allied with every
   member, only one coalition per target; at war, members are called
   and fight or leave; coalitions are saved). All 608 tests green.
-- **Not yet:** the relations graph on the companion page (5d); the
-  target buying a member out (Yamasee War); a coalition's members do
-  not plan their attacks together.
+- **Next (Mischa):** the relations graph on the companion page (5d),
+  after step 7; a coalition planning its attacks together. Open: the
+  target buying a member out (Yamasee War).
 
 ## Ideas, not started
 
