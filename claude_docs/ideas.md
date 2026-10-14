@@ -953,6 +953,47 @@ the diplomat instead of the tension rule.
 - **Not yet:** the replay check on Mischa's saves ("own wars with a
   reason"); the replay still guesses declarers from tension. Offers
   (3b) not started.
+- **Decided with Mischa:** a war out of pure hatred stays in ("a nation
+  I have vexed since the start should hate me and try to get rid of
+  me").
+
+### Companion: no emojis, charts back to the start, History tab (2026-10-14)
+- **No emojis** (Mischa: colours, charts and meters instead). Mood and
+  trust are coloured chips with a small segment meter (hostile 1 of 4
+  .. friendly 4 of 4; distrusts 1 of 3 .. trusts 3 of 3); memories
+  and wars/alliances get a green/red/blue edge; ambition is a plain
+  chip; the sea-fight line says "Sea fights:". The gear on "Widgets"
+  and the ▶▶ on "orders" (both can show as colour emoji) are gone. In
+  the game: the trade route editor's ✓, ⚠ and ✕ are gone (the lines
+  are already coloured; the remove button is a plain X). Plain text
+  symbols stay (★ capital, ✝ mission, the original ✧ in the menu bar).
+- **Archive** (new `client/companion/CompanionArchive`): per turn the
+  empire figures, the settlements (place, owner, size) and who owned
+  each tile, as the player saw it. Recorded every turn while the page
+  runs; once per game, in a background thread, it reads the game's old
+  autosaves (only this game's, only missing turns) to fill the turns
+  before the page ran. Kept in `companion/expansion-<game>-<player>.txt`
+  in the user data folder (runs of owned tiles, small).
+  Honest: from a save only the player's view of each tile (new
+  `Tile.getPlayerView`) and the Foreign Affairs report.
+- **Empire chart goes back to the start:** the turns before the page
+  ran come from the archive. The note under the chart says while old
+  saves are being read ("Reading old autosaves: 40 of 230").
+- **History tab (key 7): expansion replay.** A big map: every
+  nation's land in its colour (tribes faint), colonies as dots growing
+  with their size, native settlements as small squares. Play/pause, a
+  turn slider, slow/normal/fast. Legend: land tiles (bar) and colonies
+  per nation at that turn ("6 / 7 colonies": seen on the map / in the
+  Foreign Affairs report). Below, a "Land owned" line chart per nation
+  with a cursor; click it to jump to a turn. Also an Overview widget.
+- **Tested:** `ArchiveTest` (a frame from a save shows only what the
+  player had seen; written and read back the same; reads a real save
+  from a folder, skips another game's, reads each turn once), the page
+  rendered in headless Chromium with made-up data (no script errors,
+  play and slider work). All tests green.
+- **Not yet:** the land backdrop is the map as known now, not as known
+  then; autosaves the game already deleted can not be read (FreeCol
+  keeps one per turn unless "delete autosaves" is on).
 
 ## Ideas, not started
 

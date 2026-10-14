@@ -287,6 +287,17 @@ img.gi[data-g] { cursor: help; }
 .mrow.mh { background: none; cursor: default; color: var(--muted); font-size: 12px; }
 .mrow .num { text-align: right; }
 
+/* Expansion replay */
+.exptools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.exptools input[type=range] { flex: 1 1 240px; }
+.expwrap { position: relative; background: #0b0d10; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+#expCanvas { width: 100%; display: block; }
+.explegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 2px 18px; margin: 8px 0; }
+.explrow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.explrow .nbar { max-width: none; flex: 1; }
+.explrow .mval { width: auto; min-width: 64px; }
+#expChart { width: 100%; display: block; margin-top: 6px; cursor: pointer; }
+
 /* Nations ranking */
 .natsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 8px; }
 .nchip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
@@ -465,3 +476,7 @@ b.alarm, .alarm { color: var(--alarm); }
 
 /* Where a nation lives (mod) */
 svg.where { vertical-align: -4px; color: inherit; }
+
+/* Plain buttons (expansion replay) */
+.btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--gold); }

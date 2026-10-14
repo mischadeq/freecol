@@ -163,6 +163,7 @@
     if (s.marketRev !== marketRev) { marketRev = s.marketRev; loadMarket(); }
     // The nation figures need the server, so only ask during our turn.
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
+    if (shownWidgets().includes("expansion") && (s.turn !== expTurn || (exp && exp.reading))) loadExpansion(s.turn);
     if (shownWidgets().includes("independence") && s.myTurn &&
         (s.turn !== indepTurn || Date.now() - indepAt > 10000)) loadIndependence(s.turn);
     if (view.auto) fitView();
@@ -1653,16 +1654,18 @@
     { w: "routes", label: "Route charts" },
     { w: "nations", label: "Nations" },
     { w: "military", label: "Military" },
-    { w: "independence", label: "Independence" }
+    { w: "independence", label: "Independence" },
+    { w: "expansion", label: "Expansion replay" }
   ];
   const TABS = {
     colonies: ["colonies", "goods"],
     trade: ["map", "network", "routes", "market"],
     nations: ["nations"],
     military: ["military"],
-    independence: ["independence"]
+    independence: ["independence"],
+    history: ["expansion"]
   };
-  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military", "independence"];
+  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military", "independence", "history"];
   let tab = store.get("fc.tab");
   if (!TAB_KEYS.includes(tab)) tab = "overview";
   let picks = null;
@@ -1686,12 +1689,14 @@
     if (market) renderMarket();
     if (nations) drawNationChart();
     if (state) renderNetwork(state.colonies);
+    if (exp && on.includes("expansion")) renderExpansion();
   }
 
   function setTab(t) {
     if (!TAB_KEYS.includes(t)) return;
     tab = t;
     if (t === "independence" && state) loadIndependence(state.turn);
+    if (t === "history") loadExpansion();
     store.set("fc.tab", t);
     applyTab();
     $("main").scrollTop = 0;
@@ -1940,6 +1945,206 @@
     }).join("");
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
   }
+
+  // ---------------------------------------------------------------- expansion replay
+
+  let exp = null, expIdx = 0, expTimer = null, expTurn = null, expBusy = false, expAt = 0;
+
+  async function loadExpansion(turn) {
+    if (expBusy || (exp && exp.reading && Date.now() - expAt < 5000)) return;
+    expBusy = true;
+    expAt = Date.now();
+    try {
+      const r = await fetch("/api/expansion", { cache: "no-store" });
+      const d = await r.json();
+      if (d.frames) {
+        const atEnd = !exp || expIdx >= exp.frames.length - 1;
+        const keep = exp && exp.frames[expIdx] ? exp.frames[expIdx].turn : null;
+        exp = d;
+        if (turn != null) expTurn = turn;
+        expPrep();
+        if (atEnd || keep == null) expIdx = exp.frames.length - 1;
+        else expIdx = Math.max(0, exp.frames.findIndex((f) => f.turn >= keep));
+        renderExpansion();
+      }
+    } catch (e) { /* Try again next poll */ }
+    expBusy = false;
+  }
+
+  // Owners of every tile at every frame, from the changes.
+  function expPrep() {
+    const n = exp.w * exp.h;
+    let cur = new Int16Array(n).fill(-1);
+    exp.own = exp.frames.map((f) => {
+      cur = cur.slice();
+      for (let i = 0; i + 1 < f.d.length; i += 2) cur[f.d[i]] = f.d[i + 1];
+      return cur;
+    });
+    exp.land = exp.own.map((o) => {
+      const c = new Array(exp.nations.length).fill(0);
+      for (let i = 0; i < o.length; i++) if (o[i] >= 0) c[o[i]]++;
+      return c;
+    });
+  }
+
+  function expColor(k) { return exp.nations[k] ? exp.nations[k].color : "#777"; }
+  function rgba(hex, a) {
+    const p = [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16));
+    return "rgba(" + p.join(",") + "," + a + ")";
+  }
+
+  function renderExpansion() {
+    if (!exp || !exp.frames.length) {
+      $("expNote").textContent = exp && exp.reading ? "Reading the game's old autosaves..." : "Nothing recorded yet: the replay starts with the next turn.";
+      return;
+    }
+    const slider = $("expTurn");
+    slider.max = exp.frames.length - 1;
+    slider.value = expIdx;
+    const f = exp.frames[expIdx];
+    $("expLabel").textContent = f.label + "  (turn " + f.turn + ")";
+    drawExpMap();
+    drawExpLegend();
+    drawExpChart();
+    $("expNote").innerHTML = "Only what you knew at the time: land and colonies you had seen, the Foreign Affairs report. " +
+      exp.frames.length + " turns recorded, from " + esc(exp.frames[0].label) + "." +
+      (exp.reading ? " <b>Reading old autosaves: " + exp.done + " of " + exp.todo + "</b>." : "");
+  }
+
+  function drawExpMap() {
+    const cv = $("expCanvas");
+    const W = cv.parentElement.clientWidth || 800;
+    const T = Math.max(3, Math.min(24, W / (exp.w + 0.5)));
+    const H = Math.ceil((exp.h + 1) * T / 4);
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    cv.style.height = H + "px";
+    const g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = "#0b0d10";
+    g.fillRect(0, 0, W, H);
+    const diamond = (x, y) => {
+      const px = (x + (y & 1) * 0.5) * T, py = y * T / 4;
+      g.beginPath();
+      g.moveTo(px + T / 2, py);
+      g.lineTo(px + T, py + T / 4);
+      g.lineTo(px + T / 2, py + T / 2);
+      g.lineTo(px, py + T / 4);
+      g.closePath();
+    };
+    // Backdrop: land and sea as known now, quiet colours.
+    if (mapData && mapData.w === exp.w) {
+      for (let y = 0; y < exp.h; y++) {
+        for (let x = 0; x < exp.w; x++) {
+          const v = mapData.tiles[y * exp.w + x];
+          if (!v) continue;
+          const p = mapData.palette[(v & 255) - 1];
+          diamond(x, y);
+          g.fillStyle = p && p.land ? "#2a2d27" : "#121a22";
+          g.fill();
+        }
+      }
+    }
+    const own = exp.own[expIdx];
+    for (let y = 0; y < exp.h; y++) {
+      for (let x = 0; x < exp.w; x++) {
+        const o = own[y * exp.w + x];
+        if (o < 0) continue;
+        diamond(x, y);
+        g.fillStyle = rgba(expColor(o), exp.nations[o].european ? 0.6 : 0.25);
+        g.fill();
+      }
+    }
+    for (const s of exp.frames[expIdx].s) {
+      const [x, y, o, size, colony] = s;
+      const px = (x + (y & 1) * 0.5 + 0.5) * T, py = (y / 4 + 0.125) * T;
+      g.fillStyle = expColor(o);
+      g.strokeStyle = "#0b0d10";
+      g.lineWidth = 1;
+      if (colony) {
+        const r = Math.max(2, Math.min(T * 0.6, 1.5 + Math.sqrt(size) * T / 6));
+        g.beginPath();
+        g.arc(px, py, r, 0, 2 * Math.PI);
+        g.fill();
+        g.stroke();
+      } else {
+        const r = Math.max(1.5, T / 5);
+        g.fillRect(px - r, py - r, 2 * r, 2 * r);
+      }
+    }
+  }
+
+  function drawExpLegend() {
+    const f = exp.frames[expIdx], land = exp.land[expIdx];
+    const eu = exp.nations.map((n, k) => k).filter((k) => exp.nations[k].european);
+    const maxLand = Math.max(1, ...eu.map((k) => land[k]));
+    const colonies = (k) => f.s.filter((s) => s[2] === k && s[4]).length;
+    eu.sort((a, b) => land[b] - land[a]);
+    $("expLegend").innerHTML = eu.map((k) => {
+      const n = exp.nations[k], seen = colonies(k), all = f.c[n.id];
+      return '<div class="explrow"><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
+        bar(land[k], maxLand, n.color) + '<span class="mval">' + land[k] + " tiles</span>" +
+        '<span class="mval" title="Colonies seen on the map, and in the Foreign Affairs report">' + seen +
+        (all != null && all !== seen ? " / " + all : "") + " colonies</span></div>";
+    }).join("") + '<div class="explrow m"><span class="mname"><i class="sw" style="background:#777;opacity:.5"></i>Native land</span>' +
+      "<span>shown faint; small squares are their settlements</span></div>";
+  }
+
+  function drawExpChart() {
+    const svg = $("expChart");
+    const W = svg.clientWidth || 600, H = 160, L = 34, B = 18;
+    const n = exp.frames.length;
+    const eu = exp.nations.map((x, k) => k).filter((k) => exp.nations[k].european);
+    const max = Math.max(1, ...exp.land.map((c) => Math.max(...eu.map((k) => c[k]))));
+    const X = (i) => L + (n === 1 ? 0 : i * (W - L - 6) / (n - 1));
+    const Y = (v) => 6 + (H - B - 6) * (1 - v / max);
+    let h = "";
+    for (const v of [0, Math.round(max / 2), max]) {
+      h += '<line x1="' + L + '" x2="' + W + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#2a313b"/>' +
+        '<text x="' + (L - 4) + '" y="' + (Y(v) + 4) + '" text-anchor="end" fill="#98a2ad" font-size="10">' + v + "</text>";
+    }
+    for (const k of eu) {
+      const d = exp.land.map((c, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(c[k]).toFixed(1)).join("");
+      h += '<path d="' + d + '" stroke="' + esc(exp.nations[k].color) + '" fill="none" stroke-width="1.8"/>';
+    }
+    h += '<line x1="' + X(expIdx) + '" x2="' + X(expIdx) + '" y1="4" y2="' + (H - B) + '" stroke="#e8c27a" stroke-width="1.5"/>';
+    h += '<text x="' + L + '" y="' + (H - 4) + '" fill="#98a2ad" font-size="10">' + esc(exp.frames[0].label) + "</text>" +
+      '<text x="' + W + '" y="' + (H - 4) + '" text-anchor="end" fill="#98a2ad" font-size="10">' + esc(exp.frames[n - 1].label) + "</text>";
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.style.height = H + "px";
+    svg.innerHTML = h;
+    svg.onclick = (e) => {
+      const r = svg.getBoundingClientRect();
+      const x = (e.clientX - r.left) * W / r.width;
+      expIdx = Math.max(0, Math.min(n - 1, Math.round((x - L) * (n - 1) / Math.max(1, W - L - 6))));
+      renderExpansion();
+    };
+  }
+
+  function expStop() {
+    if (expTimer) clearInterval(expTimer);
+    expTimer = null;
+    $("expPlay").textContent = "Play";
+  }
+  $("expPlay").addEventListener("click", () => {
+    if (!exp || !exp.frames.length) return;
+    if (expTimer) { expStop(); return; }
+    if (expIdx >= exp.frames.length - 1) expIdx = 0;
+    $("expPlay").textContent = "Pause";
+    expTimer = setInterval(() => {
+      if (expIdx >= exp.frames.length - 1) { expStop(); return; }
+      expIdx++;
+      renderExpansion();
+    }, +$("expSpeed").value);
+  });
+  $("expSpeed").addEventListener("change", () => {
+    if (expTimer) { expStop(); $("expPlay").click(); }
+  });
+  $("expTurn").addEventListener("input", (e) => {
+    expIdx = +e.target.value;
+    renderExpansion();
+  });
 
   // ---------------------------------------------------------------- military
 
@@ -2233,7 +2438,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
-    if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
+    if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
     if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });
