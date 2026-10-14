@@ -1897,6 +1897,42 @@ public final class InGameController extends Controller {
 
 
     /**
+     * A player posts an offer on the notice board (mod): every computer
+     * nation gets a copy to weigh on its turn.
+     *
+     * @param serverPlayer The {@code ServerPlayer} posting.
+     * @param offer The {@code Offer}.
+     * @return A {@code ChangeSet} encapsulating this action.
+     */
+    public ChangeSet postOffer(ServerPlayer serverPlayer,
+                               net.sf.freecol.common.diplomacy.Offer offer) {
+        final net.sf.freecol.server.ai.AIMain aiMain
+            = getFreeColServer().getAIMain();
+        final String why = net.sf.freecol.server.ai.diplomacy.OfferPlanner
+            .checkPosted(serverPlayer, offer);
+        if (why != null) return serverPlayer.clientError(why);
+        final int now = getGame().getTurn().getNumber();
+        final String id = "offer:" + serverPlayer.getNationId() + ":" + now
+            + ":" + Long.toString(System.nanoTime() % 100000);
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (!(ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer)
+                || p.isREF()) continue;
+            final net.sf.freecol.common.diplomacy.Offer copy
+                = new net.sf.freecol.common.diplomacy.Offer(id, offer.kind,
+                    serverPlayer.getNationId(), offer.goods, offer.amount,
+                    offer.gold, offer.place, offer.placeName, now, 0);
+            copy.audience.add(p.getNationId());
+            ((net.sf.freecol.server.ai.EuropeanAIPlayer)ai).getOffers().add(copy);
+        }
+        final ChangeSet cs = new ChangeSet();
+        cs.addMessage(serverPlayer, new ModelMessage(
+            ModelMessage.MessageType.FOREIGN_DIPLOMACY, "offer.posted",
+            serverPlayer));
+        return cs;
+    }
+
+    /**
      * A player answers an offer of a computer nation (mod).
      *
      * @param serverPlayer The {@code ServerPlayer} answering.

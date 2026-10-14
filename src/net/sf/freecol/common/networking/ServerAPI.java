@@ -476,6 +476,16 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Post an offer on the notice board (mod).
+     *
+     * @param offer The {@code Offer}.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean postOffer(net.sf.freecol.common.diplomacy.Offer offer) {
+        return ask(new OfferMessage(offer, true));
+    }
+
+    /**
      * Server query-response for disbanding a unit.
      *
      * @param unit The {@code Unit} to operate on.

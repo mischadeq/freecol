@@ -62,12 +62,14 @@ final class CompanionOffers {
         if (server == null || server.getGame() == null
             || server.getAIMain() == null) return ret;
         final String id = me.getNationId();
+        final java.util.Set<String> seen = new java.util.HashSet<>();
         try {
             for (Player p : server.getGame().getLiveEuropeanPlayerList()) {
                 final AIPlayer ai = server.getAIMain().getAIPlayer(p);
                 if (!(ai instanceof EuropeanAIPlayer)) continue;
                 for (Offer o : new ArrayList<>(((EuropeanAIPlayer)ai).getOffers())) {
-                    if (o.told.contains(id) || id.equals(o.takenBy)) {
+                    if ((o.told.contains(id) || id.equals(o.takenBy)
+                         || id.equals(o.from)) && seen.add(o.id)) {
                         final Offer c = Offer.parse(o.serialize());
                         if (c != null) ret.add(c);
                     }
@@ -97,6 +99,9 @@ final class CompanionOffers {
             final GoodsType gt = (o.goods == null) ? null
                 : game.getSpecification().getGoodsType(o.goods);
             final boolean mine = me.getNationId().equals(o.takenBy);
+            final boolean yours = me.getNationId().equals(o.from);
+            final Player taker = (o.takenBy == null) ? null
+                : game.getPlayerByNationId(o.takenBy);
             j.obj().put("id", o.id)
                 .put("kind", o.kind.name().toLowerCase())
                 .put("from", (from == null) ? o.from
@@ -110,6 +115,9 @@ final class CompanionOffers {
                 .put("place", o.placeName)
                 .put("state", o.state.name().toLowerCase())
                 .put("mine", mine)
+                .put("yours", yours)
+                .put("takenBy", (taker == null) ? ""
+                    : Messages.message(taker.getNationLabel()))
                 .put("deadline", o.deadline)
                 .put("posted", Messages.message(
                     new net.sf.freecol.common.model.Turn(o.posted).getLabel()));

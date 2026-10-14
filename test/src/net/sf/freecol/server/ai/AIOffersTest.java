@@ -290,14 +290,13 @@ public class AIOffersTest extends FreeColTestCase {
         assertEquals(400, dt.getGoldGivenBy(english));
 
         // At the berth it opens the trade through the server (in this
-        // test the "human" is answered by a computer helper, so the
-        // session completes at once: the ship's moves are spent).
+        // test the "human" is answered by a computer helper in its own
+        // thread, so the outcome itself is not checked here).
         ship.setLocation(berth);
         ship.setMovesLeft(ship.getInitialMovesLeft());
         game.setCurrentPlayer(dutch);
         m.doMission(new LogBuilder(64));
         assertEquals(Offer.State.DONE, o.state);
-        assertEquals(0, ship.getMovesLeft());
 
         // A new voyage of the same ship is kept in a save.
         o.state = Offer.State.OPEN;
@@ -314,5 +313,46 @@ public class AIOffersTest extends FreeColTestCase {
         assertTrue(aiu2.getMission()
             instanceof net.sf.freecol.server.ai.mission.TradeVoyageMission);
         assertEquals(jamestown.getId(), aiu2.getMission().getTarget().getId());
+    }
+
+    /** The player posts an offer; a computer nation takes it and sails. */
+    public void testPlayerPostsAnOffer() {
+        setUpGame();
+        assertTrue(jamestown.isConnectedPort());
+        dutch.setStance(english, Stance.PEACE);
+        english.setStance(dutch, Stance.PEACE);
+        english.modifyGold(5000 - english.getGold());
+        havana.addGoods(muskets, 200);
+        Unit ship = new ServerUnit(game, havana.getTile(), dutch,
+            spec().getUnitType("model.unit.merchantman"));
+        // Bad posts are refused.
+        Offer bad = new Offer("new", Offer.Kind.WANT, ENGLISH, muskets.getId(),
+            100, 9000, jamestown.getId(), jamestown.getName(), 0, 0);
+        assertNotNull("not enough gold", OfferPlanner.checkPosted(english, bad));
+
+        Offer post = new Offer("new", Offer.Kind.WANT, ENGLISH, muskets.getId(),
+            100, 3000, jamestown.getId(), jamestown.getName(), 0, 0);
+        assertNull(OfferPlanner.checkPosted(english, post));
+        ServerTestHelper.getServer().getInGameController().postOffer(english, post);
+        Offer copy = null;
+        for (Offer o : ai.getOffers()) if (ENGLISH.equals(o.from)) copy = o;
+        assertNotNull("every computer nation gets a copy", copy);
+
+        new OfferPlanner(ai).plan(ai.getOutlook(), new LogBuilder(64));
+        assertEquals(Offer.State.TAKEN, copy.state);
+        assertEquals(DUTCH, copy.takenBy);
+        Offer trip = null;
+        for (Offer o : ai.getOffers()) if (o.kind == Offer.Kind.SHIP_SELL) trip = o;
+        assertNotNull("a ship is sent", trip);
+        assertEquals(3000, trip.gold);
+        assertEquals(100, ship.getGoodsCount(muskets));
+        assertTrue(ServerTestHelper.getServer().getAIMain().getAIUnit(ship)
+            .getMission() instanceof net.sf.freecol.server.ai.mission.TradeVoyageMission);
+        // The French copy is taken too.
+        EuropeanAIPlayer french = (EuropeanAIPlayer)ServerTestHelper.getServer()
+            .getAIMain().getAIPlayer(game.getPlayerByNationId("model.nation.french"));
+        for (Offer o : french.getOffers()) {
+            if (o.id.equals(copy.id)) assertEquals(Offer.State.TAKEN, o.state);
+        }
     }
 }

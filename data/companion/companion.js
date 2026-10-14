@@ -1971,12 +1971,15 @@
       return;
     }
     $("offers").innerHTML = list.map((o) => {
-      const st = OFFER_STATE[o.state] || ["m", o.state];
+      const st = o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
       else if (o.kind === "ship_sell" || o.kind === "ship_buy") what = "Ship " + (o.kind === "ship_sell" ? "bringing " : "coming to buy ") +
         (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) + " for <b>" + num(o.gold) + "</b> gold · to " + esc(o.place) +
         ' <span class="m">(the trade screen opens when it arrives)</span>';
+      else if (o.yours) what = (o.kind === "want" ? "You want " : "You sell ") + (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " +
+        esc(o.goodsName) + " for <b>" + num(o.gold) + "</b> gold at " + esc(o.place) +
+        (o.takenBy ? ' <span class="m">· ' + esc(o.takenBy) + " sends a ship</span>" : "");
       else what = (o.kind === "want" ? "Wants " : "Sells ") + (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) +
         " for <b>" + num(o.gold) + "</b> gold · " + (o.kind === "want" ? "deliver to " : "fetch at ") + esc(o.place);
       let clock = "";
@@ -1989,7 +1992,7 @@
       } else if (o.kind !== "peace" && o.state === "open") {
         clock = '<div class="m">' + o.deadline + " turns to deliver once accepted</div>";
       }
-      return '<div class="ocard"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.from) + "</b>" +
+      return '<div class="ocard' + (o.yours ? " yours" : "") + '"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.yours ? "Your offer" : o.from) + "</b>" +
         '<span class="tag ' + st[0] + '">' + st[1] + '</span><span class="m">' + esc(o.posted) + "</span></div>" +
         '<div class="owhat">' + what + (o.paid ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
     }).join("");

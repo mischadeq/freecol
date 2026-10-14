@@ -79,6 +79,8 @@ public final class OfferPlanner {
     public static final int SHIP_TILES = 5;
     /** Most gold sweetening peace terms. */
     public static final int MAX_PEACE_GOLD = 1000;
+    /** A player's offer is taken if it gains us this share of its gold. */
+    public static final double POSTED_GAIN = 0.1;
 
     private final EuropeanAIPlayer ai;
 
@@ -126,9 +128,15 @@ public final class OfferPlanner {
             if (o.state.over() && now - o.posted > KEEP) it.remove();
         }
         for (Offer o : book) {
-            if (o.state == Offer.State.TAKEN) followUp(o, cs);
-            else if (o.stale(now)) o.state = Offer.State.EXPIRED;
+            if (!me.getNationId().equals(o.from)) {
+                if (o.stale(now)) o.state = Offer.State.EXPIRED;
+            } else if (o.state == Offer.State.TAKEN) {
+                followUp(o, cs);
+            } else if (o.stale(now)) {
+                o.state = Offer.State.EXPIRED;
+            }
         }
+        considerPosted(outlook, cs, lb);
         final Offer made = post(outlook);
         if (made != null) {
             book.add(made);
@@ -284,7 +292,9 @@ public final class OfferPlanner {
     Offer post(Outlook outlook) {
         final int now = now();
         for (Offer o : ai.getOffers()) {
-            if (now - o.posted < GAP) return null;
+            if (me().getNationId().equals(o.from) && now - o.posted < GAP) {
+                return null;
+            }
         }
         Offer o = peaceTerms(outlook);
         if (o == null) o = voyage(outlook);
@@ -478,6 +488,110 @@ public final class OfferPlanner {
 
     private String id(int now) {
         return "offer:" + me().getNationId() + ":" + now;
+    }
+
+
+    // Offers the players post
+
+    /**
+     * Is an offer a player posts possible?
+     *
+     * @param p The player.
+     * @param o The {@code Offer}.
+     * @return Null if fine, else why not.
+     */
+    public static String checkPosted(Player p, Offer o) {
+        if (o.kind != Offer.Kind.WANT && o.kind != Offer.Kind.SELL) {
+            return "Bad offer kind: " + o.kind;
+        }
+        if (o.amount <= 0 || o.amount > 300 || o.gold <= 0) {
+            return "Bad offer terms";
+        }
+        final GoodsType gt = p.getSpecification().getGoodsType(o.goods);
+        final Colony c = p.getGame().getFreeColGameObject(o.place, Colony.class);
+        if (gt == null || c == null || c.getOwner() != p
+            || !c.isConnectedPort()) return "Bad offer place or goods";
+        if (o.kind == Offer.Kind.SELL && c.getGoodsCount(gt) < o.amount) {
+            return "Not enough goods at " + c.getName();
+        }
+        if (o.kind == Offer.Kind.WANT && p.getGold() < o.gold) {
+            return "Not enough gold";
+        }
+        return null;
+    }
+
+    /**
+     * Weigh the offers players posted: take one that gains us enough,
+     * if a ship is free, and send it.
+     */
+    private void considerPosted(Outlook outlook, ChangeSet cs, LogBuilder lb) {
+        for (Offer o : new ArrayList<>(ai.getOffers())) {
+            if (me().getNationId().equals(o.from) || o.state != Offer.State.OPEN) {
+                continue;
+            }
+            final Player h = game().getPlayerByNationId(o.from);
+            final NationView v = (h == null) ? null
+                : outlook.view.others.get(h.getNationId());
+            if (v == null || v.atWar() || v.opinion <= Mood.NEUTRAL) continue;
+            final GoodsType gt = game().getSpecification().getGoodsType(o.goods);
+            final Colony at = game().getFreeColGameObject(o.place, Colony.class);
+            if (gt == null || at == null || at.getOwner() != h) {
+                o.state = Offer.State.CANCELLED;
+                continue;
+            }
+            // Their SELL is our purchase, their WANT our sale.
+            final boolean buy = o.kind == Offer.Kind.SELL;
+            final int value = net.sf.freecol.common.diplomacy.DealValue.goods(
+                outlook.view, o.goods, o.amount, buy);
+            if (value == net.sf.freecol.common.diplomacy.DealValue.NO_OPINION) continue;
+            final int gain = (buy) ? value - o.gold : o.gold + value;
+            if (gain < POSTED_GAIN * o.gold) continue;
+            if (buy && me().getGold() < o.gold) continue;
+            Unit ship = null;
+            for (Unit u : new ArrayList<>(me().getUnitSet())) {
+                if (!freeShip(u)) continue;
+                final Colony home = u.getTile().getColony();
+                if (!buy && (home == null || home.getOwner() != me()
+                             || home.getGoodsCount(gt) < o.amount)) continue;
+                ship = u;
+                break;
+            }
+            if (ship == null) continue;
+            if (!buy) {
+                ship.getTile().getColony().removeGoods(gt, o.amount);
+                ship.addGoods(gt, o.amount);
+            }
+            final Offer trip = new Offer(id(now()) + ":for:" + o.id,
+                (buy) ? Offer.Kind.SHIP_BUY : Offer.Kind.SHIP_SELL,
+                me().getNationId(), o.goods, o.amount, o.gold, at.getId(),
+                at.getName(), now(), 0);
+            trip.audience.add(h.getNationId());
+            ai.getOffers().add(trip);
+            final AIUnit aiu = ai.getAIMain().getAIUnit(ship);
+            aiu.changeMission(new TradeVoyageMission(ai.getAIMain(), aiu, at,
+                                                     trip.id));
+            takenEverywhere(o.id, me().getNationId());
+            message(cs, h, "offer.postTaken", o, o.gold);
+            trip.told.add(h.getNationId()); // the message above says it
+            lb.add("\n  Takes ", h.getDebugName(), "'s offer: ", o);
+            return; // one a turn
+        }
+    }
+
+    /** Mark a posted offer taken in every computer nation's copy. */
+    private void takenEverywhere(String id, String by) {
+        for (Player p : game().getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer other
+                = ai.getAIMain().getAIPlayer(p);
+            if (!(other instanceof EuropeanAIPlayer)) continue;
+            for (Offer x : ((EuropeanAIPlayer)other).getOffers()) {
+                if (x.id.equals(id) && x.state == Offer.State.OPEN) {
+                    x.state = Offer.State.TAKEN;
+                    x.takenBy = by;
+                    x.takenTurn = now();
+                }
+            }
+        }
     }
 
 

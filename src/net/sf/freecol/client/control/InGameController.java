@@ -3688,6 +3688,95 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Post a trade offer of our own on the notice board (mod): want or
+     * sell, which goods, how many, for how much, at which colony.
+     *
+     * Called from PostOfferAction.
+     */
+    public void postOffer() {
+        final Player player = getMyPlayer();
+        if (!requireOurTurn() || player == null) return;
+        final GUI gui = getGUI();
+        java.util.List<Colony> ports = new java.util.ArrayList<>();
+        for (Colony c : player.getColonyList()) {
+            if (c.isConnectedPort()) ports.add(c);
+        }
+        if (ports.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("offer.post.none"));
+            return;
+        }
+        java.util.List<ChoiceItem<net.sf.freecol.common.diplomacy.Offer.Kind>> kinds
+            = new java.util.ArrayList<>();
+        kinds.add(new ChoiceItem<>(Messages.message("offer.post.want"),
+            net.sf.freecol.common.diplomacy.Offer.Kind.WANT));
+        kinds.add(new ChoiceItem<>(Messages.message("offer.post.sell"),
+            net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
+        final net.sf.freecol.common.diplomacy.Offer.Kind kind = gui
+            .modalChoiceDialog(StringTemplate.template("offer.post.kind"),
+                               "cancel", kinds);
+        if (kind == null) return;
+        final boolean sell = kind == net.sf.freecol.common.diplomacy.Offer.Kind.SELL;
+        java.util.List<ChoiceItem<GoodsType>> goods = new java.util.ArrayList<>();
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            if (sell) {
+                int most = 0;
+                for (Colony c : ports) most = Math.max(most, c.getGoodsCount(gt));
+                if (most < 1) continue;
+                goods.add(new ChoiceItem<>(Messages.getName(gt) + " (" + most + ")", gt));
+            } else {
+                goods.add(new ChoiceItem<>(Messages.getName(gt), gt));
+            }
+        }
+        if (goods.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("offer.post.none"));
+            return;
+        }
+        final GoodsType gt = gui.modalChoiceDialog(
+            StringTemplate.template("offer.post.goods"), "cancel", goods);
+        if (gt == null) return;
+        final String a = gui.modalInputDialog(null,
+            StringTemplate.template("offer.post.amount").addNamed("%goods%", gt),
+            "100", "ok", "cancel");
+        int amount;
+        try {
+            amount = Integer.parseInt(a.trim());
+        } catch (RuntimeException e) {
+            return;
+        }
+        amount = Math.max(1, Math.min(300, amount));
+        final net.sf.freecol.common.model.Market market = player.getMarket();
+        final int unit = (market == null) ? 0 : (sell)
+            ? market.getPaidForSale(gt) : market.getCostToBuy(gt);
+        final String g = gui.modalInputDialog(null,
+            StringTemplate.template("offer.post.gold").addNamed("%goods%", gt)
+                .addAmount("%price%", unit),
+            String.valueOf(Math.max(1, unit * amount)), "ok", "cancel");
+        int gold;
+        try {
+            gold = Integer.parseInt(g.trim());
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (gold <= 0) return;
+        java.util.List<ChoiceItem<Colony>> places = new java.util.ArrayList<>();
+        for (Colony c : ports) {
+            if (sell && c.getGoodsCount(gt) < amount) continue;
+            places.add(new ChoiceItem<>(c.getName(), c));
+        }
+        if (places.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("offer.post.none"));
+            return;
+        }
+        final Colony at = (places.size() == 1) ? places.get(0).getObject()
+            : gui.modalChoiceDialog(StringTemplate.template("offer.post.colony"),
+                                    "cancel", places);
+        if (at == null) return;
+        askServer().postOffer(new net.sf.freecol.common.diplomacy.Offer("new",
+            kind, player.getNationId(), gt.getId(), amount, gold, at.getId(),
+            at.getName(), getGame().getTurn().getNumber(), 0));
+    }
+
+    /**
      * The question for an offer.
      *
      * @param o The {@code Offer}.

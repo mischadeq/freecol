@@ -40,6 +40,7 @@ public class OfferMessage extends AttributeMessage {
     public static final String TAG = "offer";
     private static final String OFFER_TAG = "offer";
     private static final String ANSWER_TAG = "answer";
+    private static final String POST_TAG = "post";
 
 
     /**
@@ -62,6 +63,17 @@ public class OfferMessage extends AttributeMessage {
     }
 
     /**
+     * The player posts an offer of his own on the notice board.
+     *
+     * @param offer The {@code Offer} (its id and turn are set by the
+     *     server).
+     * @param post Always true.
+     */
+    public OfferMessage(Offer offer, boolean post) {
+        super(TAG, OFFER_TAG, offer.serialize(), POST_TAG, String.valueOf(post));
+    }
+
+    /**
      * Create a new {@code OfferMessage} from a stream.
      *
      * @param game The {@code Game} this message belongs to.
@@ -70,7 +82,7 @@ public class OfferMessage extends AttributeMessage {
      */
     public OfferMessage(Game game, FreeColXMLReader xr)
         throws XMLStreamException {
-        super(TAG, xr, OFFER_TAG, ANSWER_TAG);
+        super(TAG, xr, OFFER_TAG, ANSWER_TAG, POST_TAG);
     }
 
 
@@ -113,6 +125,11 @@ public class OfferMessage extends AttributeMessage {
     @Override
     public ChangeSet serverHandler(FreeColServer freeColServer,
                                    ServerPlayer serverPlayer) {
+        if (getBooleanAttribute(POST_TAG, Boolean.FALSE)) {
+            final Offer offer = Offer.parse(getStringAttribute(OFFER_TAG));
+            if (offer == null) return serverPlayer.clientError("Bad offer");
+            return igc(freeColServer).postOffer(serverPlayer, offer);
+        }
         final String id = getStringAttribute(OFFER_TAG);
         final Boolean accept = getBooleanAttribute(ANSWER_TAG, (Boolean)null);
         if (id == null || accept == null) {
