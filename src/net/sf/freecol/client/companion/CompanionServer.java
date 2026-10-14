@@ -132,6 +132,33 @@ public final class CompanionServer {
         } catch (RuntimeException re) {
             logger.log(Level.WARNING, "Nation record failed", re);
         }
+        try {
+            archiveTurn(instance.fcc);
+        } catch (RuntimeException re) {
+            logger.log(Level.WARNING, "Archive record failed", re);
+        }
+    }
+
+    /**
+     * Keep this turn in the archive (expansion replay, long charts),
+     * and the first time read the game's old autosaves.
+     *
+     * @param fcc The {@code FreeColClient}.
+     */
+    private static void archiveTurn(FreeColClient fcc) {
+        final net.sf.freecol.common.model.Game game = fcc.getGame();
+        final net.sf.freecol.common.model.Player me = fcc.getMyPlayer();
+        if (game == null || me == null || game.getMap() == null) return;
+        final CompanionArchive a = CompanionArchive.of(game, me);
+        java.util.Map<String, net.sf.freecol.common.model.NationSummary> ns
+            = new java.util.HashMap<>();
+        for (net.sf.freecol.common.model.Player p : game.getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.common.model.NationSummary s = me.getNationSummary(p);
+            if (s != null) ns.put(p.getNationId(), s);
+        }
+        a.put(a.frame(game, me, false, ns));
+        a.fillFromSaves(game, me, fcc.getClientOptions()
+            .getText(ClientOptions.AUTO_SAVE_PREFIX));
     }
 
     /**
@@ -220,6 +247,17 @@ public final class CompanionServer {
                         : CompanionColopedia.build(
                             this.fcc.getGame().getSpecification(),
                             this.fcc.getMyPlayer()));
+                } catch (Exception e) {
+                    json = "{}";
+                }
+                send(ex, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+            } else if ("/api/expansion".equals(path)) {
+                String json;
+                try {
+                    json = onEdt(() -> (this.fcc.getGame() == null
+                            || this.fcc.getMyPlayer() == null) ? "{}"
+                        : CompanionArchive.of(this.fcc.getGame(),
+                            this.fcc.getMyPlayer()).json(this.fcc.getGame()));
                 } catch (Exception e) {
                     json = "{}";
                 }

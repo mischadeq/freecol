@@ -727,7 +727,9 @@
     $("natNote").innerHTML = "Click a column to sort and chart it. The small number is the rank. " +
       "Other nations' figures come from the game's Foreign Affairs report" +
       (nations.deWitt ? "." : "; their rebels, fathers and tax need Jan de Witt in your Congress.") +
-      " Colonists and sizes are counted in the colonies you can see on the map. Army and navy are strength scores, not head counts.";
+      " Colonists and sizes are counted in the colonies you can see on the map. Army and navy are strength scores, not head counts." +
+      " Turns before the page ran come from the game's autosaves." +
+      (nations.reading ? " <b>Reading old autosaves: " + nations.reading[0] + " of " + nations.reading[1] + "</b>." : "");
     drawNationChart();
   }
 

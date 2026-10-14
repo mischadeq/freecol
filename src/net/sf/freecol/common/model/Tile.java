@@ -1924,6 +1924,20 @@ public final class Tile extends UnitLocation implements Named, Ownable {
      * @param player The {@code Player} who owns the view.
      * @return The view of this {@code Tile}.
      */
+    /**
+     * What a player last saw of this tile (mod): the tile itself while
+     * in sight, an old copy otherwise, null if never explored.  For a
+     * game read from a save, where every player's view is kept.
+     *
+     * @param player The {@code Player}.
+     * @return Its view of this tile, or null.
+     */
+    public Tile getPlayerView(Player player) {
+        if (!isExploredBy(player)) return null;
+        final Tile t = getCachedTile(player);
+        return (t == null) ? this : t;
+    }
+
     private Tile getCachedTile(Player player) {
         return (cachedTiles == null) ? null
             : (player.isEuropean()) ? cachedTiles.get(player)

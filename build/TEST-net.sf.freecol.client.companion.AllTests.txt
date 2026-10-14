@@ -1,0 +1,47 @@
+Testsuite: net.sf.freecol.client.companion.AllTests
+Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.524 sec
+------------- Standard Error -----------------
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.model.Specification clean
+INFO: Specification clean following load from InputStream complete, starting year=1492, season year=1600, ages=[1,109,309], seasons=2, difficulty=null, 275 Types, 80 Abilities, 41 BuildingTypes, 14 Disasters, 10 EuropeanNationTypes, 2 Events, 25 FoundingFathers, 21 GoodsTypes, 8 IndianNationTypes, 60 Modifiers, 25 Nations, 73 Options, 16 Option Groups, 12 ResourceTypes, 11 Roles, 23 TileTypes, 6 TileImprovementTypes, 13 UnitChangeTypes, 42 UnitTypes read.
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:801
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:802
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:803
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:805
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:806
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:807
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:809
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:810
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.util.LogBuilder log
+INFO: Destroying: unit:811
+Oct 14, 2026 6:18:24 PM net.sf.freecol.server.FreeColServer startGame
+INFO: Server starting game: PRE_GAME
+Oct 14, 2026 6:18:24 PM net.sf.freecol.server.FreeColServer readGame
+INFO: Found savegame version 14
+Oct 14, 2026 6:18:24 PM net.sf.freecol.common.model.Specification clean
+INFO: Specification clean following load from stream complete, starting year=1492, season year=1600, ages=[1,109,309], seasons=2, difficulty=model.difficulty.medium, 267 Types, 80 Abilities, 41 BuildingTypes, 14 Disasters, 10 EuropeanNationTypes, 2 Events, 25 FoundingFathers, 21 GoodsTypes, 8 IndianNationTypes, 59 Modifiers, 25 Nations, 171 Options, 23 Option Groups, 12 ResourceTypes, 11 Roles, 23 TileTypes, 6 TileImprovementTypes, 13 UnitChangeTypes, 42 UnitTypes read.
+Oct 14, 2026 6:18:24 PM net.sf.freecol.server.FreeColServer startGame
+INFO: Server starting game: PRE_GAME
+------------- ---------------- ---------------
+
+Testcase: testKingsRegularsAgainstAColony took 0.125 sec
+Testcase: testAttackMatchesCombatModel took 0.059 sec
+Testcase: testDefenceMatchesCombatModel took 0.033 sec
+Testcase: testMusterLimit took 0 sec
+Testcase: testHoldChance took 0 sec
+Testcase: testStrengthInSoldiersAndFrigates took 0 sec
+Testcase: testVerdictInWords took 0 sec
+Testcase: testChangePerTurn took 0.001 sec
+Testcase: testSeaFightsCounted took 0.003 sec
+Testcase: testBellsFromRebels took 0 sec
+Testcase: testOutputYardstick took 0.017 sec
+Testcase: testMoodJson took 0.013 sec
+Testcase: testReadsOldSaves took 0.251 sec
+Testcase: testFrameIsHonestAndSurvivesTheFile took 0.019 sec
