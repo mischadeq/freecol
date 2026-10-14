@@ -309,8 +309,22 @@ final class CompanionArchive {
      * @return The JSON.
      */
     synchronized String json(Game game) {
+        return json(game, -1);
+    }
+
+    /**
+     * The archive as JSON, only the turns after one (the page has the
+     * rest).  The land of the first frame sent is still given as the
+     * changes from the frame before it.
+     *
+     * @param game The client {@code Game}.
+     * @param since Send only turns after this one, -1 for all.
+     * @return The JSON.
+     */
+    synchronized String json(Game game, int since) {
         Json j = new Json().obj().put("w", width).put("h", height)
-            .put("reading", busy).put("done", done).put("todo", todo);
+            .put("reading", busy).put("done", done).put("todo", todo)
+            .put("since", since).put("count", frames.size());
         j.key("nations").arr();
         for (String id : nations) {
             final Player p = game.getPlayerByNationId(id);
@@ -324,6 +338,12 @@ final class CompanionArchive {
         j.key("frames").arr();
         int[] last = null;
         for (Frame f : frames.values()) {
+            if (f.turn <= since) {
+                if (f.owners != null && f.owners.length == width * height) {
+                    last = f.owners;
+                }
+                continue;
+            }
             j.obj().put("turn", f.turn)
                 .put("label", Messages.message(new net.sf.freecol.common.model.Turn(f.turn).getLabel()));
             j.key("s").arr();

@@ -493,3 +493,6 @@ svg.where { vertical-align: -4px; color: inherit; }
 /* Plain buttons (expansion replay) */
 .btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 14px; cursor: pointer; }
 .btn:hover { border-color: var(--gold); }
+
+/* Sliders and checkboxes in the page's colours */
+input[type=range], input[type=checkbox] { accent-color: var(--gold); }

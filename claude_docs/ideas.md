@@ -1166,6 +1166,33 @@ In the base game an alliance meant almost nothing. Now:
   after step 7; a coalition planning its attacks together. Open: the
   target buying a member out (Yamasee War).
 
+### Companion page: lighter on the game and the computer (2026-10-14)
+Mischa felt the page could be optimised. What was found and done:
+- **The map drew 60 times a second, always**, even on tabs where it is
+  hidden and when nothing moved. Now it draws only when it is on
+  screen and something changed (the view, the game state, the mouse),
+  at full speed while a unit moves or a colony pulses, and 20 times a
+  second for the marching route lines. Measured in a browser: 3 draws
+  in 3 idle seconds instead of about 180; none on other tabs.
+- **Polling.** The page asked for the whole state every second, and
+  the game builds it on its own screen thread. Now: every second while
+  the page is on screen, every 5 seconds in a background tab (and at
+  once when it comes back), and never faster than three times what the
+  game took to answer, so a busy game is not slowed by the page.
+- **History tab.** It downloaded the whole archive again every turn
+  (it grows all game); now only the new turns (`/api/expansion?since=`),
+  with a full reload while old saves are still being read in. The land
+  backdrop is drawn once and reused, the canvas is no longer resized on
+  every frame, and the land chart only moves its cursor while playing.
+  Checked in a browser: the turns loaded one by one give the same
+  picture as a full load.
+- Sliders and checkboxes in the page's gold.
+- **Tested:** `ArchiveTest` (only the turns after one are sent, with
+  the count); the page in headless Chromium with made-up data (no
+  script errors). All tests green.
+- **Not looked at:** the game-side build of the state itself (it
+  already caches paths and route turns per turn).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

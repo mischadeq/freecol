@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const POLL_MS = 1000;
+  const POLL_MS = 1000, HIDDEN_POLL_MS = 5000, MAX_POLL_MS = 5000;
   const $ = (id) => document.getElementById(id);
 
   // ---------------------------------------------------------------- state
@@ -72,9 +72,24 @@
 
   // ---------------------------------------------------------------- polling
 
+  // How long the game took to answer the last poll: the next poll
+  // waits at least three times that, so the page never slows the game.
+  // A page in a background tab asks every few seconds only.
+  let lastRtt = 0;
+  function pollDelay() {
+    if (document.hidden) return HIDDEN_POLL_MS;
+    return Math.max(POLL_MS, Math.min(MAX_POLL_MS, 3 * lastRtt));
+  }
+  // Back on screen: ask now (unless a poll is on its way already).
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && pollTimer) schedule(0); });
+
+  let pollTimer = null;
   async function poll() {
+    pollTimer = null;
+    const t0 = performance.now();
     try {
       const r = await fetch("/api/state?since=" + lastLogId, { cache: "no-store" });
+      lastRtt = performance.now() - t0;
       if (!r.ok) throw new Error(r.status);
       const s = await r.json();
       if (s.busy) { schedule(); return; }
@@ -98,7 +113,10 @@
     }
     schedule();
   }
-  function schedule(ms) { setTimeout(poll, ms == null ? POLL_MS : ms); }
+  function schedule(ms) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, ms == null ? pollDelay() : ms);
+  }
 
   function online(s) {
     if (!s.inGame) {
@@ -132,6 +150,7 @@
   function update(s) {
     const prev = state;
     state = s;
+    stateStamp++;
 
     // Header
     $("date").textContent = s.date + "  ·  Turn " + s.turn;
@@ -1417,8 +1436,25 @@
     ctx.fillText(text, x, y);
   }
 
+  // Draw the map only when it is on screen and something changed: the
+  // view, the state, the mouse, a moving unit or a pulse (full speed),
+  // or the marching route lines (20 frames a second).
+  let lastSig = "", lastDraw = 0, stateStamp = 0, uiTick = 0;
+  const mapSec = $("mapSec");
+  for (const ev of ["pointermove", "pointerdown", "pointerup", "wheel", "keydown", "click"]) {
+    document.addEventListener(ev, () => { uiTick++; }, { passive: true, capture: true });
+  }
   function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden || mapSec.classList.contains("off")) return;
     const r = canvas.getBoundingClientRect();
+    const busy = pulses.length > 0 || Object.keys(anims).length > 0;
+    const sig = r.width + "," + r.height + "," + view.S + "," + view.ox + "," + view.oy + "," +
+      stateStamp + "," + uiTick + "," + (terrain ? terrain.width : 0) + "," + mapRev;
+    const ants = state && state.routes && state.routes.length > 0;
+    if (!busy && sig === lastSig && !(ants && now - lastDraw >= 50)) return;
+    lastSig = sig;
+    lastDraw = now;
     ctx.clearRect(0, 0, r.width, r.height);
     ctx.fillStyle = "#0b0d10";
     ctx.fillRect(0, 0, r.width, r.height);
@@ -1433,7 +1469,6 @@
       drawUnits(now);
       drawPulses(now);
     }
-    requestAnimationFrame(frame);
   }
 
   function drawRoutes(now) {
@@ -2008,21 +2043,38 @@
 
   // ---------------------------------------------------------------- expansion replay
 
-  let exp = null, expIdx = 0, expTimer = null, expTurn = null, expBusy = false, expAt = 0;
+  let exp = null, expIdx = 0, expTimer = null, expTurn = null, expBusy = false, expAt = 0, expBack = null;
 
   async function loadExpansion(turn) {
     if (expBusy || (exp && exp.reading && Date.now() - expAt < 5000)) return;
     expBusy = true;
     expAt = Date.now();
     try {
-      const r = await fetch("/api/expansion", { cache: "no-store" });
+      // After the first load only the new turns (unless old saves are
+      // still being read in: they add turns in between).
+      const since = exp && !exp.reading && exp.frames.length ? exp.frames[exp.frames.length - 1].turn : 0;
+      const r = await fetch("/api/expansion" + (since ? "?since=" + since : ""), { cache: "no-store" });
       const d = await r.json();
       if (d.frames) {
         const atEnd = !exp || expIdx >= exp.frames.length - 1;
         const keep = exp && exp.frames[expIdx] ? exp.frames[expIdx].turn : null;
-        exp = d;
+        if (since && d.since > 0 && exp && d.count === exp.frames.length + d.frames.length) {
+          exp.nations = d.nations;
+          exp.reading = d.reading; exp.done = d.done; exp.todo = d.todo;
+          expAppend(d.frames);
+        } else if (since) {
+          exp = null; // out of step: ask for everything
+          expBusy = false;
+          return loadExpansion(turn);
+        } else {
+          exp = d;
+          exp.own = [];
+          exp.land = [];
+          const frames = exp.frames;
+          exp.frames = [];
+          expAppend(frames);
+        }
         if (turn != null) expTurn = turn;
-        expPrep();
         if (atEnd || keep == null) expIdx = exp.frames.length - 1;
         else expIdx = Math.max(0, exp.frames.findIndex((f) => f.turn >= keep));
         renderExpansion();
@@ -2031,20 +2083,20 @@
     expBusy = false;
   }
 
-  // Owners of every tile at every frame, from the changes.
-  function expPrep() {
+  // Owners of every tile at every frame, from the changes, and the land
+  // per nation.
+  function expAppend(frames) {
     const n = exp.w * exp.h;
-    let cur = new Int16Array(n).fill(-1);
-    exp.own = exp.frames.map((f) => {
+    let cur = exp.own.length ? exp.own[exp.own.length - 1] : new Int16Array(n).fill(-1);
+    for (const f of frames) {
       cur = cur.slice();
       for (let i = 0; i + 1 < f.d.length; i += 2) cur[f.d[i]] = f.d[i + 1];
-      return cur;
-    });
-    exp.land = exp.own.map((o) => {
       const c = new Array(exp.nations.length).fill(0);
-      for (let i = 0; i < o.length; i++) if (o[i] >= 0) c[o[i]]++;
-      return c;
-    });
+      for (let i = 0; i < cur.length; i++) if (cur[i] >= 0) c[cur[i]]++;
+      exp.frames.push(f);
+      exp.own.push(cur);
+      exp.land.push(c);
+    }
   }
 
   function expColor(k) { return exp.nations[k] ? exp.nations[k].color : "#777"; }
@@ -2077,9 +2129,11 @@
     const T = Math.max(3, Math.min(24, W / (exp.w + 0.5)));
     const H = Math.ceil((exp.h + 1) * T / 4);
     const dpr = window.devicePixelRatio || 1;
-    cv.width = Math.round(W * dpr);
-    cv.height = Math.round(H * dpr);
-    cv.style.height = H + "px";
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      cv.style.height = H + "px";
+    }
     const g = cv.getContext("2d");
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = "#0b0d10";
@@ -2093,18 +2147,37 @@
       g.lineTo(px, py + T / 4);
       g.closePath();
     };
-    // Backdrop: land and sea as known now, quiet colours.
+    // Backdrop: land and sea as known now, quiet colours; drawn once
+    // and reused while the replay plays.
     if (mapData && mapData.w === exp.w) {
-      for (let y = 0; y < exp.h; y++) {
-        for (let x = 0; x < exp.w; x++) {
-          const v = mapData.tiles[y * exp.w + x];
-          if (!v) continue;
-          const p = mapData.palette[(v & 255) - 1];
-          diamond(x, y);
-          g.fillStyle = p && p.land ? "#2a2d27" : "#121a22";
-          g.fill();
+      const key = W + "x" + H + "@" + dpr + "#" + mapRev;
+      if (!expBack || expBack.key !== key) {
+        const b = document.createElement("canvas");
+        b.width = cv.width;
+        b.height = cv.height;
+        const bg = b.getContext("2d");
+        bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+        for (let y = 0; y < exp.h; y++) {
+          for (let x = 0; x < exp.w; x++) {
+            const v = mapData.tiles[y * exp.w + x];
+            if (!v) continue;
+            const p = mapData.palette[(v & 255) - 1];
+            const px = (x + (y & 1) * 0.5) * T, py = y * T / 4;
+            bg.beginPath();
+            bg.moveTo(px + T / 2, py);
+            bg.lineTo(px + T, py + T / 4);
+            bg.lineTo(px + T / 2, py + T / 2);
+            bg.lineTo(px, py + T / 4);
+            bg.closePath();
+            bg.fillStyle = p && p.land ? "#2a2d27" : "#121a22";
+            bg.fill();
+          }
         }
+        expBack = { key, canvas: b };
       }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(expBack.canvas, 0, 0);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     const own = exp.own[expIdx];
     for (let y = 0; y < exp.h; y++) {
@@ -2151,10 +2224,21 @@
       "<span>shown faint; small squares are their settlements</span></div>";
   }
 
+  let expChartKey = "";
   function drawExpChart() {
     const svg = $("expChart");
     const W = svg.clientWidth || 600, H = 160, L = 34, B = 18;
     const n = exp.frames.length;
+    const X0 = (i) => L + (n === 1 ? 0 : i * (W - L - 6) / (n - 1));
+    // The lines only change with new turns: then just move the cursor.
+    const key = n + "/" + W + "/" + exp.nations.length;
+    const cur = svg.querySelector("line.cursor");
+    if (key === expChartKey && cur) {
+      cur.setAttribute("x1", X0(expIdx));
+      cur.setAttribute("x2", X0(expIdx));
+      return;
+    }
+    expChartKey = key;
     const eu = exp.nations.map((x, k) => k).filter((k) => exp.nations[k].european);
     const max = Math.max(1, ...exp.land.map((c) => Math.max(...eu.map((k) => c[k]))));
     const X = (i) => L + (n === 1 ? 0 : i * (W - L - 6) / (n - 1));
@@ -2168,7 +2252,7 @@
       const d = exp.land.map((c, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(c[k]).toFixed(1)).join("");
       h += '<path d="' + d + '" stroke="' + esc(exp.nations[k].color) + '" fill="none" stroke-width="1.8"/>';
     }
-    h += '<line x1="' + X(expIdx) + '" x2="' + X(expIdx) + '" y1="4" y2="' + (H - B) + '" stroke="#e8c27a" stroke-width="1.5"/>';
+    h += '<line class="cursor" x1="' + X(expIdx) + '" x2="' + X(expIdx) + '" y1="4" y2="' + (H - B) + '" stroke="#e8c27a" stroke-width="1.5"/>';
     h += '<text x="' + L + '" y="' + (H - 4) + '" fill="#98a2ad" font-size="10">' + esc(exp.frames[0].label) + "</text>" +
       '<text x="' + W + '" y="' + (H - 4) + '" text-anchor="end" fill="#98a2ad" font-size="10">' + esc(exp.frames[n - 1].label) + "</text>";
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
