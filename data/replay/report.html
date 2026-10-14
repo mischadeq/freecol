@@ -1,0 +1,329 @@
+<title>Diplomat Replay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans+SC:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of sections — nations, a turn strip per nation, wars, then the turn-by-turn ledger. */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --ink: #1c2330; --muted: #5d6676; --line: #dde2ea;
+  --accent: #c76414;
+  --dutch: #e07b1f; --french: #2f5fd0; --english: #c8323a; --spanish: #b89200;
+  --war: #c8323a; --attack: #7f1d2a; --peace: #2b9465; --ally: #178a8a; --trade: #3f72c9; --arm: #7a8494;
+  --good: #2b9465; --bad: #c8323a;
+  --display: "Alegreya Sans SC", "Gill Sans", "Trebuchet MS", sans-serif;
+  --body: "Alegreya Sans", "Gill Sans", "Trebuchet MS", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12151b; --surface: #1a1f27; --ink: #e5e8ee; --muted: #9aa3b2; --line: #2b323d;
+  --accent: #f08a32;
+  --dutch: #f08a32; --french: #6e95f0; --english: #ef5d64; --spanish: #e2bf2c;
+  --war: #ef5d64; --attack: #c2485a; --peace: #43c08a; --ally: #3cc0c0; --trade: #6e95f0; --arm: #8d97a8;
+  --good: #43c08a; --bad: #ef5d64; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1f27; --ink: #e5e8ee; --muted: #9aa3b2; --line: #2b323d;
+  --accent: #f08a32;
+  --dutch: #f08a32; --french: #6e95f0; --english: #ef5d64; --spanish: #e2bf2c;
+  --war: #ef5d64; --attack: #c2485a; --peace: #43c08a; --ally: #3cc0c0; --trade: #6e95f0; --arm: #8d97a8;
+  --good: #43c08a; --bad: #ef5d64; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 17px/1.5 var(--body); margin: 0; }
+main { max-width: 1120px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-weight: 700; letter-spacing: .02em; text-wrap: balance; margin: 0; }
+h1 { font-size: 2.3rem; line-height: 1.1; }
+h2 { font-size: 1.35rem; }
+.lede { color: var(--muted); max-width: 65ch; margin: 6px 0 0; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 14px; min-width: 0; }
+.sub { color: var(--muted); font-size: .95rem; max-width: 70ch; margin: 0; }
+
+/* Nations */
+.nations { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.nation { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; }
+.nation header { display: flex; align-items: baseline; gap: 8px; }
+.swatch { width: 12px; height: 12px; border-radius: 2px; flex: none; align-self: center; }
+.nation h3 { font: 700 1.15rem var(--display); margin: 0; letter-spacing: .02em; }
+.nation .char { color: var(--muted); font-size: .9rem; margin-left: auto; font-style: italic; }
+.facts { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0; font-size: .95rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; text-align: right; font-family: var(--mono); font-size: .88rem; }
+
+/* Strip */
+.strip-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; }
+.strip-wrap svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: .85rem;
+  padding: 6px 9px; border-radius: 4px; max-width: 340px; z-index: 5; line-height: 1.35; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th { font: 500 .78rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.year { white-space: nowrap; font-family: var(--mono); font-size: .85rem; color: var(--muted); }
+.chip { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: .85rem; margin: 1px 4px 1px 0;
+  border: 1px solid var(--line); white-space: nowrap; }
+.chip.k-war, .chip.k-declare_war { border-color: var(--war); color: var(--war); }
+.chip.k-attack_colony, .chip.k-capture, .chip.k-destroy { border-color: var(--attack); color: var(--attack); }
+.chip.k-make_peace, .chip.k-peace { border-color: var(--peace); color: var(--peace); }
+.chip.k-alliance { border-color: var(--ally); color: var(--ally); }
+.chip.k-sell_goods, .chip.k-buy_goods, .chip.k-trade_agreement, .chip.k-incite { border-color: var(--trade); color: var(--trade); }
+.chip.k-arm, .chip.k-units_lost, .chip.k-ships_damaged, .chip.k-colony_lost { border-color: var(--arm); color: var(--muted); }
+.chip.theirs { border-style: dashed; }
+.chip.forced::after { content: " · King"; font-size: .78rem; }
+.chip.chosen { font-weight: 700; border-width: 2px; }
+.score { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-left: 3px; }
+.yes { color: var(--good); font-weight: 700; } .no { color: var(--bad); font-weight: 700; } .dash { color: var(--muted); }
+.out.pos { color: var(--good); } .out.neg { color: var(--bad); }
+.bar { position: relative; height: 10px; width: 140px; background: var(--line); border-radius: 2px; margin-top: 5px; }
+.bar b { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.bar .zero, .bar .line { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.bar .line { background: var(--accent); width: 2px; }
+.why { color: var(--muted); font-size: .85rem; max-width: 52ch; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls button { font: 500 .95rem var(--body); background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px; padding: 4px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.controls button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.controls button:focus-visible, .controls input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); margin-left: 8px; }
+.count { color: var(--muted); font-size: .9rem; }
+@media (max-width: 520px) { h1 { font-size: 1.8rem; } .bar { width: 100px; } }
+</style>
+
+<main>
+  <header>
+    <h1>Diplomat Replay</h1>
+    <p class="lede" id="lede">Every autosave of one game, replayed. For each turn, each European nation's diplomat scores its moves from what that nation could know; the next save shows what it really did, and the saves after that show how it turned out.</p>
+  </header>
+
+  <section aria-labelledby="h-nations">
+    <h2 id="h-nations">Nations</h2>
+    <p class="sub">"In the top 3": the move the nation made was among the diplomat's three best. "Better than usual": the ten turns after a move went better than that nation's average ten turns, by its own weights. "Wanted, not done": turns where the diplomat would have gone to war, made peace, attacked or armed, and the nation did none of these.</p>
+    <div class="nations" id="nations"></div>
+  </section>
+
+  <section aria-labelledby="h-strip">
+    <h2 id="h-strip">Turn by turn, at a glance</h2>
+    <p class="sub">Each column is one turn. The bar is what the diplomat would have done (empty: wait). Marks above it are what the nation did. Hover for the turn.</p>
+    <div class="legend" id="legend"></div>
+    <div class="strip-wrap"><svg id="strip" role="img" aria-label="Diplomat choices and real moves per turn and nation"></svg></div>
+  </section>
+
+  <section aria-labelledby="h-wars">
+    <h2 id="h-wars">Wars</h2>
+    <p class="sub">Every war that broke out, who started it, and the best score the starter's diplomat gave that war in the five turns before. Above the orange line it would have declared it itself.</p>
+    <div class="table-wrap"><table id="wars"><thead><tr><th>Year</th><th>War</th><th>Started by</th><th>Diplomat's score</th><th>Why that score</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section aria-labelledby="h-ledger">
+    <h2 id="h-ledger">The ledger</h2>
+    <div class="controls" id="filters" role="group" aria-label="Nation"></div>
+    <div class="controls">
+      <label for="busy"><input type="checkbox" id="busy" checked> only turns where something happened or the diplomat wanted to act</label>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="table-wrap"><table id="ledger"><thead><tr><th>Year</th><th>What happened</th><th>Diplomat's top 3</th><th>Agrees</th><th>Next 10 turns</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DATA = /*REPLAY_DATA*/null;
+const NATIONS = ["dutch", "french", "english", "spanish"];
+const NAME = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+const CHAR = { trading_empire: "trading empire", conqueror: "conqueror", balance_keeper: "balance keeper",
+  settler: "settler", independence_first: "independence first", tribe: "tribe" };
+const KIND_COLOR = { declare_war: "--war", attack_colony: "--attack", make_peace: "--peace", alliance: "--ally",
+  incite: "--trade", sell_goods: "--trade", buy_goods: "--trade", trade_agreement: "--trade", arm: "--arm" };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function moveWords(m) {
+  const to = NAME(m.to);
+  switch (m.k) {
+    case "nothing": return "wait";
+    case "declare_war": return "war on " + to;
+    case "attack_colony": return "attack " + to + (m.at ? " at " + m.at : "");
+    case "make_peace": return "peace with " + to;
+    case "alliance": return "ally with " + to;
+    case "incite": return "pay " + to + " to fight " + NAME(m.vs);
+    case "sell_goods": return "sell " + m.a + " " + m.g + " to " + to;
+    case "buy_goods": return "buy " + m.a + " " + m.g + " from " + to;
+    case "trade_agreement": return m.a + " " + m.g + "/turn to " + to;
+    case "arm": return "arm " + m.a;
+    default: return m.l;
+  }
+}
+function didWords(d, nation) {
+  const o = NAME(d.o), by = NAME(d.by);
+  switch (d.w) {
+    case "war": return d.mine ? "war on " + o : by + " declared war";
+    case "peace": return d.mine ? "peace with " + o : by + " made peace";
+    case "capture": return d.mine ? "took " + d.d + " from " + o : by + " took " + d.d;
+    case "destroy": return d.mine ? "destroyed " + d.d + " (" + o + ")" : by + " destroyed " + d.d;
+    case "colony_lost": return "lost " + d.d;
+    case "units_lost": return "lost " + d.a + (d.a === 1 ? " unit" : " units") + (d.o ? " to " + o : "");
+    case "ships_damaged": return d.a + " ship" + (d.a === 1 ? "" : "s") + " damaged";
+    case "arm": return "armed +" + d.a;
+    case "mission": return "mission at " + d.d;
+    case "mission_gone": return "mission at " + d.d + " ended";
+    case "sold_in_europe": return "sold " + d.a.toLocaleString() + " gold in Europe";
+    default: return d.l;
+  }
+}
+
+function renderNations() {
+  const box = document.getElementById("nations");
+  const charOf = {};
+  DATA.rows.forEach(r => { charOf[r.n] = r.c; });
+  for (const n of NATIONS) {
+    const s = DATA.summary[n]; if (!s) continue;
+    const human = DATA.rows.some(r => r.n === n && r.h);
+    box.insertAdjacentHTML("beforeend", `<article class="nation">
+      <header><span class="swatch" style="background:var(--${n})"></span><h3>${NAME(n)}${human ? " (you)" : ""}</h3>
+      <span class="char">${CHAR[charOf[n]] || ""}</span></header>
+      <dl class="facts">
+        <dt>Own moves seen</dt><dd>${s.moves}</dd>
+        <dt>In the diplomat's top 3</dt><dd>${s.agreed} of ${s.moves}</dd>
+        <dt>Better than usual after</dt><dd>${s.workedOut} of ${s.moves}</dd>
+        <dt>Wanted, not done</dt><dd>${s.unprompted} of ${s.turns} turns</dd>
+        <dt>Top move changed</dt><dd>${s.flips} times</dd>
+        <dt>Own wars with a reason</dt><dd>${s.warsWithReason} of ${s.wars}</dd>
+      </dl></article>`);
+  }
+}
+
+function renderLegend() {
+  const items = [["--war", "war"], ["--attack", "attack"], ["--peace", "peace"], ["--ally", "alliance"],
+    ["--trade", "trade or pay"], ["--arm", "arm"]];
+  document.getElementById("legend").innerHTML =
+    items.map(([c, t]) => `<span><i style="background:var(${c})"></i>${t}</span>`).join("") +
+    `<span>▲ war declared · ● peace · ◆ took or destroyed a place · | armed</span>`;
+}
+
+function renderStrip() {
+  const svg = document.getElementById("strip");
+  const turns = [...new Set(DATA.rows.map(r => r.t))].sort((a, b) => a - b);
+  const idx = new Map(turns.map((t, i) => [t, i]));
+  const left = 70, w = 4, rowH = 34, top = 18;
+  const width = left + turns.length * w + 10, height = top + NATIONS.length * rowH + 22;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  let out = "";
+  // Years along the bottom, at decade turns we have.
+  const labelled = new Set();
+  DATA.rows.forEach(r => {
+    const y = parseInt(r.y, 10);
+    if (y % 25 === 0 && !labelled.has(y)) {
+      labelled.add(y);
+      const x = left + idx.get(r.t) * w;
+      out += `<line x1="${x}" x2="${x}" y1="${top - 4}" y2="${height - 18}" style="stroke:var(--line)" />`;
+      out += `<text x="${x}" y="${height - 5}" font-size="10" text-anchor="middle" style="fill:var(--muted);font-family:var(--mono)">${y}</text>`;
+    }
+  });
+  NATIONS.forEach((n, k) => {
+    const y0 = top + k * rowH;
+    out += `<text x="0" y="${y0 + 17}" font-size="12" style="fill:var(--ink);font-family:var(--body)">${NAME(n)}</text>`;
+    out += `<rect x="${left}" y="${y0 + 10}" width="${turns.length * w}" height="10" style="fill:var(--bg)" />`;
+    DATA.rows.filter(r => r.n === n).forEach(r => {
+      const x = left + idx.get(r.t) * w;
+      const c = KIND_COLOR[r.ck];
+      if (c) out += `<rect x="${x}" y="${y0 + 10}" width="${w - 0.6}" height="10" style="fill:var(${c})" data-k="${n}|${r.t}" />`;
+      else out += `<rect x="${x}" y="${y0 + 10}" width="${w}" height="10" fill="transparent" data-k="${n}|${r.t}" />`;
+      r.did.filter(d => d.mine).forEach(d => {
+        const cx = x + w / 2, cy = y0 + 5;
+        if (d.w === "war") out += `<path d="M${cx - 3.5} ${cy + 3} L${cx} ${cy - 4} L${cx + 3.5} ${cy + 3} Z" style="fill:var(--war)" />`;
+        else if (d.w === "peace") out += `<circle cx="${cx}" cy="${cy}" r="3" style="fill:var(--peace)" />`;
+        else if (d.w === "capture" || d.w === "destroy") out += `<path d="M${cx} ${cy - 4} L${cx + 4} ${cy} L${cx} ${cy + 4} L${cx - 4} ${cy} Z" style="fill:var(--attack)" />`;
+        else if (d.w === "arm") out += `<line x1="${cx}" x2="${cx}" y1="${cy - 3}" y2="${cy + 4}" stroke-width="1.2" style="stroke:var(--arm)" />`;
+      });
+    });
+  });
+  svg.innerHTML = out;
+  const tip = document.getElementById("tip");
+  const byKey = new Map(DATA.rows.map(r => [r.n + "|" + r.t, r]));
+  svg.addEventListener("mousemove", e => {
+    const k = e.target.getAttribute && e.target.getAttribute("data-k");
+    if (!k) { tip.hidden = true; return; }
+    const r = byKey.get(k);
+    const did = r.did.filter(d => d.mine).map(d => didWords(d, r.n)).join(", ") || "nothing seen";
+    const best = r.top[0];
+    tip.innerHTML = `<b>${NAME(r.n)}, ${esc(r.y)}</b><br>Did: ${esc(did)}<br>Diplomat: ${esc(r.ck === "nothing" ? "wait" : moveWords(r.top.find(m => m.l === r.chosen) || best))}`;
+    tip.hidden = false;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 350) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+  });
+  svg.addEventListener("mouseleave", () => { tip.hidden = true; });
+}
+
+function scoreBar(s) {
+  if (s === null || s === undefined) return `<span class="dash">no diplomat (a tribe)</span>`;
+  const min = -150, max = 60, span = max - min;
+  const pos = v => Math.max(0, Math.min(100, (v - min) / span * 100));
+  const z = pos(0), v = pos(s), line = pos(DATA.threshold);
+  const color = s >= DATA.threshold ? "var(--good)" : "var(--bad)";
+  const l = Math.min(z, v), wd = Math.abs(v - z);
+  return `<span class="num">${s.toFixed(1)}</span><div class="bar" aria-hidden="true">
+    <b style="left:${l}%;width:${wd}%;background:${color}"></b><span class="zero" style="left:${z}%"></span><span class="line" style="left:${line}%"></span></div>`;
+}
+
+function renderWars() {
+  const body = document.querySelector("#wars tbody");
+  body.innerHTML = DATA.wars.map(w => {
+    const how = w.forced ? (w.how.includes("nobody") ? "nobody hated it: the King" : "the King")
+      : (w.how === "you said so" ? "you" : "their own hatred (" + esc(w.how) + ")");
+    return `<tr><td class="year">${esc(w.year)}</td>
+      <td><span class="swatch" style="display:inline-block;background:var(--${w.by}, var(--muted))"></span> ${NAME(w.by)} → ${NAME(w.on)}</td>
+      <td>${how}</td><td>${scoreBar(w.score)}</td><td class="why">${esc(w.why.replace(/, goal 0|, trade 0\.0/g, ""))}</td></tr>`;
+  }).join("");
+}
+
+let current = "dutch";
+function renderFilters() {
+  const box = document.getElementById("filters");
+  box.innerHTML = NATIONS.map(n => `<button type="button" id="f-${n}" data-n="${n}" aria-pressed="${n === current}">
+    <span class="swatch" style="background:var(--${n})"></span>${NAME(n)}</button>`).join("");
+  box.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    current = b.dataset.n;
+    box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    try { localStorage.setItem("replay.nation", current); } catch (err) {}
+    renderLedger();
+  });
+}
+
+function renderLedger() {
+  const busy = document.getElementById("busy").checked;
+  const rows = DATA.rows.filter(r => r.n === current &&
+    (!busy || r.did.some(d => d.w !== "sold_in_europe") || r.ck !== "nothing"));
+  document.getElementById("count").textContent = rows.length + " turns";
+  document.querySelector("#ledger tbody").innerHTML = rows.map(r => {
+    const did = r.did.filter(d => d.w !== "sold_in_europe").map(d =>
+      `<span class="chip k-${d.w}${d.mine ? "" : " theirs"}${d.f ? " forced" : ""}">${esc(didWords(d, r.n))}</span>`).join("")
+      || `<span class="dash">nothing seen</span>`;
+    const top = r.top.slice(0, 3).map(m =>
+      `<span class="chip k-${m.k}${m.l === r.chosen && m.k !== "nothing" ? " chosen" : ""}" title="${esc(m.p + (m.note ? "; " + m.note : ""))}">${esc(moveWords(m))}<span class="score">${m.s.toFixed(0)}</span></span>`).join("");
+    const agree = r.agree === null ? `<span class="dash">–</span>` : r.agree ? `<span class="yes">yes</span>` : `<span class="no">no</span>`;
+    const out = r.out === null ? `<span class="dash">–</span>`
+      : `<span class="num out ${r.out >= 0 ? "pos" : "neg"}">${r.out >= 0 ? "+" : ""}${r.out.toFixed(0)}</span>`;
+    return `<tr><td class="year">${esc(r.y)}</td><td>${did}</td><td>${top}</td><td>${agree}</td><td>${out}</td></tr>`;
+  }).join("");
+}
+
+if (DATA) {
+  const first = DATA.rows[0], last = DATA.rows[DATA.rows.length - 1];
+  document.getElementById("lede").textContent += ` From ${first.y} to ${last.y}.`;
+  try { const saved = localStorage.getItem("replay.nation"); if (NATIONS.includes(saved)) current = saved; } catch (err) {}
+  renderNations(); renderLegend(); renderStrip(); renderWars(); renderFilters(); renderLedger();
+  document.getElementById("busy").addEventListener("change", renderLedger);
+}
+</script>

@@ -943,6 +943,29 @@
          by setting the localeKey property ("-DlocaleKey=fi", for example),
          or all translations. Use "-emacs" in order to suppress extensive
          logging.  -->
+    <!-- Step 0 of the diplomacy plan: replay one game's autosaves and
+         compare what each nation did with what the diplomat would
+         have done.  Only reads the saves.  Example:
+         ant replay -Dsaves=../../save/autosave -Dprefix=Autosave-6c7a41f5_
+                    -Dout=replay -Ddeclared=iroquois -->
+    <target name="replay" depends="build"
+            description="Replays a game's autosaves with the diplomat (see claude_docs/plans/step0-replay.md).">
+        <property name="out" value="replay" />
+        <property name="declared" value="" />
+        <java classname="net.sf.freecol.tools.replay.ReplayMain"
+              fork="true" failonerror="true">
+            <classpath>
+                <pathelement location="${freecol.build.dir}" />
+                <path refid="libraries.classpath" />
+            </classpath>
+            <jvmarg value="-Xmx2g" />
+            <arg value="${saves}" />
+            <arg value="${prefix}" />
+            <arg value="${out}" />
+            <arg value="declared=${declared}" />
+        </java>
+    </target>
+
     <target name="translation-report" depends="build"
             description="Creates report on translations.">
         <condition property="localeKey" else="">

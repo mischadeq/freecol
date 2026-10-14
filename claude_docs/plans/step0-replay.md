@@ -1,6 +1,7 @@
 # Step 0 build plan: replay your saves, score every turn
 
-Status: **planned** (2026-10-13), to build and run on 2026-10-14.
+Status: **built and run** (2026-10-14). See "As built" at the end for
+what changed from this plan.
 Part of `ai-diplomacy-and-natives.md` (read that first for the idea).
 
 Goal for tomorrow: a tool that reads the 244 autosaves of Mischa's game
@@ -290,3 +291,21 @@ In `test/src/net/sf/freecol/common/diplomacy/` and
    `Diplomat`, with their tests.
 4. Compare and judge: `Hindsight`, the full report, run over all 244
    saves, then look at it together.
+
+## As built (2026-10-14)
+
+- Names: `Character` became `NationCharacter` (to stay clear of
+  `java.lang.Character`); `Risk` is part of `Effects` plus
+  `CaptureSim`; the per-turn work is in `Situation`; `GoodsView` and
+  `PlaceView` hold goods and colonies; `TurnDiff` does what
+  `ActionExtractor` was planned to do, from plain `Snapshot`s.
+- A1 holds: every autosave was made on Mischa's turn. A2 holds: the
+  oldest (1493) and newest saves load. There are 243 autosaves (three
+  early gaps); a save takes about 0.06 s.
+- A3: Mischa declared the Iroquois war himself; the other four were the
+  King's. His word goes first, since tension rises after an attack.
+- A10: Mischa made no trades through the diplomacy screen.
+- Wars are labelled with the turn of the game's own history event.
+- Score changes after the first run are listed in `ideas.md` (goals
+  only amplify, opinion only for political moves, trade at a quarter,
+  plunder, tribes raid).

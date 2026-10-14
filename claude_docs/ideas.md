@@ -665,6 +665,54 @@ the Claude Doc "FreeCol: living diplomacy design").
   report). The score function is written out per move, with its
   assumptions (A1–A14). No game behaviour changes in step 0.
 
+### Step 0 built: the replay (2026-10-14)
+- **What:** `ant replay -Dsaves=<autosave folder> -Dprefix=Autosave-6c7a41f5_ -Dout=replay -Ddeclared=iroquois`
+  reads every autosave of one game (read-only), lets each European
+  nation's diplomat score its moves from that nation's honest view,
+  compares with what the next save shows it did, and judges the 10
+  turns after. Writes `replay.csv`, `replay.json` and `replay.html`
+  (nations, a turn strip, wars, the ledger). 243 saves take 15 s.
+- **Diplomat** (`common/diplomacy`, nothing in the game uses it yet):
+  `WorldViewBuilder` (honest: Foreign Affairs report via
+  `NationSummary`, colonies on explored tiles, public wars; hindsight:
+  everything), `NationCharacter` (weights from the nation type),
+  `Memory`/`Relations` (opinion from tension and fading memories),
+  `Threat`, `Goal`, `CaptureSim` (fights played out 400 times with the
+  game's attack/(attack+defence)), `Situation`, `Effects` (each move's
+  gold, trade, land, security, relations and risk), `Diplomat` (rank
+  and choose), `ScoredAction` (keeps every part of the score).
+  `Estimates` and `CombatMath` moved here from the companion
+  (`NationEstimate`, `CompanionIndependence` now call them).
+- **Replay** (`tools/replay`): `SaveSeries`, `Snapshot` (the facts of
+  one save, plain data), `TurnDiff` (wars and who started them, peace,
+  captures, destroyed settlements, units lost, ships damaged, arming,
+  missions, Europe sales), `Observed`, `Hindsight`, `Replay`,
+  `ReplayReport`, `ReplayMain`; page template `data/replay/report.html`.
+- **Changes after the first run:** goals only amplify a move (bonus
+  grows with what the move brings by itself); opinion counts only for
+  war, peace, alliances and attacks (for trade it only changes the
+  chance they accept); trade volume counts at a quarter of the gold;
+  plunder added (100 gold per native, a colony's share of its owner's
+  gold); tribes raid instead of taking colonies (a quarter of the
+  colony's value as risk); Mischa's own word decides who started his
+  wars (tension rises after an attack, so it can not tell).
+- **Tested:** `DiplomacyTest` (16: threat worked example, opinion and
+  fading, capture odds match the game rule, characters, parts add up,
+  peace with a strong near enemy, no war on a strong neighbour, attack
+  on a weak colony, ships needed across the sea, boycotted surplus,
+  goals only amplify), `ReplayTest` (7: file names to turns, who
+  declared, the King's wars, Mischa's word, peace, captures and
+  losses and arming, missions); companion tests unchanged and green.
+- **First findings (Mischa's game, 1493 to spring 1669):** all four of
+  the King's wars on the Dutch score −96 to −121 for the Dutch diplomat
+  (none would have been chosen); the French war on the Dutch in 1658
+  came from tension alone with no Dutch colony in their reach (−24);
+  Spain's war on the Apache in 1664 is the only war with a reason
+  (+23). No European colony changed hands in 244 turns. Mischa's own
+  war on the Iroquois scored −78 (the Iroquois army next door), yet
+  the next 10 turns went better than usual for him (treasure); his
+  arming matched the diplomat 7 times out of 17 moves.
+
 ## Ideas, not started
 
 ### Unit groups, next steps
