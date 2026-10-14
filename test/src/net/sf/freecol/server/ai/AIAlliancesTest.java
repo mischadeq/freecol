@@ -246,4 +246,62 @@ public class AIAlliancesTest extends FreeColTestCase {
         new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
         assertEquals("both loyal: peace", Stance.PEACE, dutch.getStance(french));
     }
+
+    /** A joint war: the player joins for gold, and gets the spoils. */
+    public void testJointWarGoldAndSpoils() {
+        setUpGame();
+        english.setAI(false);
+        dutch.setStance(spanish, Stance.WAR);
+        spanish.setStance(dutch, Stance.WAR);
+        dutch.modifyGold(2000 - dutch.getGold());
+        final int englishGold = english.getGold();
+        EuropeanAIPlayer dai = ai(dutch);
+        net.sf.freecol.common.model.Colony havana = spanish.getColonyList().get(0);
+        Offer o = new Offer("joint:test", Offer.Kind.JOINT_WAR, DUTCH, null, 0,
+            500, havana.getId(), havana.getName(), game.getTurn().getNumber(), 0);
+        o.against = SPANISH;
+        o.audience.add(ENGLISH);
+        dai.getOffers().add(o);
+        assertTrue(new OfferPlanner(dai).answer(english, o.id, true, new ChangeSet()));
+        assertEquals(Stance.WAR, english.getStance(spanish));
+        assertEquals(englishGold + 500, english.getGold());
+        assertEquals(1500, dutch.getGold());
+        assertEquals(Offer.State.TAKEN, o.state);
+        // No separate peace for the Dutch while the English fight.
+        assertTrue(AlliancePlanner.boundToFight(dai, SPANISH));
+
+        // The Dutch take Havana: it goes to the English, as promised.
+        ((net.sf.freecol.server.model.ServerColony)havana)
+            .csChangeOwner(dutch, false, null, new ChangeSet());
+        dai.rememberTurn();
+        new AlliancePlanner(dai).plan(dai.getOutlook(), new LogBuilder(64));
+        assertEquals(english, havana.getOwner());
+
+        // The English make peace alone: a broken word.
+        english.setStance(spanish, Stance.PEACE);
+        spanish.setStance(english, Stance.PEACE);
+        new AlliancePlanner(dai).plan(dai.getOutlook(), new LogBuilder(64));
+        assertEquals(Offer.State.FAILED, o.state);
+        assertTrue(remembers(dai, Memory.Kind.DEAL_BROKEN, ENGLISH));
+        assertFalse(AlliancePlanner.boundToFight(dai, SPANISH));
+    }
+
+    /** A computer partner that accepts goes to war and is paid. */
+    public void testComputerJoinsAJointWar() {
+        setUpGame();
+        dutch.setStance(spanish, Stance.WAR);
+        spanish.setStance(dutch, Stance.WAR);
+        dutch.modifyGold(1000 - dutch.getGold());
+        final int frenchGold = french.getGold();
+        EuropeanAIPlayer dai = ai(dutch);
+        Offer o = new Offer("joint:test2", Offer.Kind.JOINT_WAR, DUTCH, null,
+            0, 400, null, "", game.getTurn().getNumber(), 0);
+        o.against = SPANISH;
+        o.audience.add(FRENCH);
+        dai.getOffers().add(o);
+        new AlliancePlanner(dai).accept(o, french, spanish, new ChangeSet());
+        assertEquals(Stance.WAR, french.getStance(spanish));
+        assertEquals(frenchGold + 400, french.getGold());
+        assertTrue(remembers(ai(french), Memory.Kind.GIFT, DUTCH));
+    }
 }

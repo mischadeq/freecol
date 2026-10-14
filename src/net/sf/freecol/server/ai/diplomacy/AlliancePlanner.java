@@ -93,6 +93,8 @@ public final class AlliancePlanner {
             }
         }
         changed |= keepTruces(d, cs);
+        changed |= followJointWars(cs, lb);
+        changed |= inviteToJointWar(outlook, cs, lb);
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
         return changed;
     }
@@ -230,6 +232,186 @@ public final class AlliancePlanner {
                     ai.getMemories().add(new Memory(Memory.Kind.DEAL_BROKEN,
                                                     t, now(), 1));
                     break;
+                }
+            }
+        }
+        return false;
+    }
+
+
+    // Joint wars (5b)
+
+    /**
+     * Ask a nation to join our war against an enemy, when the diplomat
+     * says paying it is worth it (its INCITE move at 20 or more): gold
+     * now, the colonies it takes are its own, and when we lack the gold
+     * the colony we plan to take, if we take it.
+     */
+    private boolean inviteToJointWar(Outlook outlook, ChangeSet cs,
+                                     LogBuilder lb) {
+        final Player me = me();
+        final int now = now();
+        for (Offer o : ai.getOffers()) {
+            if (o.kind == Offer.Kind.JOINT_WAR && me.getNationId().equals(o.from)
+                && now - o.posted < OfferPlanner.GAP) return false;
+        }
+        for (ScoredAction sa : outlook.ranked) {
+            if (sa.action.kind != Action.Kind.INCITE
+                || sa.total < Diplomat.THRESHOLD) continue;
+            final Player x = game().getPlayerByNationId(sa.action.target);
+            final Player z = game().getPlayerByNationId(sa.action.against);
+            if (x == null || z == null || x.isREF() || !x.isEuropean()
+                || me.getStance(z) != Stance.WAR
+                || x.getStance(z) == Stance.WAR
+                || me.getStance(x) == Stance.WAR) continue;
+            final int gold = Math.min(sa.action.price, Math.max(0, me.getGold()));
+            String place = null, placeName = "";
+            if (gold < sa.action.price) {
+                final net.sf.freecol.common.diplomacy.Situation.Attack at
+                    = outlook.situation.attacks.get(z.getNationId());
+                if (at == null) continue; // neither gold nor a prize
+                place = at.place.id;
+                placeName = at.place.name;
+            }
+            Offer o = new Offer("joint:" + me.getNationId() + ":"
+                + x.getNationId() + ":" + now, Offer.Kind.JOINT_WAR,
+                me.getNationId(), null, 0, gold, place, placeName, now, 0);
+            o.against = z.getNationId();
+            o.audience.add(x.getNationId());
+            ai.getOffers().add(o);
+            lb.add("\n  Asks ", x.getDebugName(), " to join the war on ",
+                   z.getDebugName(), " for ", gold, (place == null) ? ""
+                   : " and " + placeName);
+            if (x.isAI()) return computerAnswers(o, x, z, cs);
+            return false; // the player answers in a dialog
+        }
+        return false;
+    }
+
+    /**
+     * A computer nation weighs a joint-war offer with its own diplomat:
+     * the war itself plus the gold (and the prize).
+     */
+    private boolean computerAnswers(Offer o, Player x, Player z, ChangeSet cs) {
+        final AIPlayer xa = ai.getAIMain().getAIPlayer(x);
+        if (!(xa instanceof EuropeanAIPlayer)) return false;
+        final EuropeanAIPlayer xai = (EuropeanAIPlayer)xa;
+        final Outlook xo = xai.getOutlook();
+        if (!xo.view.others.containsKey(z.getNationId())) {
+            o.state = Offer.State.DECLINED;
+            return false;
+        }
+        final ScoredAction war = Diplomat.score(Action.war(z.getNationId()),
+                                                xo.situation);
+        final double worth = war.total + xo.view.character.gold * o.gold / 100.0
+            + ((o.place == null) ? 0 : PRIZE_POINTS);
+        if (worth < Diplomat.THRESHOLD) {
+            o.state = Offer.State.DECLINED;
+            ai.getMemories().add(new Memory(Memory.Kind.REFUSED_OFFER,
+                                            x.getNationId(), now(), 1));
+            return false;
+        }
+        accept(o, x, z, cs);
+        xai.getCommitments().chose(z.getNationId(), war, now());
+        return true;
+    }
+
+    /** What a promised colony is worth to the partner, in points. */
+    public static final double PRIZE_POINTS = 15;
+
+    /**
+     * The partner accepts: it declares war, the gold moves, the offer
+     * stays as the record of the joint war.
+     *
+     * @param o The offer.
+     * @param x The partner.
+     * @param z The enemy.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    public void accept(Offer o, Player x, Player z, ChangeSet cs) {
+        ((net.sf.freecol.server.model.ServerPlayer)x)
+            .csChangeStance(Stance.WAR, z, true, cs);
+        final int gold = Math.min(o.gold, Math.max(0, me().getGold()));
+        me().modifyGold(-gold);
+        x.modifyGold(gold);
+        cs.addPartial(ChangeSet.See.only(x), x, "gold", String.valueOf(x.getGold()));
+        o.paid = gold;
+        o.state = Offer.State.TAKEN;
+        o.takenBy = x.getNationId();
+        o.takenTurn = now();
+        remember(x, Memory.Kind.GIFT, me());
+    }
+
+    /**
+     * Joint wars running: hand over a promised colony once we took it;
+     * a partner that makes peace alone broke its word; the joint war
+     * ends with the war.
+     */
+    private boolean followJointWars(ChangeSet cs, LogBuilder lb) {
+        final Player me = me();
+        boolean changed = false;
+        for (Offer o : ai.getOffers()) {
+            if (o.kind != Offer.Kind.JOINT_WAR || o.state != Offer.State.TAKEN
+                || !me.getNationId().equals(o.from)) continue;
+            final Player x = game().getPlayerByNationId(o.takenBy);
+            final Player z = game().getPlayerByNationId(o.against);
+            if (x == null || z == null) {
+                o.state = Offer.State.DONE;
+                continue;
+            }
+            if (o.place != null) {
+                final net.sf.freecol.common.model.Colony c = game()
+                    .getFreeColGameObject(o.place, net.sf.freecol.common.model.Colony.class);
+                if (c != null && c.getOwner() == me) {
+                    ((net.sf.freecol.server.model.ServerColony)c)
+                        .csChangeOwner(x, false, null, cs);
+                    x.invalidateCanSeeTiles();
+                    me.invalidateCanSeeTiles();
+                    tell(cs, x, "alliance.spoils", z);
+                    remember(x, Memory.Kind.DEAL_KEPT, me);
+                    lb.add("\n  Hands ", c.getName(), " to ", x.getDebugName());
+                    changed = true;
+                }
+            }
+            final boolean weFight = me.getStance(z) == Stance.WAR;
+            final boolean theyFight = x.getStance(z) == Stance.WAR;
+            if (weFight && !theyFight) {
+                ai.getMemories().add(new Memory(Memory.Kind.DEAL_BROKEN,
+                                                x.getNationId(), now(), 1));
+                o.state = Offer.State.FAILED;
+            } else if (!weFight) {
+                o.state = Offer.State.DONE;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Are we bound not to make peace with a nation: a joint war we
+     * asked a partner into (or joined), with the partner still
+     * fighting?
+     *
+     * @param ai The computer player.
+     * @param enemy The enemy nation id.
+     * @return True if peace now would be a separate peace.
+     */
+    public static boolean boundToFight(EuropeanAIPlayer ai, String enemy) {
+        final Player me = ai.getPlayer();
+        for (Player p : ai.getGame().getLiveEuropeanPlayerList()) {
+            final AIPlayer pa = ai.getAIMain().getAIPlayer(p);
+            if (!(pa instanceof EuropeanAIPlayer)) continue;
+            for (Offer o : ((EuropeanAIPlayer)pa).getOffers()) {
+                if (o.kind != Offer.Kind.JOINT_WAR
+                    || o.state != Offer.State.TAKEN
+                    || !enemy.equals(o.against)) continue;
+                final String partner = me.getNationId().equals(o.from)
+                    ? o.takenBy : me.getNationId().equals(o.takenBy)
+                    ? o.from : null;
+                if (partner == null) continue;
+                final Player q = ai.getGame().getPlayerByNationId(partner);
+                final Player e = ai.getGame().getPlayerByNationId(enemy);
+                if (q != null && e != null && q.getStance(e) == Stance.WAR) {
+                    return true;
                 }
             }
         }

@@ -1581,6 +1581,12 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                     && !agrees(p, why.action.kind)) {
                     newStance = player.getStance(p);
                 }
+                // No separate peace while a joint-war partner fights.
+                if (why != null && newStance == Stance.PEACE
+                    && net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+                        .boundToFight(this, p.getNationId())) {
+                    newStance = player.getStance(p);
+                }
             } else {
                 newStance = determineStance(p);
             }

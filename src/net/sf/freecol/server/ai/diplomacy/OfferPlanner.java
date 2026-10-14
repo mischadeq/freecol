@@ -679,6 +679,15 @@ public final class OfferPlanner {
             // A notice declined stays up for the others.
             return true;
         }
+        if (o.kind == Offer.Kind.JOINT_WAR) {
+            final Player z = game().getPlayerByNationId(o.against);
+            if (z == null || me().getStance(z) != Stance.WAR) {
+                o.state = Offer.State.EXPIRED;
+                return true;
+            }
+            new AlliancePlanner(ai).accept(o, human, z, cs);
+            return true;
+        }
         if (o.kind == Offer.Kind.ALLIANCE) {
             o.state = Offer.State.DONE;
             if (me().getStance(human) == Stance.PEACE) {

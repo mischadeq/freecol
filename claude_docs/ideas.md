@@ -1106,6 +1106,29 @@ In the base game an alliance meant almost nothing. Now:
   (`DefendAllyMission`); a truce broken by the partner is only noticed
   through losses and captured colonies.
 
+### Step 5b built: joint wars (2026-10-14)
+- A computer nation at war whose diplomat scores paying another nation
+  to join (its `INCITE` move) at 20 or more asks it: "join our war
+  against Spain, 500 gold now; the colonies you take are yours". When
+  it has less gold than the price, it promises the colony it plans to
+  take instead ("and Havana if we take it"), as Mischa decided: only
+  conquered colonies, a division of the spoils.
+- A computer partner weighs it with its own diplomat (the war itself
+  plus the gold, plus 15 points for a promised colony) and joins at 20
+  or more; refusing is remembered as a refused offer. The player gets a
+  dialog. Accepting declares the war at once and the gold moves.
+- The joint war is kept as the offer (state "taken"). When the inviter
+  takes the promised colony, it hands it over (remembered as a kept
+  deal). A partner that makes peace alone while the inviter still
+  fights broke its word; the inviter itself makes no separate peace
+  while its partner fights. At most one joint-war offer per 5 turns.
+- **Tested:** `AIAlliancesTest` (the player joins for gold, the
+  promised colony is handed over, his separate peace is remembered and
+  the inviter is no longer bound; a computer partner goes to war and is
+  paid). All tests green.
+- **Not yet:** a partner's promised colony of its own conquest is not
+  asked for; the target cannot buy a partner out yet.
+
 ## Ideas, not started
 
 ### Unit groups, next steps
