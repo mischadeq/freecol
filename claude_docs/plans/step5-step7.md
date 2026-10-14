@@ -264,27 +264,43 @@ help; 7c refugees; 7d a settlement joins; 7e a tribe joins; 7f
 uprisings; 7g tribe cards. 5b's colony prize can come after 7 if time
 is short.
 
-## Questions for Mischa (with a proposal each)
+## Decisions (Mischa, 2026-10-14)
 
-1. **A call to arms to you:** a dialog you answer (proposal), or do your
-   allies' wars pull you in automatically?
-2. **The King's wars:** when the King declares war for you, are your
-   allies called? Proposal: no (it is not an attack on you), but they
-   may join on their own if their diplomat wants to.
-3. **Colonies as prizes in joint wars:** yes, in a second round
-   (proposal), or gold only?
-4. **Coalition line by difficulty:** proposal 0.40 (very easy), 0.38,
-   0.35 (medium), 0.32, 0.30 (very hard), so coalitions against a
-   strong player form sooner on harder levels.
-5. **Allied native settlement:** proposal as in 7d (stays native,
-   flagged allied, cheap trade, helps defend). May you also use its
-   land for free?
-6. **Tribe characters:** from the nation type (warlike, peaceful,
-   traders); which tribes are which (proposal: Apache, Sioux warlike;
-   Arawak, Tupi peaceful; Aztec, Inca traders; the rest middling).
-7. **Refugees:** half the settlement's units (proposal), or all?
-8. **Uprising warning:** 5 turns of unrest before the rising
-   (proposal), shorter on harder levels?
+1. **Call to arms to the player:** a dialog he answers (as in 5a).
+2. **The King's wars do not call allies.** That is the interesting
+   part: local allies against global enemies. When a King declares war
+   on a nation that is allied in the New World (to us, or between two
+   computer nations), each side chooses what to do:
+   - the stance becomes war (the King's doing), but it is not counted
+     as betrayal (no `DEAL_BROKEN`);
+   - a loyal ally (long alliance, high trust, kept deals) keeps a
+     **local truce**: it does not attack the ally's colonies or units
+     and offers peace as soon as it can; its card says "at war by order
+     of the King, keeps the peace here";
+   - a disloyal one takes the chance and attacks; that is remembered
+     as betrayal;
+   - the player chooses by how he plays; attacking a former ally during
+     a King's war counts the same way for the ally's memory.
+   Add to 5a; test both a loyal and a disloyal ally.
+3. **Colonies as prizes: yes, only conquered ones** (a division of the
+   spoils): "join us against France, and the French colonies you take
+   are yours; the ones we take we keep", or a named colony handed over
+   when the inviter takes it. No promises of colonies that are not
+   taken in that war. Second round of 5b.
+4. **Coalition line by difficulty:** 0.40 (very easy), 0.38, 0.35
+   (medium), 0.32, 0.30 (very hard).
+5. **Allied native settlement: subservient.** It stays native, is
+   treated as second class but under your protection: you use its land
+   for free, trade with it cheaply, its braves help defend your
+   colonies nearby; its tribe and neighbours resent it.
+6. **Tribe characters:** warlike: Apache, Sioux, Aztec, Inca; peaceful:
+   Arawak; traders: Tupi; the others (Cherokee, Iroquois) middling.
+7. **Refugees:** half the settlement's units.
+8. **Uprisings** (asked what they are): several tribes rising together
+   against one European nation (the player or a computer nation), like
+   the Pueblo Revolt of 1680. Proposal unchanged: 5 turns of unrest
+   with warnings first, shorter on harder levels. Waiting for Mischa's
+   answer on whether he wants it.
 
 ## Not in these steps
 
