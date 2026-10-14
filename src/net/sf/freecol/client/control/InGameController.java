@@ -3792,6 +3792,18 @@ public final class InGameController extends FreeColClientHolder {
         case PEACE:
             key = (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
             break;
+        case CALL_TO_ARMS:
+            key = "offer.callToArms";
+            break;
+        case ALLIANCE:
+            key = "offer.alliance";
+            break;
+        case JOINT_WAR:
+            key = (o.place == null) ? "offer.jointWar" : "offer.jointWarColony";
+            break;
+        case COALITION:
+            key = "offer.coalition";
+            break;
         case WANT:
             key = "offer.want";
             break;
@@ -3806,6 +3818,9 @@ public final class InGameController extends FreeColClientHolder {
             .addAmount("%turns%", o.deadline)
             .addName("%colony%", o.placeName);
         if (gt != null) t.addNamed("%goods%", gt);
+        final Player enemy = (o.against == null) ? null
+            : getGame().getPlayerByNationId(o.against);
+        if (enemy != null) t.addStringTemplate("%enemy%", enemy.getNationLabel());
         return t;
     }
 

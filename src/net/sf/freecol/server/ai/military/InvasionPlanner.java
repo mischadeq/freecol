@@ -172,7 +172,9 @@ public final class InvasionPlanner {
             if (at == null) continue;
             final Settlement target = game.getFreeColGameObject(at.place.id,
                                                                 Settlement.class);
-            if (target == null || !player.atWarWith(target.getOwner())) continue;
+            if (target == null || !player.atWarWith(target.getOwner())
+                || aiPlayer.getCommitments().inTruce(
+                    target.getOwner().getNationId())) continue;
 
             // Spare units, strongest against this target first.
             List<AIUnit> spare = new ArrayList<>();

@@ -1059,6 +1059,53 @@ the companion page only shows.
   diplomat's sale prices are rough (80% of Europe's for sales, 120%
   for purchases).
 
+### Step 5a built: alliances are defensive pacts (2026-10-14)
+In the base game an alliance meant almost nothing. Now:
+- **Who declared a war is known.** The server notes every declaration
+  and whether the King ordered it (new `WarDeclarations`; the King's
+  order runs through `WarDeclarations.asKing`). The turn diff uses it,
+  so the player's own declarations are no longer taken for the King's
+  (the step 2 limitation is gone). Not saved: after a load the last
+  round's wars are guessed from tension again.
+- **Calls to arms.** When a nation declares war on our ally (not the
+  King), we are called. A computer ally scores `JOIN_WAR` (the war's
+  own worth, half its risk because it does not fight alone, plus
+  keeping its word: 10 at normal trust, more when it likes the ally)
+  and joins at 0 or more. The player gets a dialog. Joining: the ally
+  remembers "you fought their enemy". Refusing: the alliance ends and
+  the ally remembers "you broke your word". The turn report tells the
+  player when his computer ally joins or refuses.
+- **Betrayal is public.** Every nation that sees a nation declare war
+  on its own ally remembers it as a betrayer (`BETRAYER`: opinion -10,
+  trust -15). An ally that makes a separate peace with the common
+  enemy broke its word.
+- **The King's wars do not call allies** (Mischa: local allies against
+  global enemies). When a King's war sets two New World allies
+  against each other, it is not betrayal. A loyal ally (trust at least
+  50 and not disliking the other, measured before the King's order)
+  keeps a **local truce**: its soldiers do not attack the partner (new
+  check in `Mission.invalidAttackReason`, and `InvasionPlanner` skips
+  its colonies), it offers peace (to the player: peace terms; two
+  loyal computer allies make peace on the second one's turn). A
+  disloyal one fights. A partner that attacks during the truce ends it
+  and is remembered as having broken its word. Truces are saved with
+  the choices (`Commitments`).
+- **Allies share what they see:** an ally's sightings feed our guesses
+  of where the others live.
+- **Invitations:** a computer nation whose diplomat scores an alliance
+  with the player at 20 or more invites him (dialog).
+- **Tested:** `AIAlliancesTest` (the King's war is noted as his; a
+  computer ally joins or leaves; the player is called, accepting means
+  war, refusing ends the alliance and is remembered; a loyal ally keeps
+  a truce, offers peace and its soldiers leave the partner alone; a
+  disloyal one fights; two loyal computers make peace), `MemoriesTest`
+  (the server says who declared; betrayal seen by all, not for the
+  King's war; separate peace), `CommitmentsTest` (truces saved). All
+  599 tests green.
+- **Not yet:** soldiers going to stand in an ally's colony
+  (`DefendAllyMission`); a truce broken by the partner is only noticed
+  through losses and captured colonies.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

@@ -59,6 +59,11 @@ public final class Commitments {
     private final Map<String, Choice> choices = new LinkedHashMap<>();
     /** The last turn something shocking happened, -1 never. */
     private int lastShock = -1;
+    /**
+     * Local truces: at war by the King's order with a New World ally,
+     * we keep the peace here (nation to the turn it began).
+     */
+    private final Map<String, Integer> truces = new LinkedHashMap<>();
 
 
     public Commitments() {}
@@ -74,6 +79,26 @@ public final class Commitments {
 
     public int lastShock() {
         return lastShock;
+    }
+
+    /** Keep a local truce with a nation, from a turn. */
+    public void truce(String nation, int turn) {
+        truces.put(nation, turn);
+    }
+
+    /** End a local truce. */
+    public void endTruce(String nation) {
+        truces.remove(nation);
+    }
+
+    /** Do we keep a local truce with a nation? */
+    public boolean inTruce(String nation) {
+        return truces.containsKey(nation);
+    }
+
+    /** The nations we keep a local truce with. */
+    public java.util.Set<String> truces() {
+        return new java.util.HashSet<>(truces.keySet());
     }
 
     /**
@@ -222,6 +247,10 @@ public final class Commitments {
                 .append(c.why.replace(':', ' ').replace(';', ' '))
                 .append(';');
         }
+        for (Map.Entry<String, Integer> e : truces.entrySet()) {
+            sb.append('~').append(e.getKey()).append(':')
+                .append(e.getValue()).append(';');
+        }
         if (lastShock >= 0) sb.append('!').append(lastShock);
         return sb.toString();
     }
@@ -233,6 +262,13 @@ public final class Commitments {
             try {
                 if (rec.startsWith("!")) {
                     ret.lastShock = Integer.parseInt(rec.substring(1));
+                    continue;
+                }
+                if (rec.startsWith("~")) {
+                    final int i = rec.lastIndexOf(':');
+                    if (i <= 1) continue;
+                    ret.truces.put(rec.substring(1, i),
+                                   Integer.parseInt(rec.substring(i + 1)));
                     continue;
                 }
                 String[] f = rec.split(":", -1);

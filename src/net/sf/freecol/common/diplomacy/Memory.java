@@ -51,6 +51,8 @@ public final class Memory {
         DEAL_KEPT(10, 40, 15),
         /** They delivered what they promised, but late. */
         DEAL_LATE(-2, 15, -5),
+        /** They attacked their own ally (we saw it: alliances are public). */
+        BETRAYER(-10, 30, -15),
         /** They broke a fresh peace or attacked their ally (us). */
         DEAL_BROKEN(-40, 60, -40),
         /** They gave us something for nothing. */

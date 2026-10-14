@@ -192,6 +192,7 @@ final class CompanionMoods {
         case DEAL_KEPT: return "you kept the peace";
         case DEAL_BROKEN: return "you broke your word";
         case DEAL_LATE: return "you delivered late";
+        case BETRAYER: return "you turned on your ally";
         case GIFT: return "your gift";
         case TRADE: return "trade with you";
         case HELPED_IN_WAR: return "you fought their enemy";

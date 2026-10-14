@@ -129,6 +129,13 @@ public class CommitmentsTest extends TestCase {
         assertEquals(31.3, e.score, 1e-9);
         assertEquals("wants their colonies", e.why);
         assertEquals(Action.Kind.ALLIANCE, d.get(FRENCH).kind);
+        // Local truces are kept too.
+        c.truce(FRENCH, 12);
+        Commitments e2 = Commitments.parse(c.serialize());
+        assertTrue(e2.inTruce(FRENCH));
+        assertFalse(e2.inTruce(ENGLISH));
+        e2.endTruce(FRENCH);
+        assertFalse(e2.inTruce(FRENCH));
         assertEquals(0, Commitments.parse(null).size());
         assertEquals(-1, Commitments.parse("bad;x:Y:1:2:3").lastShock());
     }

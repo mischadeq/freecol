@@ -258,9 +258,19 @@ public final class OfferPlanner {
             if (o.told.contains(id) || !o.visibleTo(id, now())) continue;
             o.told.add(id);
             cs.add(See.only(h), new OfferMessage(o));
-            message(cs, h, (o.kind == Offer.Kind.PEACE) ? "offer.postedPeace"
-                : (o.kind == Offer.Kind.WANT) ? "offer.postedWant"
-                : "offer.postedSell", o, o.gold);
+            message(cs, h, postedKey(o.kind), o, o.gold);
+        }
+    }
+
+    private static String postedKey(Offer.Kind k) {
+        switch (k) {
+        case PEACE: return "offer.postedPeace";
+        case WANT: return "offer.postedWant";
+        case CALL_TO_ARMS: return "offer.postedCall";
+        case ALLIANCE: return "offer.postedAlliance";
+        case JOINT_WAR: return "offer.postedJointWar";
+        case COALITION: return "offer.postedCoalition";
+        default: return "offer.postedSell";
         }
     }
 
@@ -277,6 +287,10 @@ public final class OfferPlanner {
             .addName("%colony%", o.placeName);
         if (gt != null) mm.addNamed("%goods%", gt);
         else mm.addName("%goods%", "");
+        final Player enemy = (o.against == null) ? null
+            : game().getPlayerByNationId(o.against);
+        if (enemy != null) mm.addStringTemplate("%enemy%", enemy.getNationLabel());
+        else mm.addName("%enemy%", "");
         cs.addMessage(to, mm);
     }
 
@@ -297,6 +311,7 @@ public final class OfferPlanner {
             }
         }
         Offer o = peaceTerms(outlook);
+        if (o == null) o = allianceInvite(outlook);
         if (o == null) o = voyage(outlook);
         return (o != null) ? o : notice(outlook);
     }
@@ -398,6 +413,23 @@ public final class OfferPlanner {
             }
         }
         return best;
+    }
+
+    /** An invitation to an alliance, if the diplomat wants one. */
+    private Offer allianceInvite(Outlook outlook) {
+        final int now = now();
+        for (ScoredAction sa : outlook.ranked) {
+            if (sa.action.kind != Action.Kind.ALLIANCE
+                || sa.total < Diplomat.THRESHOLD) continue;
+            final Player h = game().getPlayerByNationId(sa.action.target);
+            if (h == null || h.isAI() || h.isREF()
+                || me().getStance(h) != Stance.PEACE) continue;
+            Offer o = new Offer(id(now), Offer.Kind.ALLIANCE,
+                me().getNationId(), null, 0, 0, null, "", now, 0);
+            o.audience.add(h.getNationId());
+            return o;
+        }
+        return null;
     }
 
     /** A notice from the diplomat's best trade move. */
@@ -598,6 +630,31 @@ public final class OfferPlanner {
     // Answers
 
     /**
+     * The player answers our call to arms: join the war, or leave the
+     * alliance (and we remember).
+     */
+    private boolean answerCall(Offer o, ServerPlayer human, boolean accept,
+                               ChangeSet cs) {
+        final Player enemy = game().getPlayerByNationId(o.against);
+        if (accept && enemy != null && human.getStance(enemy) != Stance.WAR) {
+            o.state = Offer.State.DONE;
+            human.csChangeStance(Stance.WAR, enemy, true, cs);
+            remember(Memory.Kind.HELPED_IN_WAR, human);
+            return true;
+        }
+        if (accept) { // already at war with them: nothing to do
+            o.state = Offer.State.DONE;
+            return true;
+        }
+        o.state = Offer.State.DECLINED;
+        if (me().getStance(human) == Stance.ALLIANCE) {
+            ((ServerPlayer)me()).csChangeStance(Stance.PEACE, human, true, cs);
+        }
+        remember(Memory.Kind.DEAL_BROKEN, human);
+        return true;
+    }
+
+    /**
      * A human player answers an offer.
      *
      * @param human The player.
@@ -611,12 +668,22 @@ public final class OfferPlanner {
         Offer o = null;
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
+        if (o.kind == Offer.Kind.CALL_TO_ARMS) {
+            return answerCall(o, human, accept, cs);
+        }
         if (!accept) {
-            if (o.kind == Offer.Kind.PEACE) {
+            if (o.kind.direct()) {
                 o.state = Offer.State.DECLINED;
                 remember(Memory.Kind.REFUSED_OFFER, human);
             }
             // A notice declined stays up for the others.
+            return true;
+        }
+        if (o.kind == Offer.Kind.ALLIANCE) {
+            o.state = Offer.State.DONE;
+            if (me().getStance(human) == Stance.PEACE) {
+                ((ServerPlayer)me()).csChangeStance(Stance.ALLIANCE, human, true, cs);
+            }
             return true;
         }
         if (o.kind == Offer.Kind.PEACE) {

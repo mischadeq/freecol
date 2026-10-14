@@ -298,9 +298,8 @@ is short.
 7. **Refugees:** half the settlement's units.
 8. **Uprisings** (asked what they are): several tribes rising together
    against one European nation (the player or a computer nation), like
-   the Pueblo Revolt of 1680. Proposal unchanged: 5 turns of unrest
-   with warnings first, shorter on harder levels. Waiting for Mischa's
-   answer on whether he wants it.
+   the Pueblo Revolt of 1680. **In** (Mischa): 5 turns of unrest with
+   warnings first, shorter on harder levels.
 
 ## Not in these steps
 

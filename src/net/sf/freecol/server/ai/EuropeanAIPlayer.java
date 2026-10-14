@@ -2429,6 +2429,20 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return offers;
     }
 
+    /** What happened since our last turn, and the game before it. */
+    private List<Observed> lastDiff = new ArrayList<>();
+    private Snapshot lastBefore;
+
+    /** What happened since our last turn (empty on the first). */
+    public List<Observed> getLastDiff() {
+        return (lastDiff == null) ? new ArrayList<>() : lastDiff;
+    }
+
+    /** The game at our turn before this one, or null. */
+    public Snapshot getLastBefore() {
+        return lastBefore;
+    }
+
     /** The diplomat's outlook, only while this turn's work is done. */
     private Outlook outlook;
 
@@ -2475,7 +2489,16 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
      */
     public void rememberTurn() {
         final Snapshot now = Snapshot.of(getGame());
+        lastDiff = new ArrayList<>();
         if (lastSnapshot != null && lastSnapshot.turn < now.turn) {
+            // Who declared the new wars, the King or the nation: the
+            // server noted it (every nation hears of a declaration).
+            for (net.sf.freecol.server.model.WarDeclarations.Declaration dc
+                     : net.sf.freecol.server.model.WarDeclarations.recent(getGame())) {
+                if (dc.turn < lastSnapshot.turn) continue;
+                (dc.byKing ? now.kings : now.declared)
+                    .add(Snapshot.key(dc.declarer, dc.target));
+            }
             // Who declared the new wars: the computer diplomats know
             // (the victim hears it), the save does not.
             for (Player p : getGame().getLiveEuropeanPlayerList()) {
@@ -2494,6 +2517,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             final String me = getPlayer().getNationId();
             final List<Observed> d = TurnDiff.diff(lastSnapshot, now,
                                                    Collections.emptySet());
+            lastDiff = d;
+            lastBefore = lastSnapshot;
             getMemories().remember(me, d, lastSnapshot, lastSnapshot.turn);
             if (Commitments.isShock(me, d, lastSnapshot)) {
                 getCommitments().shock(now.turn);
@@ -2634,8 +2659,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
         }
         
-        // What we can see of the others, for guessing where they live.
+        // What we can see of the others, for guessing where they live,
+        // and what our allies see (mod).
         Sightings.look(getGame(), player, getBearings());
+        for (Player ally : getGame().getLiveEuropeanPlayerList(player)) {
+            if (player.getStance(ally) == Stance.ALLIANCE) {
+                Sightings.look(getGame(), ally, getBearings());
+            }
+        }
         // What happened to us since last turn; the diplomat looks at
         // the world once for the whole turn, again after a new war or
         // peace (mod).
@@ -2643,7 +2674,13 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             rememberTurn();
             outlook = makeOutlook();
         }
-        if (determineStances(lb) && !player.isREF()) outlook = makeOutlook();
+        boolean stances = determineStances(lb);
+        // Defensive pacts: calls to arms, the King's wars (mod).
+        if (!player.isREF()) {
+            stances |= new net.sf.freecol.server.ai.diplomacy.AlliancePlanner(this)
+                .plan(outlook, lb);
+        }
+        if (stances && !player.isREF()) outlook = makeOutlook();
         if (!player.isREF()) {
             mood = Mood.of(outlook, getCommitments());
             new OfferPlanner(this).plan(outlook, lb);

@@ -740,7 +740,9 @@ public final class InGameController extends Controller {
                     + " " + warGold + " gold + " + Messages.message(AbstractUnit
                         .getListLabel(", ", warSupport)));
             }
-            serverPlayer.csChangeStance(Stance.WAR, enemy, true, cs);
+            // The King's war, not the player's own (mod).
+            net.sf.freecol.server.model.WarDeclarations.asKing(() ->
+                serverPlayer.csChangeStance(Stance.WAR, enemy, true, cs));
             cs.add(See.only(serverPlayer),
                    new MonarchActionMessage(action, StringTemplate
                        .template((warSupport.isEmpty()) ? messageId

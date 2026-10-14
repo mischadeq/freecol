@@ -1354,6 +1354,8 @@ public class ServerPlayer extends Player implements TurnTaker {
         Stance old = getStance(otherPlayer);
 
         if (old != stance) {
+            // Who declared it, and was it the King (mod)?
+            if (stance == Stance.WAR) WarDeclarations.record(this, otherPlayer);
             int modifier = old.getTensionModifier(stance);
             setStance(otherPlayer, stance);
             if (modifier != 0) {

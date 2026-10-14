@@ -55,7 +55,21 @@ public final class Offer {
         /** Our ship brings goods to sell to one nation's colony. */
         SHIP_SELL,
         /** Our ship comes with gold to buy goods at one nation's colony. */
-        SHIP_BUY;
+        SHIP_BUY,
+        /** We were attacked: our ally is asked to join the war. */
+        CALL_TO_ARMS,
+        /** We invite a nation into an alliance (a defensive pact). */
+        ALLIANCE,
+        /** Join us in a war: gold now, and maybe a colony we take. */
+        JOINT_WAR,
+        /** Join our coalition against a nation that grows too strong. */
+        COALITION;
+
+        /** Answered at once, by one nation (not a public notice). */
+        public boolean direct() {
+            return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
+                || this == JOINT_WAR || this == COALITION;
+        }
 
         /** Answered in the game's trade screen when the ship arrives. */
         public boolean byShip() {
@@ -83,6 +97,9 @@ public final class Offer {
     public final int posted;
     /** Turns to deliver once taken. */
     public final int deadline;
+    /** The nation a war offer is against (CALL_TO_ARMS, JOINT_WAR,
+        COALITION), or null. */
+    public String against;
     /** Who may see it, liked most first (for PEACE only the enemy). */
     public final List<String> audience = new ArrayList<>();
 
@@ -134,7 +151,7 @@ public final class Offer {
         if (state != State.OPEN || kind.byShip()) return false;
         final int i = audience.indexOf(nation);
         if (i < 0) return false;
-        return i == 0 || kind == Kind.PEACE || now - posted >= FIRST_LOOK;
+        return i == 0 || kind.direct() || now - posted >= FIRST_LOOK;
     }
 
     /** Turns until it is due, once taken (negative when late). */
@@ -166,7 +183,7 @@ public final class Offer {
     /** Nobody took it in time (or peace terms ran out). */
     public boolean stale(int now) {
         return state == State.OPEN && !kind.byShip()
-            && now - posted >= ((kind == Kind.PEACE) ? PEACE_TURNS : OPEN_TURNS);
+            && now - posted >= ((kind.direct()) ? PEACE_TURNS : OPEN_TURNS);
     }
 
 
@@ -179,7 +196,7 @@ public final class Offer {
             String.valueOf(posted), String.valueOf(deadline),
             String.join(",", audience), state.name(), nz(takenBy),
             String.valueOf(takenTurn), String.valueOf(paid),
-            String.join(",", told));
+            String.join(",", told), nz(against));
     }
 
     private static String nz(String s) {
@@ -198,7 +215,7 @@ public final class Offer {
      */
     public static Offer parse(String s) {
         final String[] f = s.split("\\|", -1);
-        if (f.length != 16) return null;
+        if (f.length != 16 && f.length != 17) return null;
         try {
             Offer o = new Offer(f[0], Kind.valueOf(f[1]), f[2], nul(f[3]),
                 Integer.parseInt(f[4]), Integer.parseInt(f[5]), nul(f[6]),
@@ -213,6 +230,7 @@ public final class Offer {
             if (!f[15].isEmpty()) {
                 for (String a : f[15].split(",")) o.told.add(a);
             }
+            if (f.length > 16) o.against = nul(f[16]);
             return o;
         } catch (IllegalArgumentException e) {
             return null;
