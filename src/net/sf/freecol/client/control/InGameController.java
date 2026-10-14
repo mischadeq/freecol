@@ -2339,6 +2339,9 @@ public final class InGameController extends FreeColClientHolder {
             // Find the next stop with work to do.
             TradeRouteStop next = null;
             List<TradeRouteStop> moreStops = unit.getCurrentStops();
+            // Mod: the route can have lost its stops (or the unit its
+            // route) while un/loading; then there is nothing more to do.
+            if (moreStops == null || moreStops.isEmpty()) break;
             if (unit.atStop(moreStops.get(0))) moreStops.remove(0);
             for (TradeRouteStop trs : moreStops) {
                 if (trs.hasWork(unit, (!checkProduction) ? 0
@@ -2356,8 +2359,10 @@ public final class InGameController extends FreeColClientHolder {
                 break;
             }
             // Add a message for any skipped stops.
-            List<TradeRouteStop> skipped
-                = tr.getStopSublist(stops.get(0), next);
+            // Mod: a route of one stop leaves the stop list empty here.
+            List<TradeRouteStop> skipped = (stops.isEmpty())
+                ? java.util.Collections.emptyList()
+                : tr.getStopSublist(stops.get(0), next);
             if (!skipped.isEmpty()) {
                 StringTemplate t = StringTemplate.label("")
                     .add("tradeRoute.skipped");
