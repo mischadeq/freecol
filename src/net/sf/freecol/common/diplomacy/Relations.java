@@ -61,6 +61,26 @@ public final class Relations {
     }
 
     /**
+     * Trust in another nation, 0..100: {@link #DEFAULT_TRUST} plus what
+     * kept and broken deals, gifts and help did to it.
+     *
+     * @param memories Memories (only those about this nation count).
+     * @param about The nation id.
+     * @param now The current turn.
+     * @return The trust.
+     */
+    public static double trust(Collection<Memory> memories, String about,
+                               int now) {
+        double t = DEFAULT_TRUST;
+        if (memories != null) {
+            for (Memory m : memories) {
+                if (about.equals(m.about)) t += m.trust(now);
+            }
+        }
+        return Math.max(0, Math.min(100, t));
+    }
+
+    /**
      * Fear of another nation, 0..100: its share of the two armies,
      * times how near it is.
      *

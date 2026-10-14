@@ -28,10 +28,13 @@ import java.util.logging.Logger;
 
 import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Diplomat;
-import net.sf.freecol.common.diplomacy.Memory;
+import net.sf.freecol.common.diplomacy.Memories;
 import net.sf.freecol.common.diplomacy.NationCharacter;
+import net.sf.freecol.common.diplomacy.Observed;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Situation;
+import net.sf.freecol.common.diplomacy.Snapshot;
+import net.sf.freecol.common.diplomacy.TurnDiff;
 import net.sf.freecol.common.diplomacy.WorldView;
 import net.sf.freecol.common.diplomacy.WorldViewBuilder;
 import net.sf.freecol.common.model.Player;
@@ -182,7 +185,7 @@ public final class Replay {
     public void run(List<SaveSeries.Entry> saves, Set<String> declaredByHuman,
                     java.util.function.IntConsumer progress)
         throws Exception {
-        Map<String, List<Memory>> memories = new HashMap<>();
+        Map<String, Memories> memories = new HashMap<>();
         Map<String, net.sf.freecol.common.diplomacy.Bearings> bearings = new HashMap<>();
         for (int i = 0; i < saves.size(); i++) {
             final ServerGame game = SaveSeries.load(saves.get(i));
@@ -192,7 +195,11 @@ public final class Replay {
                 List<Observed> d = TurnDiff.diff(snaps.get(i - 1), snap,
                                                  declaredByHuman);
                 diffs.add(d);
-                remember(d, snaps.get(i - 1).turn, memories);
+                for (String n : snap.nations.keySet()) {
+                    Memories m = memories.computeIfAbsent(n, k -> new Memories());
+                    m.remember(n, d, snaps.get(i - 1), snaps.get(i - 1).turn);
+                    m.fade(snap.turn);
+                }
             }
             for (Player p : game.getLiveEuropeanPlayerList()) {
                 if (p.isREF()) continue;
@@ -201,8 +208,9 @@ public final class Replay {
                                      k -> new net.sf.freecol.common.diplomacy.Bearings());
                 net.sf.freecol.common.diplomacy.Sightings.look(game, p, b);
                 checkBearings(game, p, b);
+                Memories m = memories.get(p.getNationId());
                 WorldView w = WorldViewBuilder.build(game, p, true,
-                    memories.get(p.getNationId()), b);
+                    (m == null) ? null : m.list(), b);
                 Situation s = new Situation(w);
                 List<ScoredAction> ranked = Diplomat.rank(s);
                 Row row = new Row(i, snap.turn, snap.label, p.getNationId(),
@@ -269,29 +277,6 @@ public final class Replay {
             bearingChecks.add(new BearingCheck(now, me.getNationId(),
                 x.getNationId(), guess, err, td,
                 (td == 0) ? 0 : tx / td, (td == 0) ? 0 : ty / td, known));
-        }
-    }
-
-    /** Losses become memories of the nation that suffered them. */
-    private static void remember(List<Observed> d, int turn,
-                                 Map<String, List<Memory>> memories) {
-        for (Observed o : d) {
-            if (o.other == null) continue;
-            Memory.Kind k = null;
-            switch (o.what) {
-            case UNITS_LOST: k = Memory.Kind.UNIT_LOST; break;
-            case SHIPS_DAMAGED: k = Memory.Kind.SHIP_DAMAGED; break;
-            case COLONY_LOST: k = Memory.Kind.COLONY_TAKEN; break;
-            default: break;
-            }
-            if (k != null) {
-                memories.computeIfAbsent(o.actor, x -> new ArrayList<>())
-                    .add(new Memory(k, o.other, turn, Math.max(1, o.amount)));
-            }
-            if (o.what == Observed.What.CAPTURE) {
-                memories.computeIfAbsent(o.other, x -> new ArrayList<>())
-                    .add(new Memory(Memory.Kind.COLONY_TAKEN, o.actor, turn, 1));
-            }
         }
     }
 

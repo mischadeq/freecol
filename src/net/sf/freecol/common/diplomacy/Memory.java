@@ -26,21 +26,58 @@ package net.sf.freecol.common.diplomacy;
  */
 public final class Memory {
 
-    /** The kinds of memory, with their weight and how long they last. */
+    /**
+     * The kinds of memory: opinion weight, turns it lasts, trust change
+     * (trust is remembered twice as long as the feeling).
+     */
     public enum Kind {
-        WAR(-30, 30),
-        COLONY_TAKEN(-60, 60),
-        PEACE(10, 20),
-        UNIT_LOST(-5, 10),
-        SHIP_DAMAGED(-3, 10),
-        SETTLEMENT_DESTROYED(-60, 80);
+        /** They declared war on us. */
+        WAR(-30, 30, 0),
+        /** They took one of our colonies. */
+        COLONY_TAKEN(-60, 60, 0),
+        /** We made peace. */
+        PEACE(10, 20, 0),
+        /** We lost units (in a war with them). */
+        UNIT_LOST(-5, 10, 0),
+        /** They damaged one of our ships. */
+        SHIP_DAMAGED(-3, 10, 0),
+        /** They destroyed one of our settlements (tribes). */
+        SETTLEMENT_DESTROYED(-60, 80, 0),
+        /** A peace treaty on probation: no feeling, but if it holds
+            {@link Memories#PROBATION} turns it becomes DEAL_KEPT, if
+            they break it, DEAL_BROKEN. */
+        TREATY(0, Memories.PROBATION, 0),
+        /** A peace or alliance with them that held. */
+        DEAL_KEPT(10, 40, 15),
+        /** They broke a fresh peace or attacked their ally (us). */
+        DEAL_BROKEN(-40, 60, -40),
+        /** They gave us something for nothing. */
+        GIFT(5, 15, 5),
+        /** They sold to us or bought from us. */
+        TRADE(3, 20, 3),
+        /** They took a colony of our enemy. */
+        HELPED_IN_WAR(15, 30, 10),
+        /** They turned down our offer. */
+        REFUSED_OFFER(-3, 10, -2);
 
         public final int weight;
         public final int fade;
+        public final int trust;
 
-        Kind(int weight, int fade) {
+        Kind(int weight, int fade, int trust) {
             this.weight = weight;
             this.fade = fade;
+            this.trust = trust;
+        }
+
+        /** Turns the trust change lasts. */
+        public int trustFade() {
+            return 2 * fade;
+        }
+
+        /** Turns before it is forgotten altogether. */
+        public int lasts() {
+            return (trust == 0) ? fade : trustFade();
         }
     }
 
@@ -70,6 +107,32 @@ public final class Memory {
         final int age = now - turn;
         if (age < 0 || age >= kind.fade) return 0;
         return kind.weight * count * (1.0 - age / (double)kind.fade);
+    }
+
+    /**
+     * What this memory does to trust now.
+     *
+     * @param now The current turn.
+     * @return The faded trust change.
+     */
+    public double trust(int now) {
+        final int age = now - turn;
+        final int fade = kind.trustFade();
+        if (kind.trust == 0 || age < 0 || age >= fade) return 0;
+        return kind.trust * count * (1.0 - age / (double)fade);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Memory)) return false;
+        Memory m = (Memory)o;
+        return kind == m.kind && about.equals(m.about) && turn == m.turn
+            && count == m.count;
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(kind, about, turn, count);
     }
 
     @Override

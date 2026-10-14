@@ -28,10 +28,10 @@ import java.util.logging.Logger;
 import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.Effects;
+import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Situation;
 import net.sf.freecol.common.diplomacy.WorldView;
-import net.sf.freecol.common.diplomacy.WorldViewBuilder;
 import net.sf.freecol.common.model.Ability;
 import net.sf.freecol.common.model.AbstractUnit;
 import net.sf.freecol.common.model.Colony;
@@ -87,13 +87,13 @@ public final class WarPreparations {
         final Player player = aiPlayer.getPlayer();
         final Game game = player.getGame();
         if (!player.isEuropean() || player.isREF()) return 0;
-        final WorldView w = WorldViewBuilder.build(game, player, true, null,
-                                                   aiPlayer.getBearings());
-        final Situation s = new Situation(w);
+        final Outlook o = aiPlayer.getOutlook();
+        final WorldView w = o.view;
+        final Situation s = o.situation;
         final int turn = game.getTurn().getNumber();
         int done = 0;
         boolean armWanted = false, shipBought = false;
-        for (ScoredAction sa : Diplomat.rank(s)) {
+        for (ScoredAction sa : o.ranked) {
             if (sa.total < Diplomat.threshold(sa.action.kind)) continue;
             if (sa.action.kind == Action.Kind.ARM && !armWanted) {
                 armWanted = true;

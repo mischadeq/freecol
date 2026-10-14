@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Diplomat;
+import net.sf.freecol.common.diplomacy.Observed;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 
 

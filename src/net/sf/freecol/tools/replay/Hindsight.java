@@ -22,6 +22,7 @@ package net.sf.freecol.tools.replay;
 import java.util.List;
 
 import net.sf.freecol.common.diplomacy.NationCharacter;
+import net.sf.freecol.common.diplomacy.Snapshot;
 
 
 /**

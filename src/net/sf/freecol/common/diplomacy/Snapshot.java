@@ -17,7 +17,7 @@
  *  along with FreeCol.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.sf.freecol.tools.replay;
+package net.sf.freecol.common.diplomacy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,7 +25,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.sf.freecol.common.diplomacy.Estimates;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.HistoryEvent;
