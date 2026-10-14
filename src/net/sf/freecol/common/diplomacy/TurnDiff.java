@@ -17,7 +17,7 @@
  *  along with FreeCol.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.sf.freecol.tools.replay;
+package net.sf.freecol.common.diplomacy;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -113,7 +113,7 @@ public final class TurnDiff {
             Snapshot.Place p = b.places.get(f[1]);
             if (p == null || !armedTribes.add(f[0] + "|" + p.owner + "|" + f[2])) continue;
             ret.add(new Observed(Observed.What.ARM_TRIBE, f[0], p.owner, false,
-                0, net.sf.freecol.common.diplomacy.Action.shortId(f[2])
+                0, Action.shortId(f[2])
                 + " at " + p.name));
         }
         // Troops lost and ships damaged.

@@ -25,6 +25,9 @@ import java.util.Set;
 
 import junit.framework.TestCase;
 import net.sf.freecol.common.diplomacy.Action;
+import net.sf.freecol.common.diplomacy.Observed;
+import net.sf.freecol.common.diplomacy.Snapshot;
+import net.sf.freecol.common.diplomacy.TurnDiff;
 import net.sf.freecol.common.model.Stance;
 
 

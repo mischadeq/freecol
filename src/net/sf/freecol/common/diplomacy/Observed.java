@@ -17,9 +17,9 @@
  *  along with FreeCol.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package net.sf.freecol.tools.replay;
+package net.sf.freecol.common.diplomacy;
 
-import net.sf.freecol.common.diplomacy.Action;
+
 
 
 /**

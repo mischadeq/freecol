@@ -858,6 +858,63 @@ Next of the small moves: the computer now does what its diplomat says.
   buying soldiers on the diplomat's word (the old Europe buying rules
   still run as before).
 
+### Step 2 built: moods and memories, live (2026-10-14)
+Computer nations now remember what others did to them during a real
+game, and the player can read their mood on the companion cards.
+- **Live memories (2a):** new `common/diplomacy/Memories`. Each turn
+  the computer player compares the game with last turn
+  (`Snapshot`/`TurnDiff`/`Observed`, moved from `tools/replay` to
+  `common/diplomacy`) and the same code turns that into memories for
+  the replay and the live game (`Memories.remember`). Only what the
+  nation itself saw: its own units lost and ships damaged, wars on it,
+  colonies changing hands. Wars, peace and conquered colonies still
+  come from the game's own history (no double count any more: the
+  replay counted a captured colony twice).
+- **New memory kinds:** `DEAL_KEPT` (a peace that held 20 turns),
+  `DEAL_BROKEN` (they broke a fresh peace or attacked us while allied),
+  `GIFT` and `TRADE` (accepted diplomatic trades), `HELPED_IN_WAR`
+  (they took a colony of our enemy), `REFUSED_OFFER` (they turned our
+  offer down). A peace starts as a `TREATY` on probation (no feeling).
+  Each kind has a weight, a fade time and a trust change; trust is
+  remembered twice as long as the feeling.
+- **Trust:** `Relations.trust` = 50 plus kept deals, gifts, trade and
+  help, minus broken deals (−40 each, hard). Fills `NationView.trust`,
+  which the diplomat already used for alliance and trade risks.
+- **Saved** with the game ("memories" attribute on the AI player).
+  Last turn's snapshot is not saved: the first turn after a load
+  misses its changes.
+- **Once per turn:** new `Outlook` (world view + situation + ranking).
+  `EuropeanAIPlayer` builds it once at the start of its turn, with its
+  memories; `WarPreparations`, `InvasionPlanner` and `ScoutPlanner`
+  share it instead of each building their own (and none passes `null`
+  memories any more).
+- **Companion cards (2b):** in a single player game, each computer
+  nation's card on the Nations tab shows chips: mood (🙂 friendly,
+  😐 neutral, 🤨 wary, 😠 hostile), trust (🤝 trusts you, ⚖️ careful,
+  ✋ does not trust you) and ambition (🎯 trading empire, conqueror,
+  ...). Rows: "Wants" (its goals in words: "sell furs", "make peace
+  with you"), "Remembers" (the 3 strongest memories about you with the
+  year, 👍/👎; all on hover), "Feels" (its mood towards nations it is
+  at war or allied with). Goals about other nations show only for
+  their public wars. Multiplayer: nothing shown.
+- **Tested:** `MemoriesTest` (fading, treaty to kept deal,
+  save/parse, trust up and down, losses/broken peace/King's war/help
+  from two snapshots, strongest first, mood words), `AIMemoriesTest`
+  (a soldier lost in a live game becomes a memory and lowers the
+  opinion, trust in the outlook, save and load keeps memories, trades
+  become gifts/trades/refused offers), `MoodsTest` (the nations JSON
+  has mood, trust, remembers; a secret grudge against a nation at
+  peace does not show). The companion tests now run with the rest:
+  all 559 tests green.
+- **Try in the game:** sink or damage a French ship while at war: next
+  turn the French card should turn wary or hostile and remember it.
+- **Not yet:** a war the human declares counts as the King's (a save
+  does not say who declared), so breaking a peace with a computer
+  nation does not yet give `DEAL_BROKEN`; trades between two computer
+  nations leave no memory (they do not trade with each other yet);
+  units lost by a nation at war with two or more others are not
+  blamed on anyone (the save does not say who killed them).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

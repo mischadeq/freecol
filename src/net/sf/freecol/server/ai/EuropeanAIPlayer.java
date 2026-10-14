@@ -68,7 +68,14 @@ import net.sf.freecol.common.model.Ability;
 import net.sf.freecol.common.model.AbstractUnit;
 import net.sf.freecol.common.model.Building;
 import net.sf.freecol.common.diplomacy.Bearings;
+import net.sf.freecol.common.diplomacy.Memories;
+import net.sf.freecol.common.diplomacy.Memory;
+import net.sf.freecol.common.diplomacy.Mood;
+import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.Sightings;
+import net.sf.freecol.common.diplomacy.Snapshot;
+import net.sf.freecol.common.diplomacy.TurnDiff;
+import net.sf.freecol.common.diplomacy.WorldViewBuilder;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.ColonyTradeItem;
 import net.sf.freecol.common.model.Constants.IndianDemandAction;
@@ -2308,6 +2315,115 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return bearings;
     }
 
+    /**
+     * What we remember of the others (mod): losses, kept and broken
+     * deals, gifts, trades, help.  Saved with the game (the "memories"
+     * attribute).  No initializer, as for {@link #bearings}.
+     */
+    private Memories memories;
+
+    /**
+     * The game as it was at our last turn, to see what changed.  Not
+     * saved: after a load the first turn's changes are missed.
+     */
+    private Snapshot lastSnapshot;
+
+    /** The diplomat's outlook, only while this turn's work is done. */
+    private Outlook outlook;
+
+    /** How we feel, as of our last turn (for the companion page). */
+    private volatile Mood mood;
+
+    /**
+     * What we remember of the others.
+     *
+     * @return The {@code Memories}.
+     */
+    public Memories getMemories() {
+        if (memories == null) memories = new Memories();
+        return memories;
+    }
+
+    /**
+     * How we feel about the others, as of our last turn.
+     *
+     * @return The {@code Mood}, or null before our first turn.
+     */
+    public Mood getMood() {
+        return mood;
+    }
+
+    /**
+     * The diplomat's outlook: built once at the start of the turn and
+     * shared by the planners, or fresh outside the turn's work.
+     *
+     * @return The {@code Outlook}.
+     */
+    public Outlook getOutlook() {
+        return (outlook != null) ? outlook : makeOutlook();
+    }
+
+    private Outlook makeOutlook() {
+        return new Outlook(WorldViewBuilder.build(getGame(), getPlayer(),
+                true, getMemories().list(), getBearings()));
+    }
+
+    /**
+     * Turn what happened since our last turn into memories, and forget
+     * what no longer counts.
+     */
+    public void rememberTurn() {
+        final Snapshot now = Snapshot.of(getGame());
+        if (lastSnapshot != null && lastSnapshot.turn < now.turn) {
+            getMemories().remember(getPlayer().getNationId(),
+                TurnDiff.diff(lastSnapshot, now, Collections.emptySet()),
+                lastSnapshot, lastSnapshot.turn);
+        }
+        getMemories().fade(now.turn);
+        lastSnapshot = now;
+    }
+
+    /**
+     * A finished trade becomes a memory: a gift, a trade, or an offer
+     * of ours they turned down.
+     *
+     * @param agreement The {@code DiplomaticTrade}.
+     * @param me Us.
+     * @return The kind of memory, or null for none.
+     */
+    public static Memory.Kind tradeMemory(DiplomaticTrade agreement,
+                                          Player me) {
+        if (agreement.getContext() == TradeContext.CONTACT) return null;
+        final Player other = agreement.getOtherPlayer(me);
+        switch (agreement.getStatus()) {
+        case ACCEPT_TRADE:
+            final boolean gave = any(agreement.getItemsGivenBy(me),
+                                     ti -> !(ti instanceof StanceTradeItem));
+            final boolean got = any(agreement.getItemsGivenBy(other),
+                                    ti -> !(ti instanceof StanceTradeItem));
+            return (got && !gave) ? Memory.Kind.GIFT
+                : (got && gave) ? Memory.Kind.TRADE
+                : null;
+        case REJECT_TRADE:
+            return (agreement.getSender() == me) ? Memory.Kind.REFUSED_OFFER
+                : null;
+        default:
+            return null;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void tradeDone(DiplomaticTrade agreement) {
+        final Player other = agreement.getOtherPlayer(getPlayer());
+        final Memory.Kind k = tradeMemory(agreement, getPlayer());
+        if (k == null || other == null) return;
+        getMemories().add(new Memory(k, other.getNationId(),
+                                     getGame().getTurn().getNumber(), 1));
+    }
+
     /** Turns colonists armed by the diplomat stay armed after danger. */
     public static final int KEEP_ARMED = 20;
 
@@ -2401,6 +2517,13 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         determineStances(lb);
         // What we can see of the others, for guessing where they live.
         Sightings.look(getGame(), player, getBearings());
+        // What happened to us since last turn; the diplomat looks at
+        // the world once for the whole turn (mod).
+        if (!player.isREF()) {
+            rememberTurn();
+            outlook = makeOutlook();
+            mood = Mood.of(outlook);
+        }
 
         if (colonyCount > 0) {
             lb.add("\n  Badly defended:"); // FIXME: prioritize defence
@@ -2458,6 +2581,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         wagonsNeeded.clear();
         goodsWishes.clear();
         workerWishes.clear();
+        outlook = null;
     }
 
     private void buyUnitsInEurope(LogBuilder lb) {
@@ -3111,6 +3235,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String SIGHTINGS_TAG = "sightings";
     /** Units kept armed (mod): "unitId:turn;...". */
     private static final String KEPT_ARMED_TAG = "keptArmed";
+    /** What we remember (mod): "KIND:nation:turn:count;...". */
+    private static final String MEMORIES_TAG = "memories";
 
     /**
      * {@inheritDoc}
@@ -3131,6 +3257,9 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
             if (sb.length() > 0) xw.writeAttribute(KEPT_ARMED_TAG, sb.toString());
         }
+        if (getMemories().size() > 0) {
+            xw.writeAttribute(MEMORIES_TAG, getMemories().serialize(';'));
+        }
     }
 
     /**
@@ -3140,6 +3269,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     protected void readAttributes(FreeColXMLReader xr) throws XMLStreamException {
         super.readAttributes(xr);
         bearings = Bearings.parse(xr.getAttribute(SIGHTINGS_TAG, (String)null));
+        memories = Memories.parse(xr.getAttribute(MEMORIES_TAG, (String)null));
         keptArmed = new HashMap<>();
         final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);
         if (kept != null) {

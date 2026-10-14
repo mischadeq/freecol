@@ -301,6 +301,14 @@ public abstract class AIPlayer extends AIObject {
     }
 
     /**
+     * A diplomatic trade was accepted or rejected (mod).  Nothing to do
+     * by default.
+     *
+     * @param agreement The finished {@code DiplomaticTrade}.
+     */
+    protected void tradeDone(DiplomaticTrade agreement) {}
+
+    /**
      * Handle a diplomacy message.
      *
      * @param our Our {@code FreeColGameObject}.
@@ -321,6 +329,7 @@ public abstract class AIPlayer extends AIObject {
         default: // Do not need to respond to others
             sb.append(" -> ignoring ").append(agreement.getStatus());
             logger.fine(sb.toString());
+            tradeDone(agreement);
             return;
         }
 

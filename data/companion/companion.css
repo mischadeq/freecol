@@ -426,6 +426,10 @@ body.nomap #mapSec { display: none; }
 .rgoods { font-size: 13px; line-height: 1.6; }
 .nverd { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; }
 .nverd .tag { cursor: help; }
+.nmood { margin-bottom: 4px; }
+.ncol.mem.up { color: var(--ok); }
+.ncol.mem.down { color: var(--alarm); }
+.ncol .sw { width: 9px; height: 9px; vertical-align: -1px; }
 
 /* Independence */
 .ibanner { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }

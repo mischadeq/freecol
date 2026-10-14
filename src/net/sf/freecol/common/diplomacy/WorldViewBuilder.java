@@ -160,6 +160,7 @@ public final class WorldViewBuilder {
             if (v.stance == Stance.UNCONTACTED) v.stance = Stance.PEACE;
             v.tension = tension(me, p);
             v.opinion = Relations.opinion(v.tension, w.memories, v.id, now);
+            v.trust = Relations.trust(w.memories, v.id, now);
             v.near = nearness(self.places, v.places, p.isEuropean());
             if (bearings != null && origin != null) {
                 v.bearing = bearings.bearing(v.id, origin.getX(), origin.getY(), now);

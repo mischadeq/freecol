@@ -26,11 +26,11 @@ import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Bearings;
 import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.NationView;
+import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Sightings;
 import net.sf.freecol.common.diplomacy.Situation;
 import net.sf.freecol.common.diplomacy.WorldView;
-import net.sf.freecol.common.diplomacy.WorldViewBuilder;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.Map;
 import net.sf.freecol.common.model.Player;
@@ -85,11 +85,11 @@ public final class ScoutPlanner {
             if (aiu != null && aiu.getMission() instanceof ScoutBearingMission
                 && aiu.getMission().isValid()) return null;
         }
-        final WorldView w = WorldViewBuilder.build(game, player, true, null,
-                                                   aiPlayer.getBearings());
-        final Situation s = new Situation(w);
+        final Outlook o = aiPlayer.getOutlook();
+        final WorldView w = o.view;
+        final Situation s = o.situation;
         Action best = null;
-        for (ScoredAction sa : Diplomat.rank(s)) {
+        for (ScoredAction sa : o.ranked) {
             if (sa.action.kind != Action.Kind.SCOUT) continue;
             if (sa.total < Diplomat.threshold(Action.Kind.SCOUT)) break;
             best = sa.action;

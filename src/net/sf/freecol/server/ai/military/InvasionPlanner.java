@@ -31,10 +31,10 @@ import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.CaptureSim;
 import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.PlaceView;
+import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Situation;
 import net.sf.freecol.common.diplomacy.WorldView;
-import net.sf.freecol.common.diplomacy.WorldViewBuilder;
 import net.sf.freecol.common.model.CombatModel;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.Location;
@@ -161,11 +161,11 @@ public final class InvasionPlanner {
             AIUnit aiu = aiPlayer.getAIMain().getAIUnit(u);
             if (aiu != null && onInvasion(aiu)) return sent;
         }
-        final WorldView w = WorldViewBuilder.build(game, player, true, null,
-                                                   aiPlayer.getBearings());
-        final Situation s = new Situation(w);
+        final Outlook o = aiPlayer.getOutlook();
+        final WorldView w = o.view;
+        final Situation s = o.situation;
         final CombatModel cm = game.getCombatModel();
-        for (ScoredAction sa : Diplomat.rank(s)) {
+        for (ScoredAction sa : o.ranked) {
             if (sa.action.kind != Action.Kind.ATTACK_COLONY) continue;
             if (sa.total < Diplomat.THRESHOLD) break;
             final Situation.Attack at = s.attacks.get(sa.action.target);
