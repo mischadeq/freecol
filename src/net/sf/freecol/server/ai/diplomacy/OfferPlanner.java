@@ -688,6 +688,15 @@ public final class OfferPlanner {
             new AlliancePlanner(ai).accept(o, human, z, cs);
             return true;
         }
+        if (o.kind == Offer.Kind.COALITION) {
+            o.state = Offer.State.DONE;
+            for (net.sf.freecol.common.diplomacy.Coalition c : ai.getCoalitions()) {
+                if (c.target.equals(o.against)) {
+                    new AlliancePlanner(ai).join(c, human, cs);
+                }
+            }
+            return true;
+        }
         if (o.kind == Offer.Kind.ALLIANCE) {
             o.state = Offer.State.DONE;
             if (me().getStance(human) == Stance.PEACE) {

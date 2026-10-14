@@ -91,7 +91,8 @@ final class CompanionMoods {
         j.key("mood").obj()
             .put("word", f.mood())
             .put("trust", f.trustWord())
-            .put("ambition", ambition(m));
+            .put("ambition", ambition(m))
+            .put("truce", Mood.TRUCE.equals(f.why));
         j.key("goals").arr();
         for (Goal g : m.goals) {
             final String s = goal(g, game, me, m);
@@ -104,6 +105,16 @@ final class CompanionMoods {
                 .put("year", Messages.message(new Turn(x.turn).getLabel()))
                 .put("good", x.kind.weight > 0)
                 .end();
+        }
+        j.endArr();
+        // Coalitions are public.
+        j.key("coalitions").arr();
+        for (String t : m.coalitionTargets) {
+            final Player q = game.getPlayerByNationId(t);
+            if (q == null) continue;
+            j.obj().put("name", (q == me) ? "you"
+                    : Messages.message(q.getNationLabel()))
+                .put("you", q == me).end();
         }
         j.endArr();
         // Their feelings about others: only wars and alliances are public.

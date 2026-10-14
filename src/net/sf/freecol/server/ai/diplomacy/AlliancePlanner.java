@@ -22,6 +22,8 @@ package net.sf.freecol.server.ai.diplomacy;
 import java.util.List;
 
 import net.sf.freecol.common.diplomacy.Action;
+import net.sf.freecol.common.diplomacy.Coalition;
+import net.sf.freecol.common.diplomacy.Threat;
 import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.NationView;
@@ -95,6 +97,8 @@ public final class AlliancePlanner {
         changed |= keepTruces(d, cs);
         changed |= followJointWars(cs, lb);
         changed |= inviteToJointWar(outlook, cs, lb);
+        changed |= runCoalitions(outlook, cs, lb);
+        changed |= startCoalition(outlook, cs, lb);
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
         return changed;
     }
@@ -416,6 +420,226 @@ public final class AlliancePlanner {
             }
         }
         return false;
+    }
+
+
+    // Coalitions (5c)
+
+    /** Turns before trying again to start a coalition against a nation. */
+    public static final int RETRY_TURNS = 10;
+    /** Bonus to a coalition's war on its target, in points. */
+    public static final double COALITION_BONUS = 10;
+
+    /** Every coalition in the game, founder first in each. */
+    public static List<Coalition> allCoalitions(EuropeanAIPlayer ai) {
+        List<Coalition> ret = new java.util.ArrayList<>();
+        for (Player p : ai.getGame().getLiveEuropeanPlayerList()) {
+            final AIPlayer pa = (p.isAI()) ? ai.getAIMain().getAIPlayer(p) : null;
+            if (pa instanceof EuropeanAIPlayer) {
+                ret.addAll(((EuropeanAIPlayer)pa).getCoalitions());
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Start a coalition against a runaway leader: balance keepers at
+     * the line, others when it is well over.  Computer nations that see
+     * the same leader and like us join; the player is invited.
+     */
+    private boolean startCoalition(Outlook outlook, ChangeSet cs,
+                                   LogBuilder lb) {
+        final Player me = me();
+        final String leader = Threat.leaderToContain(outlook.view);
+        if (leader == null) return false;
+        final Player l = game().getPlayerByNationId(leader);
+        if (l == null || l.isREF() || me.getStance(l) == Stance.ALLIANCE) {
+            return false;
+        }
+        final double threat = Threat.all(outlook.view).getOrDefault(leader, 0.0);
+        if (outlook.view.character != net.sf.freecol.common.diplomacy.NationCharacter.BALANCE_KEEPER
+            && threat < outlook.view.coalitionLine + 0.05) return false;
+        for (Coalition c : allCoalitions(ai)) {
+            if (leader.equals(c.target)) return false; // one is enough
+        }
+        final Integer tried = ai.getCoalitionTries().get(leader);
+        if (tried != null && now() - tried < RETRY_TURNS) return false;
+        ai.getCoalitionTries().put(leader, now());
+        final Coalition c = new Coalition(leader, now());
+        c.members.add(me.getNationId());
+        boolean changed = false;
+        for (net.sf.freecol.common.diplomacy.NationView v : outlook.view.others.values()) {
+            final Player p = game().getPlayerByNationId(v.id);
+            if (p == null || p == l || !v.european || p.isREF() || v.atWar()
+                || v.opinion <= net.sf.freecol.common.diplomacy.Mood.NEUTRAL
+                || p.getStance(l) == Stance.ALLIANCE) continue;
+            if (!p.isAI()) {
+                Offer o = new Offer("coalition:" + me.getNationId() + ":"
+                    + leader + ":" + p.getNationId() + ":" + now(),
+                    Offer.Kind.COALITION, me.getNationId(), null, 0, 0,
+                    null, "", now(), 0);
+                o.against = leader;
+                o.audience.add(p.getNationId());
+                ai.getOffers().add(o);
+                continue;
+            }
+            final AIPlayer pa = ai.getAIMain().getAIPlayer(p);
+            if (!(pa instanceof EuropeanAIPlayer)) continue;
+            final Outlook po = ((EuropeanAIPlayer)pa).getOutlook();
+            final net.sf.freecol.common.diplomacy.NationView meToThem
+                = po.view.others.get(me.getNationId());
+            if (!leader.equals(Threat.leaderToContain(po.view))
+                || meToThem == null
+                || meToThem.opinion <= net.sf.freecol.common.diplomacy.Mood.NEUTRAL) {
+                continue;
+            }
+            join(c, p, cs);
+            changed = true;
+        }
+        boolean invited = false;
+        for (Offer o : ai.getOffers()) {
+            invited |= o.kind == Offer.Kind.COALITION && o.posted == now()
+                && leader.equals(o.against);
+        }
+        if (c.members.size() < 2 && !invited) return false; // nobody to ask
+        ai.getCoalitions().add(c);
+        lb.add("\n  Coalition against ", leader, ": ", c.members);
+        if (c.members.size() >= 2) announce(c, cs);
+        return changed;
+    }
+
+    /**
+     * A nation joins a coalition: allied with every member.
+     *
+     * @param c The {@code Coalition}.
+     * @param p The joining {@code Player}.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    public void join(Coalition c, Player p, ChangeSet cs) {
+        for (String m : c.members) {
+            final Player q = game().getPlayerByNationId(m);
+            if (q != null && q != p && q.getStance(p) != Stance.ALLIANCE) {
+                ((net.sf.freecol.server.model.ServerPlayer)q)
+                    .csChangeStance(Stance.ALLIANCE, p, true, cs);
+            }
+        }
+        if (!c.members.contains(p.getNationId())) c.members.add(p.getNationId());
+        if (c.members.size() == 2) announce(c, cs);
+    }
+
+    /** Tell a human target: a coalition is public. */
+    private void announce(Coalition c, ChangeSet cs) {
+        final Player t = game().getPlayerByNationId(c.target);
+        if (t == null || t.isAI()) return;
+        net.sf.freecol.common.model.StringTemplate names
+            = net.sf.freecol.common.model.StringTemplate.label(", ");
+        for (String m : c.members) {
+            final Player q = game().getPlayerByNationId(m);
+            if (q != null) names.addStringTemplate(q.getNationLabel());
+        }
+        cs.addMessage(t, new ModelMessage(
+            ModelMessage.MessageType.FOREIGN_DIPLOMACY, "coalition.formed", me())
+            .addStringTemplate("%members%", names));
+    }
+
+    /**
+     * Our coalitions: end them when the target is calm, else go to war
+     * together when strong enough, and call the members.
+     */
+    private boolean runCoalitions(Outlook outlook, ChangeSet cs, LogBuilder lb) {
+        final Player me = me();
+        boolean changed = false;
+        for (java.util.Iterator<Coalition> it = ai.getCoalitions().iterator();
+             it.hasNext();) {
+            final Coalition c = it.next();
+            final Player t = game().getPlayerByNationId(c.target);
+            c.members.removeIf(m -> {
+                final Player q = game().getPlayerByNationId(m);
+                return q == null || (q != me && (q.getStance(me) == Stance.WAR
+                                                 || q.getStance(t) == Stance.ALLIANCE));
+            });
+            final double threat = (t == null) ? 0
+                : Threat.all(outlook.view).getOrDefault(c.target, 0.0);
+            if (t == null || c.over(threat, now())) {
+                it.remove();
+                lb.add("\n  Coalition against ", c.target, " ends");
+                continue;
+            }
+            if (c.members.size() < 2) continue;
+            final net.sf.freecol.common.diplomacy.NationView tv
+                = outlook.view.others.get(c.target);
+            if (tv == null) continue;
+            if (me.getStance(t) != Stance.WAR) {
+                double army = outlook.view.me.army;
+                for (String m : c.members) {
+                    final net.sf.freecol.common.diplomacy.NationView mv
+                        = outlook.view.others.get(m);
+                    if (mv != null) army += mv.army;
+                }
+                final ScoredAction war = Diplomat.score(Action.war(c.target),
+                                                        outlook.situation);
+                if (army >= Coalition.STRENGTH * tv.army
+                    && war.total + COALITION_BONUS >= Diplomat.THRESHOLD) {
+                    changeStance(Stance.WAR, t);
+                    ai.getCommitments().chose(c.target, war, now());
+                    lb.add("\n  Coalition war on ", c.target);
+                    changed = true;
+                } else {
+                    continue;
+                }
+            }
+            // At war with the target: the members fight too.
+            for (String m : new java.util.ArrayList<>(c.members)) {
+                final Player q = game().getPlayerByNationId(m);
+                if (q == null || q == me || q.getStance(t) == Stance.WAR) continue;
+                changed |= callMember(c, q, t, cs, lb);
+            }
+        }
+        return changed;
+    }
+
+    /** Call a coalition member to the war on the target. */
+    private boolean callMember(Coalition c, Player q, Player t, ChangeSet cs,
+                               LogBuilder lb) {
+        final Player me = me();
+        if (!q.isAI()) {
+            for (Offer o : ai.getOffers()) {
+                if (o.kind == Offer.Kind.CALL_TO_ARMS
+                    && o.audience.contains(q.getNationId())
+                    && c.target.equals(o.against)
+                    && now() - o.posted < Offer.PEACE_TURNS) return false;
+            }
+            Offer o = new Offer("call:" + me.getNationId() + ":" + c.target
+                + ":" + q.getNationId() + ":" + now(), Offer.Kind.CALL_TO_ARMS,
+                me.getNationId(), null, 0, 0, null, "", now(), 0);
+            o.against = c.target;
+            o.audience.add(q.getNationId());
+            ai.getOffers().add(o);
+            return false;
+        }
+        final AIPlayer qa = ai.getAIMain().getAIPlayer(q);
+        if (!(qa instanceof EuropeanAIPlayer)) return false;
+        final EuropeanAIPlayer qai = (EuropeanAIPlayer)qa;
+        final Outlook qo = qai.getOutlook();
+        if (!qo.view.others.containsKey(c.target)) return false;
+        final ScoredAction sa = Diplomat.score(Action.joinWar(c.target,
+            me.getNationId()), qo.situation);
+        if (sa.total + COALITION_BONUS >= 0) {
+            ((net.sf.freecol.server.model.ServerPlayer)q)
+                .csChangeStance(Stance.WAR, t, true, cs);
+            qai.getCommitments().chose(c.target, sa, now());
+            ai.getMemories().add(new Memory(Memory.Kind.HELPED_IN_WAR,
+                                            q.getNationId(), now(), 1));
+            lb.add("\n  ", q.getDebugName(), " joins the coalition war");
+        } else {
+            c.members.remove(q.getNationId());
+            ((net.sf.freecol.server.model.ServerPlayer)me)
+                .csChangeStance(Stance.PEACE, q, true, cs);
+            ai.getMemories().add(new Memory(Memory.Kind.DEAL_BROKEN,
+                                            q.getNationId(), now(), 1));
+            lb.add("\n  ", q.getDebugName(), " leaves the coalition");
+        }
+        return true;
     }
 
 

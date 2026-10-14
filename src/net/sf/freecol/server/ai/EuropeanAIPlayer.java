@@ -2435,6 +2435,24 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return offers;
     }
 
+    /**
+     * The coalitions we founded (mod).  Saved with the game.  No
+     * initializer, as for {@link #bearings}.
+     */
+    private List<net.sf.freecol.common.diplomacy.Coalition> coalitions;
+
+    /** When we last tried to start a coalition against a nation (not saved). */
+    private final java.util.Map<String, Integer> coalitionTries = new HashMap<>();
+
+    public java.util.Map<String, Integer> getCoalitionTries() {
+        return coalitionTries;
+    }
+
+    public List<net.sf.freecol.common.diplomacy.Coalition> getCoalitions() {
+        if (coalitions == null) coalitions = new ArrayList<>();
+        return coalitions;
+    }
+
     /** What happened since our last turn, and the game before it. */
     private List<Observed> lastDiff = new ArrayList<>();
     private Snapshot lastBefore;
@@ -2688,7 +2706,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         if (stances && !player.isREF()) outlook = makeOutlook();
         if (!player.isREF()) {
-            mood = Mood.of(outlook, getCommitments());
+            final Mood m = Mood.of(outlook, getCommitments());
+            for (net.sf.freecol.common.diplomacy.Coalition c
+                     : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.allCoalitions(this)) {
+                if (c.members.contains(player.getNationId()) && c.members.size() >= 2) {
+                    m.coalitionTargets.add(c.target);
+                }
+            }
+            mood = m;
             new OfferPlanner(this).plan(outlook, lb);
         }
 
@@ -3438,6 +3463,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String KEPT_ARMED_TAG = "keptArmed";
     /** What we remember (mod): "KIND:nation:turn:count;...". */
     private static final String MEMORIES_TAG = "memories";
+    /** Our coalitions (mod), see {@code Coalition.serialize}. */
+    private static final String COALITIONS_TAG = "coalitions";
     /** Our offers (mod), see {@link Offer#serialize}, ';' separated. */
     private static final String OFFERS_TAG = "offers";
     /** Our war and peace choices (mod), see {@link Commitments}. */
@@ -3467,6 +3494,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         final String choices = getCommitments().serialize();
         if (!choices.isEmpty()) xw.writeAttribute(STANCE_CHOICES_TAG, choices);
+        if (!getCoalitions().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Coalition c : getCoalitions()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(c.serialize());
+            }
+            xw.writeAttribute(COALITIONS_TAG, sb.toString());
+        }
         if (!getOffers().isEmpty()) {
             StringBuilder sb = new StringBuilder();
             for (Offer o : getOffers()) {
@@ -3487,6 +3522,15 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         memories = Memories.parse(xr.getAttribute(MEMORIES_TAG, (String)null));
         commitments = Commitments.parse(xr.getAttribute(STANCE_CHOICES_TAG,
                                                         (String)null));
+        coalitions = new ArrayList<>();
+        final String co = xr.getAttribute(COALITIONS_TAG, (String)null);
+        if (co != null && !co.isEmpty()) {
+            for (String rec : co.split(";")) {
+                final net.sf.freecol.common.diplomacy.Coalition c
+                    = net.sf.freecol.common.diplomacy.Coalition.parse(rec);
+                if (c != null) coalitions.add(c);
+            }
+        }
         offers = new ArrayList<>();
         final String os = xr.getAttribute(OFFERS_TAG, (String)null);
         if (os != null && !os.isEmpty()) {

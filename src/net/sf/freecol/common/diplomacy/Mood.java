@@ -36,6 +36,8 @@ import net.sf.freecol.common.model.Stance;
  */
 public final class Mood {
 
+    /** The reason shown for a local truce in a King's war. */
+    public static final String TRUCE = "at war by the King's order, keeps the peace here";
     /** Opinion at or above which a nation is friendly. */
     public static final double FRIENDLY = 30;
     /** Opinion above which it is neutral (else wary). */
@@ -83,6 +85,8 @@ public final class Mood {
     public final List<Goal> goals;
     /** Nation id to feeling. */
     public final Map<String, Feeling> feelings;
+    /** The nations our coalitions stand against (public). */
+    public final List<String> coalitionTargets = new ArrayList<>();
 
 
     private Mood(String nation, int turn, NationCharacter character,
@@ -117,8 +121,10 @@ public final class Mood {
         Map<String, Feeling> f = new LinkedHashMap<>();
         for (NationView v : w.others.values()) {
             final Commitments.Choice ch = (c == null) ? null : c.get(v.id);
-            final String why = (ch != null && stanceOf(ch.kind) == v.stance)
-                ? ch.why : null;
+            final boolean truce = c != null && c.inTruce(v.id);
+            final String why = (truce) ? TRUCE
+                : (ch != null && stanceOf(ch.kind) == v.stance) ? ch.why
+                : null;
             f.put(v.id, new Feeling(v.id, v.opinion, v.trust, v.stance, why,
                 Memories.about(v.id, w.turn, w.memories)));
         }

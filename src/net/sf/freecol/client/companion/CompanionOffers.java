@@ -108,6 +108,10 @@ final class CompanionOffers {
                     : Messages.message(from.getNationLabel()))
                 .put("color", (from == null) ? java.awt.Color.GRAY
                     : from.getNationColor())
+                .put("against", (o.against == null
+                        || game.getPlayerByNationId(o.against) == null) ? ""
+                    : Messages.message(game.getPlayerByNationId(o.against)
+                        .getNationLabel()))
                 .put("goods", (gt == null) ? "" : gt.getId())
                 .put("goodsName", (gt == null) ? "" : Messages.getName(gt))
                 .put("amount", o.amount)

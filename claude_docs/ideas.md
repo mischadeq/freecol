@@ -1129,6 +1129,43 @@ In the base game an alliance meant almost nothing. Now:
 - **Not yet:** a partner's promised colony of its own conquest is not
   asked for; the target cannot buy a partner out yet.
 
+### Step 5c built: coalitions against a runaway leader (2026-10-14)
+- **The line by difficulty** (Mischa): a nation whose threat (60% army
+  share, 40% output share) reaches 0.40 on very easy, 0.38, 0.35 on
+  medium, 0.32, 0.30 on very hard is a runaway leader (new
+  `Coalition.line`, in every world view).
+- **Forming.** A balance keeper (the French in the classic rules)
+  starts a coalition at the line, any other nation when the leader is
+  0.05 over it. Computer nations that see the same leader and like the
+  founder join at once; the player is invited (dialog). Members are
+  allied with each other (5a pacts). One coalition per target; a
+  founder whose invitations all fail waits 10 turns before trying
+  again. A human target is told in the turn report: "A coalition has
+  formed against you: France, Holland".
+- **Acting.** Attacked: the pacts call the members. Attacking: when the
+  members' armies together are 1.2 times the target's and the
+  founder's war score plus 10 reaches 20, the founder declares war and
+  calls every member: computer members join (`JOIN_WAR` plus 10) or
+  leave the coalition and the alliance (remembered as a broken word);
+  the player gets a call to arms.
+- **Ending.** When the target's threat stays under 0.25 for 10 turns,
+  or fewer than two members are left (a lone founder waits 5 turns for
+  answers). Members who go to war with the founder or ally with the
+  target drop out. Saved with the founder ("coalitions").
+- **Companion:** cards show "Coalition against Spain" (red when it is
+  against you) and "Local truce" in a King's war; the Offers list
+  shows calls to arms, alliance and coalition invitations and joint
+  wars.
+- **Tested:** `CoalitionTest` (line by difficulty, the line decides the
+  leader, ends when calm, waits for answers, save/parse),
+  `AIAlliancesTest` (a coalition forms against a runaway Spain, the
+  Dutch join, the player is invited and becomes allied with every
+  member, only one coalition per target; at war, members are called
+  and fight or leave; coalitions are saved). All 608 tests green.
+- **Not yet:** the relations graph on the companion page (5d); the
+  target buying a member out (Yamasee War); a coalition's members do
+  not plan their attacks together.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

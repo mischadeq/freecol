@@ -200,6 +200,7 @@ public final class Commitments {
      * @return The words.
      */
     public static String why(ScoredAction sa) {
+        if (sa.action.kind == Action.Kind.JOIN_WAR) return "an ally's call";
         if (sa.goal >= Goal.GOAL_BONUS / 2 && !sa.note.isEmpty()) {
             final String n = sa.note;
             if (n.contains("revenge")) return "revenge";

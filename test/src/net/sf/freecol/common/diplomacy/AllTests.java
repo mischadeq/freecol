@@ -34,6 +34,7 @@ public class AllTests {
         suite.addTestSuite(CommitmentsTest.class);
         suite.addTestSuite(OfferTest.class);
         suite.addTestSuite(DealValueTest.class);
+        suite.addTestSuite(CoalitionTest.class);
         return suite;
     }
 }

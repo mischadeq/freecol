@@ -1821,7 +1821,10 @@
         meter(a[0], 4, a[1]) + " " + a[2] + "</span>" +
       '<span class="tag ' + t[1] + '" title="Kept deals, gifts and trade raise trust; a broken deal cuts it hard.">' +
         meter(t[0], 3, t[1]) + " " + t[2] + "</span>" +
-      '<span class="tag info" title="Their long-term ambition, from their nation type.">' + esc(cap(m.ambition)) + "</span></div>";
+      '<span class="tag info" title="Their long-term ambition, from their nation type.">' + esc(cap(m.ambition)) + "</span>" +
+      (m.truce ? '<span class="tag info" title="The King declared this war; they keep the peace with you here in the New World and will offer peace.">Local truce</span>' : "") +
+      (m.coalitions || []).map((c) => '<span class="tag ' + (c.you ? "alarm" : "warn") + '" title="Allied with others against a nation that grows too strong; they go to war together.">Coalition against ' +
+        esc(c.name) + "</span>").join("") + "</div>";
   }
   function moodRows(n) {
     const m = n.mood, rows = [];
@@ -1974,6 +1977,11 @@
       const st = o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else if (o.kind === "call_to_arms") what = "Calls you to arms against <b>" + esc(o.against) + "</b>";
+      else if (o.kind === "alliance") what = "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "joint_war") what = "Join their war against <b>" + esc(o.against) + "</b> for <b>" + num(o.gold) + "</b> gold" +
+        (o.place ? " and " + esc(o.place) + " if they take it" : "");
+      else if (o.kind === "coalition") what = "Invites you into a coalition against <b>" + esc(o.against) + "</b>";
       else if (o.kind === "ship_sell" || o.kind === "ship_buy") what = "Ship " + (o.kind === "ship_sell" ? "bringing " : "coming to buy ") +
         (o.goods ? gi(o.goods, o.goodsName) : "") + " <b>" + o.amount + "</b> " + esc(o.goodsName) + " for <b>" + num(o.gold) + "</b> gold · to " + esc(o.place) +
         ' <span class="m">(the trade screen opens when it arrives)</span>';

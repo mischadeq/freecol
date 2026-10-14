@@ -304,4 +304,104 @@ public class AIAlliancesTest extends FreeColTestCase {
         assertEquals(frenchGold + 400, french.getGold());
         assertTrue(remembers(ai(french), Memory.Kind.GIFT, DUTCH));
     }
+
+    /** Many soldiers for a nation, to make it the runaway leader. */
+    private void army(Player p, int n) {
+        final net.sf.freecol.common.model.Tile t = p.getColonyList().get(0).getTile();
+        for (int i = 0; i < n; i++) {
+            new ServerUnit(game, t, p, spec().getUnitType("model.unit.veteranSoldier"),
+                           spec().getRole("model.role.dragoon"));
+        }
+    }
+
+    /** A runaway leader faces a coalition; the player is invited. */
+    public void testCoalitionAgainstTheLeader() {
+        setUpGame();
+        english.setAI(false);
+        army(spanish, 30);
+        EuropeanAIPlayer fai = ai(french);
+        assertEquals("the French keep the balance",
+            net.sf.freecol.common.diplomacy.NationCharacter.BALANCE_KEEPER,
+            fai.getOutlook().view.character);
+        assertEquals(SPANISH, net.sf.freecol.common.diplomacy.Threat
+            .leaderToContain(fai.getOutlook().view));
+        fai.rememberTurn();
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(1, fai.getCoalitions().size());
+        net.sf.freecol.common.diplomacy.Coalition c = fai.getCoalitions().get(0);
+        assertEquals(SPANISH, c.target);
+        // The Dutch see the same leader and like the French: they join.
+        assertTrue(c.members.contains(DUTCH));
+        assertEquals(Stance.ALLIANCE, french.getStance(dutch));
+        // The player is invited, accepts, and is allied with every member.
+        Offer inv = null;
+        for (Offer o : fai.getOffers()) {
+            if (o.kind == Offer.Kind.COALITION) inv = o;
+        }
+        assertNotNull(inv);
+        assertEquals(SPANISH, inv.against);
+        assertTrue(new OfferPlanner(fai).answer(english, inv.id, true,
+                                                new ChangeSet()));
+        assertTrue(c.members.contains(ENGLISH));
+        assertEquals(Stance.ALLIANCE, english.getStance(french));
+        assertEquals(Stance.ALLIANCE, english.getStance(dutch));
+        // Only one coalition against the same leader.
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(1, fai.getCoalitions().size());
+    }
+
+    /** At war with the target, the founder calls the members. */
+    public void testCoalitionMembersAreCalled() {
+        setUpGame();
+        english.setAI(false);
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch);
+        net.sf.freecol.common.diplomacy.Coalition c
+            = new net.sf.freecol.common.diplomacy.Coalition(SPANISH,
+                game.getTurn().getNumber());
+        c.members.add(FRENCH);
+        c.members.add(DUTCH);
+        c.members.add(ENGLISH);
+        fai.getCoalitions().add(c);
+        ally(french, dutch);
+        ally(french, english);
+        ally(dutch, english);
+        army(spanish, 30); // still the leader: the coalition goes on
+        french.setStance(spanish, Stance.WAR);
+        spanish.setStance(french, Stance.WAR);
+        fai.rememberTurn();
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        // The Dutch fight, or leave the coalition (and the alliance).
+        if (dutch.getStance(spanish) == Stance.WAR) {
+            assertTrue(c.members.contains(DUTCH));
+        } else {
+            assertFalse(c.members.contains(DUTCH));
+            assertEquals(Stance.PEACE, french.getStance(dutch));
+        }
+        // The player gets a call to arms.
+        boolean called = false;
+        for (Offer o : fai.getOffers()) {
+            called |= o.kind == Offer.Kind.CALL_TO_ARMS
+                && o.audience.contains(ENGLISH) && SPANISH.equals(o.against);
+        }
+        assertTrue(called);
+    }
+
+    public void testCoalitionsAreSaved() throws Exception {
+        setUpGame();
+        EuropeanAIPlayer fai = ai(french);
+        net.sf.freecol.common.diplomacy.Coalition c
+            = new net.sf.freecol.common.diplomacy.Coalition(SPANISH, 3);
+        c.members.add(FRENCH);
+        c.members.add(DUTCH);
+        fai.getCoalitions().add(c);
+        java.io.File file = java.io.File.createTempFile("coalition", ".fsg");
+        file.deleteOnExit();
+        ServerTestHelper.getServer().saveGame(file, null, null);
+        net.sf.freecol.server.FreeColServer loaded
+            = ServerTestHelper.startServer(file, false, true);
+        EuropeanAIPlayer fai2 = (EuropeanAIPlayer)loaded.getAIMain()
+            .getAIPlayer(loaded.getGame().getPlayerByNationId(FRENCH));
+        assertEquals(1, fai2.getCoalitions().size());
+        assertEquals(c.serialize(), fai2.getCoalitions().get(0).serialize());
+    }
 }
