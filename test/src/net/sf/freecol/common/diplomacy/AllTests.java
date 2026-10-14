@@ -33,6 +33,7 @@ public class AllTests {
         suite.addTestSuite(MemoriesTest.class);
         suite.addTestSuite(CommitmentsTest.class);
         suite.addTestSuite(OfferTest.class);
+        suite.addTestSuite(DealValueTest.class);
         return suite;
     }
 }

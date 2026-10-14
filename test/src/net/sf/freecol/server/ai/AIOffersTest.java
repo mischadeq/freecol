@@ -234,4 +234,22 @@ public class AIOffersTest extends FreeColTestCase {
         assertEquals(1, ai2.getOffers().size());
         assertEquals(o.serialize(), ai2.getOffers().get(0).serialize());
     }
+
+    /** The player's offers are judged by the diplomat. */
+    public void testPlayersOfferJudgedByTheDiplomat() {
+        setUpGame();
+        dutch.setStance(english, Stance.PEACE);
+        english.setStance(dutch, Stance.PEACE);
+        dutch.getTension(english).setValue(net.sf.freecol.common.model.Tension.TENSION_MAX);
+        // An alliance from a nation it hates: never.
+        java.util.List<net.sf.freecol.common.model.TradeItem> items = new java.util.ArrayList<>();
+        items.add(new net.sf.freecol.common.model.StanceTradeItem(game, english,
+            dutch, Stance.ALLIANCE));
+        net.sf.freecol.common.model.DiplomaticTrade dt
+            = new net.sf.freecol.common.model.DiplomaticTrade(game,
+                net.sf.freecol.common.model.DiplomaticTrade.TradeContext.DIPLOMATIC,
+                english, dutch, items, 1);
+        assertFalse(ai.acceptDiplomaticTrade(dt)
+            == net.sf.freecol.common.model.DiplomaticTrade.TradeStatus.ACCEPT_TRADE);
+    }
 }

@@ -70,6 +70,7 @@ import net.sf.freecol.common.model.Building;
 import net.sf.freecol.common.diplomacy.Action;
 import net.sf.freecol.common.diplomacy.Bearings;
 import net.sf.freecol.common.diplomacy.Commitments;
+import net.sf.freecol.common.diplomacy.DealValue;
 import net.sf.freecol.common.diplomacy.Diplomat;
 import net.sf.freecol.common.diplomacy.Memories;
 import net.sf.freecol.common.diplomacy.Memory;
@@ -93,6 +94,7 @@ import net.sf.freecol.common.model.FoundingFather;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.GoldTradeItem;
 import net.sf.freecol.common.model.Goods;
+import net.sf.freecol.common.model.GoodsTradeItem;
 import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.HistoryEvent;
 import net.sf.freecol.common.model.Location;
@@ -3037,6 +3039,29 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
 
     /**
+     * What a trade item is worth to our diplomat (mod).
+     *
+     * @param item The {@code TradeItem}.
+     * @param other The other side.
+     * @param dip Our {@code Outlook}.
+     * @return The worth in gold, or a {@link DealValue} marker.
+     */
+    private int diplomatValue(TradeItem item, Player other, Outlook dip) {
+        final Player player = getPlayer();
+        if (item instanceof GoodsTradeItem) {
+            final Goods g = ((GoodsTradeItem)item).getGoods();
+            if (g == null) return DealValue.NO_OPINION;
+            return DealValue.goods(dip.view, g.getType().getId(),
+                g.getAmount(), item.getDestination() == player);
+        }
+        if (item instanceof StanceTradeItem) {
+            return DealValue.stance(dip.ranked, other.getNationId(),
+                item.getStance(), player.getStance(other));
+        }
+        return DealValue.NO_OPINION;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -3056,11 +3081,22 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             result = TradeStatus.PROPOSE_TRADE;
         } else {
             int unacceptable = 0, value = 0, colonies = 0;
+            // Goods, peace and alliances at the diplomat's values (mod),
+            // the same it uses for its own offers.
+            final Outlook dip = (player.isREF()) ? null : getOutlook();
             for (TradeItem item : agreement.getItems()) {
                 if (item instanceof StanceTradeItem) {
                     getNationSummary(other); // Freshen the name summary cache
                 }                    
                 int score = item.evaluateFor(player);
+                final int dv = (dip == null) ? DealValue.NO_OPINION
+                    : diplomatValue(item, other, dip);
+                if (dv == DealValue.NEVER) {
+                    score = TradeItem.INVALID_TRADE_ITEM;
+                } else if (dv != DealValue.NO_OPINION
+                    && score != TradeItem.INVALID_TRADE_ITEM) {
+                    score = dv;
+                }
                 if (item instanceof ColonyTradeItem) {
                     if (item.getSource() == player) {
                         colonies++;
