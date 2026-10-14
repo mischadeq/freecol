@@ -35,6 +35,12 @@ public final class Diplomat {
 
     /** A move is made only if it scores at least this. */
     public static final double THRESHOLD = 20;
+    /** ... or this, for small moves (trade, arming). */
+    public static final double SMALL_THRESHOLD = 5;
+    /** Muskets or horses offered to a tribe in one go. */
+    public static final int ARMS_LOT = 100;
+    /** Natives pay this times our Europe price for arms. */
+    public static final double ARMS_MARKUP = 2.0;
     /** Weight of the opinion term. */
     public static final double OPINION_WEIGHT = 0.3;
     /** Opinion needed to propose an alliance. */
@@ -81,13 +87,21 @@ public final class Diplomat {
     public static ScoredAction choose(List<ScoredAction> ranked) {
         for (ScoredAction sa : ranked) {
             if (sa.action.kind == Action.Kind.NOTHING) return sa;
-            if (sa.total >= THRESHOLD) return sa;
-            break;
-        }
-        for (ScoredAction sa : ranked) {
-            if (sa.action.kind == Action.Kind.NOTHING) return sa;
+            if (sa.total >= threshold(sa.action.kind)) return sa;
         }
         return new ScoredAction(Action.nothing());
+    }
+
+    /**
+     * The score a kind of move needs: small moves (trade, arming) are
+     * small in gold, and offers are limited to one per nation per five
+     * turns anyway; big moves need more, so they do not flip-flop.
+     *
+     * @param kind The {@code Action.Kind}.
+     * @return The threshold.
+     */
+    public static double threshold(Action.Kind kind) {
+        return (kind.small()) ? SMALL_THRESHOLD : THRESHOLD;
     }
 
     /**
@@ -178,10 +192,44 @@ public final class Diplomat {
                 }
             }
         }
+        if (european) {
+            for (NationView tribe : w.others.values()) {
+                if (tribe.european || tribe.atWar()) continue;
+                // The rival next to the tribe we fear most (never an ally).
+                NationView rival = null;
+                for (NationView r : w.others.values()) {
+                    if (!r.european || r.stance == Stance.ALLIANCE
+                        || !nextTo(tribe, r)) continue;
+                    if (rival == null || r.fear > rival.fear) rival = r;
+                }
+                if (rival == null) continue;
+                for (String gid : new String[] { "model.goods.muskets",
+                                                 "model.goods.horses" }) {
+                    GoodsView g = w.goods.get(gid);
+                    if (g == null || g.stock < ARMS_LOT / 2) continue;
+                    ret.add(Action.armTribe(tribe.id, rival.id, gid,
+                        Math.min(ARMS_LOT, g.stock),
+                        price(ARMS_MARKUP, g.buyPrice)));
+                }
+            }
+        }
         if (european && w.armable > 0) {
             ret.add(Action.arm(Math.min(MAX_ARM, w.armable)));
         }
         return ret;
+    }
+
+    /** Does a tribe live next to a nation (same land, within 10 tiles)? */
+    static boolean nextTo(NationView tribe, NationView nation) {
+        for (PlaceView a : tribe.places) {
+            for (PlaceView b : nation.places) {
+                if (a.land == b.land
+                    && a.distance(b) <= WorldViewBuilder.NEAR_TILES) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static int price(double share, int price) {

@@ -30,7 +30,7 @@ public final class Observed {
     /** What happened. */
     public enum What {
         WAR, PEACE, CAPTURE, DESTROY, COLONY_LOST, UNITS_LOST,
-        SHIPS_DAMAGED, ARM, MISSION, MISSION_GONE, SOLD_IN_EUROPE
+        SHIPS_DAMAGED, ARM, ARM_TRIBE, MISSION, MISSION_GONE, SOLD_IN_EUROPE
     }
 
     public final What what;
@@ -68,6 +68,7 @@ public final class Observed {
         case PEACE: return Action.peace(other);
         case CAPTURE: case DESTROY: return Action.attack(other, null);
         case ARM: return Action.arm(amount);
+        case ARM_TRIBE: return Action.armTribe(other, null, null, 0, 0);
         default: return null;
         }
     }

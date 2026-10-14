@@ -221,9 +221,127 @@ public class DiplomacyTest extends TestCase {
             90, 1, 10, Integer.MAX_VALUE, 1, 2, false));
         for (ScoredAction sa : Diplomat.rank(w)) {
             if (sa.action.kind == Action.Kind.SELL_GOODS) {
-                assertTrue(sa.total < Diplomat.THRESHOLD);
+                assertTrue(sa.total < Diplomat.SMALL_THRESHOLD);
             }
         }
+    }
+
+    // ---- Tuning round 1 (2026-10-14)
+
+    public void testFreedLandCounts() {
+        WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 20, 300);
+        w.attackers = CaptureSim.force(10, 4.5);
+        NationView tribe = new NationView("model.nation.iroquois", false, false);
+        tribe.stance = Stance.PEACE;
+        tribe.near = 1;
+        tribe.army = 2;
+        w.others.put(tribe.id, tribe);
+        PlaceView village = place("is:1", tribe.id, true, new double[] { 1.5 }, 0);
+        tribe.places.add(village);
+        double before = score(w, Action.Kind.DECLARE_WAR);
+        village.freed = 40;
+        double after = score(w, Action.Kind.DECLARE_WAR);
+        assertTrue(after > before + 0.6 * 0.9 * 40 * 0.9);
+        // Trade lost with the tribe counts against.
+        tribe.tradeWithMe = 4000;
+        assertTrue(score(w, Action.Kind.DECLARE_WAR) < after);
+    }
+
+    public void testTribesRaidRatherThanConquer() {
+        NationView tribe = new NationView("model.nation.iroquois", false, false);
+        tribe.army = 8;
+        tribe.near = 1;
+        NationView fr = new NationView(FRENCH, true, false);
+        fr.army = 8;
+        fr.near = 1;
+        assertEquals(8.0, Effects.threatOf(fr), 1e-9);
+        assertEquals(2.0, Effects.threatOf(tribe), 1e-9);
+    }
+
+    public void testTheKingsArmyIsAReasonToArm() {
+        // 12 gold a colonist, as in Mischa's game.
+        WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 4, 120);
+        w.armable = 5;
+        w.muskets = 250;
+        w.kingArmy = 100;
+        w.rebels = 10;
+        double calm = score(w, Action.Kind.ARM);
+        w.rebels = 50;
+        double near = score(w, Action.Kind.ARM);
+        assertTrue(near > calm);
+        assertTrue(near >= Diplomat.SMALL_THRESHOLD);
+        w.kingArmy = 1; // my army is bigger: no reason
+        assertEquals(calm, score(w, Action.Kind.ARM), 1e-9);
+    }
+
+    public void testSmallMovesHaveALowerBar() {
+        assertEquals(Diplomat.SMALL_THRESHOLD,
+                     Diplomat.threshold(Action.Kind.SELL_GOODS), 1e-9);
+        assertEquals(Diplomat.SMALL_THRESHOLD,
+                     Diplomat.threshold(Action.Kind.ARM), 1e-9);
+        assertEquals(Diplomat.THRESHOLD,
+                     Diplomat.threshold(Action.Kind.DECLARE_WAR), 1e-9);
+        List<ScoredAction> r = new ArrayList<>();
+        ScoredAction sale = new ScoredAction(Action.sell(FRENCH, "g", 1, 1));
+        sale.total = 8;
+        ScoredAction none = new ScoredAction(Action.nothing());
+        r.add(sale);
+        r.add(none);
+        assertSame(sale, Diplomat.choose(r));
+    }
+
+    public void testArmATribeNextToARival() {
+        WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 5, 300);
+        NationView fr = other(w, FRENCH, 20, 300, Stance.PEACE, 0.5);
+        fr.fear = 60;
+        fr.places.add(place("colony:f", FRENCH, false, new double[] { 3 }, 1));
+        NationView tribe = new NationView("model.nation.arawak", false, false);
+        tribe.stance = Stance.PEACE;
+        tribe.opinion = 50;
+        tribe.near = 0.2;
+        tribe.places.add(place("is:a", tribe.id, true, new double[] { 1.5 }, 0));
+        w.others.put(tribe.id, tribe);
+        w.goods.put("model.goods.muskets", new GoodsView("model.goods.muskets",
+            300, 0, 0, Integer.MAX_VALUE, 3, 4, false));
+        ScoredAction best = null;
+        for (ScoredAction sa : Diplomat.rank(w)) {
+            if (sa.action.kind == Action.Kind.ARM_TRIBE) best = sa;
+        }
+        assertNotNull(best);
+        assertEquals(FRENCH, best.action.against);
+        assertTrue(best.security > 0);
+        assertEquals(0.0, best.opinion, 1e-9); // a sale: no opinion term
+        // Never against an ally.
+        fr.stance = Stance.ALLIANCE;
+        for (ScoredAction sa : Diplomat.rank(w)) {
+            assertFalse(sa.action.kind == Action.Kind.ARM_TRIBE);
+        }
+    }
+
+    public void testStayingOutOfAKingsWar() {
+        WorldView w = world(DUTCH, NationCharacter.TRADING_EMPIRE, 5, 300);
+        NationView fr = other(w, FRENCH, 15, 300, Stance.WAR, 0.5);
+        Object[] price = Effects.kingsWarPrice(w, fr);
+        assertEquals(1500.0, (Double)price[0], 1e-9);
+        assertEquals("pay 1500 gold", price[1]);
+        // A cheap boycott is preferred.
+        w.goods.put("model.goods.furs", new GoodsView("model.goods.furs",
+            100, 2, 0, Integer.MAX_VALUE, 3, 4, false));
+        price = Effects.kingsWarPrice(w, fr);
+        assertEquals("boycott of furs", price[1]);
+        assertTrue((Double)price[0] < 1500);
+        fr.army = 1; // at least the minimum
+        w.goods.clear();
+        assertEquals((double)Effects.KING_MIN_PRICE,
+                     (Double)Effects.kingsWarPrice(w, fr)[0], 1e-9);
+    }
+
+    private static double score(WorldView w, Action.Kind kind) {
+        for (ScoredAction sa : Diplomat.rank(w)) {
+            if (sa.action.kind == kind) return sa.total;
+        }
+        fail("no " + kind);
+        return 0;
     }
 
     // ---- Helpers

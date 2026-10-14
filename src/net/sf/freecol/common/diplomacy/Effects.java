@@ -51,6 +51,14 @@ public final class Effects {
     public static final double NEEDED_VALUE = 1.5;
     /** Treasure guessed per inhabitant of a destroyed native settlement. */
     public static final int PLUNDER_PER_NATIVE = 100;
+    /** Rebels (percent) from which the King's army is a reason to arm. */
+    public static final int KING_REBELS = 20;
+    /** Turns a boycott is counted for (it lasts until arrears are paid). */
+    public static final int BOYCOTT_TURNS = 20;
+    /** Turns freed land is counted for (land stays). */
+    public static final int LAND_HORIZON = 30;
+    /** Price to stay out of a King's war: per enemy soldier, at least. */
+    public static final int KING_PRICE_PER_SOLDIER = 100, KING_MIN_PRICE = 500;
     /** Muskets to arm one soldier. */
     public static final int MUSKETS_PER_SOLDIER = 50;
 
@@ -74,7 +82,8 @@ public final class Effects {
         case DECLARE_WAR: {
             Situation.Attack at = s.attacks.get(x.id);
             if (at != null) {
-                sa.land = at.expected();
+                sa.land = at.expected()
+                    + at.result.chance * at.place.freed;
                 sa.gold += at.result.chance * plunder(at.place, x) / 100;
                 sa.risk = (1 - at.result.chance) * at.result.lost
                     * SOLDIER_POINTS;
@@ -83,8 +92,10 @@ public final class Effects {
             } else {
                 sa.note = "nothing in reach";
             }
-            sa.gold = -WAR_COST * w.me.output * HORIZON / 100;
-            sa.security = -SOLDIER_POINTS * x.army * x.near;
+            sa.gold += -WAR_COST * w.me.output * HORIZON / 100
+                - lostTrade(x);
+            sa.trade = -TRADE_SHARE * lostTrade(x);
+            sa.security = -SOLDIER_POINTS * threatOf(x);
             sa.relations = -10 - 3 * alliesOf(w, x.id);
             sa.risk += counterRisk(s, x.id);
             break;
@@ -92,7 +103,8 @@ public final class Effects {
         case ATTACK_COLONY: {
             Situation.Attack at = s.attacks.get(x.id);
             if (at != null) {
-                sa.land = at.expected();
+                sa.land = at.expected()
+                    + at.result.chance * at.place.freed;
                 sa.gold = at.result.chance * plunder(at.place, x) / 100;
                 sa.risk = (1 - at.result.chance) * at.result.lost
                     * SOLDIER_POINTS;
@@ -104,7 +116,7 @@ public final class Effects {
         }
         case MAKE_PEACE: {
             Situation.Attack at = s.attacks.get(x.id);
-            sa.security = SOLDIER_POINTS * x.army * x.near;
+            sa.security = SOLDIER_POINTS * threatOf(x);
             sa.gold = WAR_COST * w.me.output * HORIZON / 100;
             sa.land = (at == null) ? 0 : -at.expected();
             sa.relations = 5;
@@ -174,8 +186,30 @@ public final class Effects {
             sa.gold = -a.amount * (MUSKETS_PER_SOLDIER * w.musketPrice
                                    + perColonist * HORIZON) / 100;
             final boolean danger = w.exposure() > 0 || w.maxFear() > 40;
-            sa.security = a.amount * SOLDIER_POINTS * ((danger) ? 1 : 0.3);
-            sa.note = (danger) ? "in danger" : "";
+            final double king = kingThreat(w);
+            sa.security = a.amount * SOLDIER_POINTS
+                * Math.max((danger) ? 1 : 0.3, king);
+            sa.note = (danger) ? "in danger"
+                : (king > 0.3) ? "the King's army" : "";
+            break;
+        }
+        case ARM_TRIBE: {
+            final NationView rival = w.others.get(a.against);
+            final GoodsView g = w.goods.get(a.goods);
+            final double soldiers = a.amount / (double)MUSKETS_PER_SOLDIER;
+            final double alt = (g == null || g.boycotted) ? 0
+                : g.sellPrice * (1 - w.tax / 100.0);
+            sa.gold = a.amount * (a.price - alt) / 100;
+            sa.trade = TRADE_SHARE * a.amount * a.price / 100;
+            // Braves armed next to a rival keep it busy: half what our
+            // own soldiers would be worth (they fight when they choose),
+            // more the more we fear that rival.
+            sa.security = SOLDIER_POINTS / 2 * soldiers
+                * (0.3 + 0.7 * rival.fear / 100);
+            sa.relations = 2 - 0.3 * 5; // the tribe pleased; the rival may hear
+            sa.risk = soldiers * SOLDIER_POINTS * x.near
+                * ((x.opinion < 0) ? 1 : 0.2);
+            sa.note = "next to " + Action.shortId(a.against);
             break;
         }
         default:
@@ -196,9 +230,68 @@ public final class Effects {
         return Math.max(0, owner.gold) * (double)p.size / owner.colonists;
     }
 
+    /**
+     * How much the King's army is a reason to arm, 0..1: nothing below
+     * {@link #KING_REBELS}% rebels, growing to full at 30 points more,
+     * and only while his army is larger than mine.
+     */
+    static double kingThreat(WorldView w) {
+        if (w.kingArmy <= w.me.army) return 0;
+        return Math.max(0, Math.min(1, (w.rebels - KING_REBELS) / 30.0));
+    }
+
+    /**
+     * The gold of trade lost with a tribe at war, over the horizon (my
+     * trade in the last 20 turns, halved for 10 turns), in points.
+     */
+    static double lostTrade(NationView x) {
+        return x.tradeWithMe * HORIZON / 20.0 / 100;
+    }
+
+    /**
+     * What staying out of a war the King declared would cost: a sum to
+     * the King, or a boycott of my best-selling goods.  Mischa's idea
+     * (2026-10-14); not in the game yet, scored so the replay can show
+     * when a nation would have paid.
+     *
+     * @param w The {@code WorldView}.
+     * @param x The enemy the King declared war on.
+     * @return The cost in gold, and a description.
+     */
+    public static Object[] kingsWarPrice(WorldView w, NationView x) {
+        final int pay = (int)Math.max(KING_MIN_PRICE,
+                                      Math.round(KING_PRICE_PER_SOLDIER * x.army));
+        GoodsView best = null;
+        double bestValue = 0;
+        for (GoodsView g : w.goods.values()) {
+            if (g.boycotted || g.net <= 0) continue;
+            double v = g.net * g.sellPrice * (1 - w.tax / 100.0)
+                * BOYCOTT_TURNS;
+            if (v > bestValue) {
+                bestValue = v;
+                best = g;
+            }
+        }
+        if (best != null && bestValue < pay) {
+            return new Object[] { bestValue,
+                "boycott of " + Action.shortId(best.id) };
+        }
+        return new Object[] { (double)pay, "pay " + pay + " gold" };
+    }
+
     /** Chance a nation accepts a trade offer, from its opinion. */
     static double accept(NationView x) {
         return Math.max(0.05, Math.min(0.95, 0.5 + x.opinion / 200));
+    }
+
+    /**
+     * The army of a nation that could reach us, in soldiers' worth;
+     * a tribe raids and burns rather than conquers, so its braves
+     * count for {@link Situation#NATIVE_RAID_SHARE}.
+     */
+    static double threatOf(NationView x) {
+        return x.army * x.near
+            * ((x.european) ? 1.0 : Situation.NATIVE_RAID_SHARE);
     }
 
     /** Nations allied with x. */

@@ -88,6 +88,9 @@ public final class Snapshot {
         }
     }
 
+    /** Goods that arm braves. */
+    static final String[] ARMS = { "model.goods.muskets", "model.goods.horses" };
+
     public final int turn;
     public final String label;
     public final Map<String, Nation> nations = new LinkedHashMap<>();
@@ -98,6 +101,8 @@ public final class Snapshot {
     public final Map<String, Place> places = new LinkedHashMap<>();
     /** Armed land units and warships, by id. */
     public final Map<String, Troop> troops = new HashMap<>();
+    /** Last arms sale of a nation to a settlement: "nation|settlement|goods" to turn. */
+    public final Map<String, Integer> armsSales = new HashMap<>();
     /** History events as "nation|type|other|turn". */
     public final List<String> events = new ArrayList<>();
 
@@ -180,6 +185,20 @@ public final class Snapshot {
                 if (warship || (!u.isNaval() && u.isOffensiveUnit())) {
                     s.troops.put(u.getId(), new Troop(u.getId(), n.id,
                         warship, u.isNaval() && u.isDamaged()));
+                }
+            }
+            if (p.isEuropean()) {
+                for (Player t : game.getLiveNativePlayerList()) {
+                    for (IndianSettlement is : t.getIndianSettlementList()) {
+                        for (String g : ARMS) {
+                            var gt = spec.getGoodsType(g);
+                            if (gt == null) continue;
+                            var ls = p.getLastSale(is, gt);
+                            if (ls == null || ls.getWhen() == null) continue;
+                            s.armsSales.put(n.id + "|" + is.getId() + "|" + g,
+                                            ls.getWhen().getNumber());
+                        }
+                    }
                 }
             }
             for (HistoryEvent h : p.getHistory()) {

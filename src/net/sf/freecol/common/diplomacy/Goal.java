@@ -77,7 +77,9 @@ public final class Goal {
                     && target.equals(a.target));
         case CONTAIN_LEADER:
             return (a.kind == Action.Kind.ALLIANCE && !target.equals(a.target))
-                || (a.kind == Action.Kind.INCITE && target.equals(a.against))
+                || ((a.kind == Action.Kind.INCITE
+                     || a.kind == Action.Kind.ARM_TRIBE)
+                    && target.equals(a.against))
                 || (a.kind == Action.Kind.DECLARE_WAR && target.equals(a.target));
         case MAKE_PEACE:
             return a.kind == Action.Kind.MAKE_PEACE && target.equals(a.target);
@@ -85,7 +87,9 @@ public final class Goal {
             return ((a.kind == Action.Kind.DECLARE_WAR
                      || a.kind == Action.Kind.ATTACK_COLONY)
                     && target.equals(a.target))
-                || (a.kind == Action.Kind.INCITE && target.equals(a.against));
+                || ((a.kind == Action.Kind.INCITE
+                     || a.kind == Action.Kind.ARM_TRIBE)
+                    && target.equals(a.against));
         default:
             return false;
         }

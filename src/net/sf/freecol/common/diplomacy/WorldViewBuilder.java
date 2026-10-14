@@ -30,10 +30,12 @@ import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.HistoryEvent;
 import net.sf.freecol.common.model.IndianSettlement;
+import net.sf.freecol.common.model.LastSale;
 import net.sf.freecol.common.model.Market;
 import net.sf.freecol.common.model.NationSummary;
 import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.Role;
+import net.sf.freecol.common.model.Settlement;
 import net.sf.freecol.common.model.Specification;
 import net.sf.freecol.common.model.Stance;
 import net.sf.freecol.common.model.Tile;
@@ -56,6 +58,15 @@ public final class WorldViewBuilder {
 
     /** Tiles counted as "near" on the same land. */
     public static final int NEAR_TILES = 10;
+
+    /** Tiles from my colonies counted as land I could use. */
+    public static final int FREED_RANGE = 2;
+    /** Share of freed tiles that would really be worked. */
+    public static final double WORKED_SHARE = 0.5;
+    /** Turns of my own trade with a tribe that count. */
+    public static final int TRADE_MEMORY = 20;
+    /** Units guessed per recorded sale (a wagon or hold: 100). */
+    public static final int SALE_UNITS = 100;
 
     /** Braves' worth in soldiers (honest guess for a tribe's army). */
     private static final double BRAVE_SOLDIERS = 0.5;
@@ -99,6 +110,12 @@ public final class WorldViewBuilder {
                                           me.isEuropean()));
         w.soldierAttack = sp;
         fillSelf(w, me, spec, cm);
+        if (me.isEuropean() && me.getMonarch() != null
+            && me.getMonarch().getExpeditionaryForce() != null) {
+            w.kingArmy = me.getMonarch().getExpeditionaryForce()
+                .calculateStrength(false) / sp;
+            w.rebels = me.getSoL();
+        }
 
         // Memories from the game's history, plus those given.
         for (HistoryEvent h : me.getHistory()) {
@@ -120,7 +137,7 @@ public final class WorldViewBuilder {
             met.add(p);
             NationView v = (p.isEuropean())
                 ? european(p, me, honest, perColonist, sp, fp, spec, turn, cm)
-                : tribe(p, me, honest, sp, cm);
+                : tribe(p, me, honest, sp, cm, now);
             v.stance = me.getStance(p);
             if (v.stance == Stance.UNCONTACTED) v.stance = Stance.PEACE;
             v.tension = tension(me, p);
@@ -237,7 +254,9 @@ public final class WorldViewBuilder {
                 double[] d = new double[n];
                 Arrays.fill(d, CombatMath.defence(spec, turn, p, colonist,
                                                   soldier, c, true));
-                v.places.add(place(c, d, colonistDefence(spec, turn, p, c)));
+                PlaceView pv = place(c, d, colonistDefence(spec, turn, p, c));
+                pv.freed = freed(c, me, spec);
+                v.places.add(pv);
             }
         } else {
             v.army = p.calculateStrength(false) / sp;
@@ -246,7 +265,9 @@ public final class WorldViewBuilder {
             v.output = output(p, p.getMarket());
             for (Colony c : p.getColonyList()) {
                 v.colonists += c.getUnitCount();
-                v.places.add(exactPlace(c, spec, turn, cm));
+                PlaceView pv = exactPlace(c, spec, turn, cm);
+                pv.freed = freed(c, me, spec);
+                v.places.add(pv);
             }
             v.settlements = v.places.size();
         }
@@ -254,7 +275,7 @@ public final class WorldViewBuilder {
     }
 
     private static NationView tribe(Player p, Player me, boolean honest,
-                                    double sp, CombatModel cm) {
+                                    double sp, CombatModel cm, int now) {
         NationView v = new NationView(p.getNationId(), false, !honest);
         double braves = 0;
         for (IndianSettlement is : p.getIndianSettlementList()) {
@@ -277,15 +298,74 @@ public final class WorldViewBuilder {
             }
             braves += size;
             v.colonists += size;
-            v.places.add(new PlaceView(is.getId(), is.getName(),
+            PlaceView pv = new PlaceView(is.getId(), is.getName(),
                 p.getNationId(), is.getTile().getX(), is.getTile().getY(),
                 is.getTile().getContiguity(), is.getTile().isCoastland(),
-                size, true, d, 0));
+                size, true, d, 0);
+            pv.freed = freed(is, me, me.getSpecification());
+            v.places.add(pv);
+            // My own trade with it (my records, so honest).
+            for (GoodsType gt : me.getSpecification().getStorableGoodsTypeList()) {
+                LastSale ls = me.getLastSale(is, gt);
+                if (ls != null && ls.getWhen() != null
+                    && now - ls.getWhen().getNumber() <= TRADE_MEMORY) {
+                    v.tradeWithMe += ls.getPrice() * SALE_UNITS;
+                }
+            }
         }
         v.settlements = v.places.size();
         v.army = (honest) ? braves * BRAVE_SOLDIERS
             : p.calculateStrength(false) / sp;
         return v;
+    }
+
+    /**
+     * What the land a settlement holds next to my colonies would be
+     * worth to me, in points over the horizon: for each tile it owns
+     * within {@link #FREED_RANGE} of one of my colonies (and that I
+     * have explored), the best a colonist could make there at my
+     * Europe prices (double for goods my colonies are short of), half
+     * of them worked, over {@link Effects#LAND_HORIZON} turns as land
+     * stays; tiles two steps away count half.
+     *
+     * @param s The {@code Settlement}.
+     * @param me The observer.
+     * @param spec The {@code Specification}.
+     * @return The points.
+     */
+    static double freed(Settlement s, Player me, Specification spec) {
+        final Market market = me.getMarket();
+        if (market == null || me.getColonyList().isEmpty()) return 0;
+        final UnitType worker = spec.getDefaultUnitType(me);
+        double gold = 0;
+        for (Tile t : s.getOwnedTiles()) {
+            if (t == s.getTile() || !t.isExploredBy(me)) continue;
+            int dist = Integer.MAX_VALUE;
+            for (Colony c : me.getColonyList()) {
+                dist = Math.min(dist, c.getTile().getDistanceTo(t));
+            }
+            if (dist > FREED_RANGE) continue;
+            double best = 0;
+            for (GoodsType gt : spec.getStorableGoodsTypeList()) {
+                int amount = t.getPotentialProduction(gt, worker);
+                if (amount > 0) {
+                    // What my colonies are short of counts double.
+                    best = Math.max(best, amount
+                        * (double)Math.max(1, market.getPaidForSale(gt))
+                        * ((shortOf(me, gt)) ? 2 : 1));
+                }
+            }
+            gold += (dist <= 1) ? best : best / 2;
+        }
+        return gold * WORKED_SHARE * Effects.LAND_HORIZON / 100;
+    }
+
+    /** Does one of my colonies use more of a good than it makes? */
+    private static boolean shortOf(Player me, GoodsType gt) {
+        for (Colony c : me.getColonyList()) {
+            if (c.getNetProductionOf(gt) < 0) return true;
+        }
+        return false;
     }
 
     private static PlaceView exactPlace(Colony c, Specification spec,

@@ -713,6 +713,36 @@ the Claude Doc "FreeCol: living diplomacy design").
   the next 10 turns went better than usual for him (treasure); his
   arming matched the diplomat 7 times out of 17 moves.
 
+### Step 0, tuning round 1 (2026-10-14)
+- **Decided with Mischa:** count the land a place frees, the trade lost
+  with a tribe, a new move "arm a tribe against a rival", the King's
+  army as a reason to arm, a lower bar for small moves; keep opinion at
+  full weight (past deals and alliances should hold a nation back).
+  His idea: let a nation stay out of a war the King declares, for gold
+  or a boycott.
+- **Changes:** `WorldViewBuilder.freed` (tiles a place owns within two
+  of my colonies, best production at my prices, double for goods my
+  colonies are short of, half worked, 30 turns; land weight of a
+  trading empire 0.3 → 0.6); `NationView.tradeWithMe` from my own
+  `LastSale`s with the tribe (last 20 turns); `Effects.threatOf`
+  (tribes count a quarter: they raid); `Effects.kingThreat` (0 below
+  20% rebels, full at 50%, only while the King's army is bigger);
+  `Action.Kind.ARM_TRIBE` (muskets or horses to a tribe next to the
+  rival we fear most, never an ally; seen in saves through the arms
+  `LastSale`s); `Diplomat.SMALL_THRESHOLD` 5 for trade and arming
+  (war, peace, alliances keep 20); `Effects.kingsWarPrice` (100 gold
+  per enemy soldier, at least 500, or a 20-turn boycott of the best
+  seller, whichever is cheaper) shown as "Stay out?" in the wars table;
+  a move now agrees if it is in the top 3 or scores its bar.
+- **Result:** the diplomat agrees with 15 of Mischa's 21 moves (was 7
+  of 17); the Iroquois war went from −78 to −33 (still a no: he was
+  friends with them and the war cost him trade); the King's four wars
+  stay at −96 to −121, and the diplomat would have paid to stay out of
+  all three of his (1400 to 2033 gold, or a coats boycott).
+- **Tested:** `DiplomacyTest` +6 (freed land and lost trade, tribes
+  raid, the King's army, small-move bar, arming a tribe, staying out of
+  a King's war), `ReplayTest` +1 (arms sold to a tribe).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

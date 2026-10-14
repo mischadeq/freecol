@@ -63,10 +63,9 @@ public final class ReplayReport {
             s.turns++;
             s.moves += row.moves.size();
             for (int k = 0; k < row.moves.size(); k++) {
-                int rank = row.ranks.get(k);
                 boolean ok = row.outcome != null && row.outcome > 0;
                 if (ok) s.workedOut++;
-                if (rank > 0 && rank <= Replay.AGREE_TOP) {
+                if (row.agrees(k)) {
                     s.agreed++;
                     if (ok) s.agreedWorkedOut++;
                 }
@@ -170,7 +169,11 @@ public final class ReplayReport {
                 .append(",\"how\":").append(str(w.seen.detail))
                 .append(",\"score\":").append((Double.isInfinite(w.bestScore))
                     ? "null" : fmt(w.bestScore))
-                .append(",\"why\":").append(str(w.why)).append('}');
+                .append(",\"why\":").append(str(w.why))
+                .append(",\"stay\":").append((w.stayOut == null) ? "null"
+                                               : fmt(w.stayOut))
+                .append(",\"stayHow\":").append(str(w.stayOutHow))
+                .append('}');
         }
         sb.append("],\"rows\":[");
         first = true;

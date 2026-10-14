@@ -75,7 +75,7 @@ td.year { white-space: nowrap; font-family: var(--mono); font-size: .85rem; colo
 .chip.k-attack_colony, .chip.k-capture, .chip.k-destroy { border-color: var(--attack); color: var(--attack); }
 .chip.k-make_peace, .chip.k-peace { border-color: var(--peace); color: var(--peace); }
 .chip.k-alliance { border-color: var(--ally); color: var(--ally); }
-.chip.k-sell_goods, .chip.k-buy_goods, .chip.k-trade_agreement, .chip.k-incite { border-color: var(--trade); color: var(--trade); }
+.chip.k-sell_goods, .chip.k-buy_goods, .chip.k-trade_agreement, .chip.k-incite, .chip.k-arm_tribe { border-color: var(--trade); color: var(--trade); }
 .chip.k-arm, .chip.k-units_lost, .chip.k-ships_damaged, .chip.k-colony_lost { border-color: var(--arm); color: var(--muted); }
 .chip.theirs { border-style: dashed; }
 .chip.forced::after { content: " · King"; font-size: .78rem; }
@@ -108,7 +108,7 @@ td.year { white-space: nowrap; font-family: var(--mono); font-size: .85rem; colo
 
   <section aria-labelledby="h-nations">
     <h2 id="h-nations">Nations</h2>
-    <p class="sub">"In the top 3": the move the nation made was among the diplomat's three best. "Better than usual": the ten turns after a move went better than that nation's average ten turns, by its own weights. "Wanted, not done": turns where the diplomat would have gone to war, made peace, attacked or armed, and the nation did none of these.</p>
+    <p class="sub">"Diplomat agrees": the move the nation made was among the diplomat's three best, or scored enough for the diplomat to make it too (small moves such as arming need 5 points, war and peace 20). "Better than usual": the ten turns after a move went better than that nation's average ten turns, by its own weights. "Wanted, not done": turns where the diplomat would have gone to war, made peace, attacked or armed, and the nation did none of these.</p>
     <div class="nations" id="nations"></div>
   </section>
 
@@ -121,8 +121,8 @@ td.year { white-space: nowrap; font-family: var(--mono); font-size: .85rem; colo
 
   <section aria-labelledby="h-wars">
     <h2 id="h-wars">Wars</h2>
-    <p class="sub">Every war that broke out, who started it, and the best score the starter's diplomat gave that war in the five turns before. Above the orange line it would have declared it itself.</p>
-    <div class="table-wrap"><table id="wars"><thead><tr><th>Year</th><th>War</th><th>Started by</th><th>Diplomat's score</th><th>Why that score</th></tr></thead><tbody></tbody></table></div>
+    <p class="sub">Every war that broke out, who started it, and the best score the starter's diplomat gave that war in the five turns before. Above the orange line it would have declared it itself. For the King's wars, "Stay out?" says whether the diplomat would have paid the King (gold, or a boycott of its best-selling goods) to keep out of it.</p>
+    <div class="table-wrap"><table id="wars"><thead><tr><th>Year</th><th>War</th><th>Started by</th><th>Diplomat's score</th><th>Why that score</th><th>Stay out?</th></tr></thead><tbody></tbody></table></div>
   </section>
 
   <section aria-labelledby="h-ledger">
@@ -144,7 +144,8 @@ const NAME = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 const CHAR = { trading_empire: "trading empire", conqueror: "conqueror", balance_keeper: "balance keeper",
   settler: "settler", independence_first: "independence first", tribe: "tribe" };
 const KIND_COLOR = { declare_war: "--war", attack_colony: "--attack", make_peace: "--peace", alliance: "--ally",
-  incite: "--trade", sell_goods: "--trade", buy_goods: "--trade", trade_agreement: "--trade", arm: "--arm" };
+  incite: "--trade", sell_goods: "--trade", buy_goods: "--trade", trade_agreement: "--trade", arm: "--arm",
+  arm_tribe: "--trade" };
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -161,6 +162,7 @@ function moveWords(m) {
     case "buy_goods": return "buy " + m.a + " " + m.g + " from " + to;
     case "trade_agreement": return m.a + " " + m.g + "/turn to " + to;
     case "arm": return "arm " + m.a;
+    case "arm_tribe": return m.a + " " + m.g + " to " + to + " (vs " + NAME(m.vs) + ")";
     default: return m.l;
   }
 }
@@ -175,6 +177,7 @@ function didWords(d, nation) {
     case "units_lost": return "lost " + d.a + (d.a === 1 ? " unit" : " units") + (d.o ? " to " + o : "");
     case "ships_damaged": return d.a + " ship" + (d.a === 1 ? "" : "s") + " damaged";
     case "arm": return "armed +" + d.a;
+    case "arm_tribe": return "armed the " + o + " (" + d.d + ")";
     case "mission": return "mission at " + d.d;
     case "mission_gone": return "mission at " + d.d + " ended";
     case "sold_in_europe": return "sold " + d.a.toLocaleString() + " gold in Europe";
@@ -194,7 +197,7 @@ function renderNations() {
       <span class="char">${CHAR[charOf[n]] || ""}</span></header>
       <dl class="facts">
         <dt>Own moves seen</dt><dd>${s.moves}</dd>
-        <dt>In the diplomat's top 3</dt><dd>${s.agreed} of ${s.moves}</dd>
+        <dt>Diplomat agrees</dt><dd>${s.agreed} of ${s.moves}</dd>
         <dt>Better than usual after</dt><dd>${s.workedOut} of ${s.moves}</dd>
         <dt>Wanted, not done</dt><dd>${s.unprompted} of ${s.turns} turns</dd>
         <dt>Top move changed</dt><dd>${s.flips} times</dd>
@@ -205,10 +208,10 @@ function renderNations() {
 
 function renderLegend() {
   const items = [["--war", "war"], ["--attack", "attack"], ["--peace", "peace"], ["--ally", "alliance"],
-    ["--trade", "trade or pay"], ["--arm", "arm"]];
+    ["--trade", "trade, pay, or arm a tribe"], ["--arm", "arm"]];
   document.getElementById("legend").innerHTML =
     items.map(([c, t]) => `<span><i style="background:var(${c})"></i>${t}</span>`).join("") +
-    `<span>▲ war declared · ● peace · ◆ took or destroyed a place · | armed</span>`;
+    `<span>▲ war declared · ● peace · ◆ took or destroyed a place · ■ armed a tribe · | armed</span>`;
 }
 
 function renderStrip() {
@@ -244,6 +247,7 @@ function renderStrip() {
         if (d.w === "war") out += `<path d="M${cx - 3.5} ${cy + 3} L${cx} ${cy - 4} L${cx + 3.5} ${cy + 3} Z" style="fill:var(--war)" />`;
         else if (d.w === "peace") out += `<circle cx="${cx}" cy="${cy}" r="3" style="fill:var(--peace)" />`;
         else if (d.w === "capture" || d.w === "destroy") out += `<path d="M${cx} ${cy - 4} L${cx + 4} ${cy} L${cx} ${cy + 4} L${cx - 4} ${cy} Z" style="fill:var(--attack)" />`;
+        else if (d.w === "arm_tribe") out += `<rect x="${cx - 2.5}" y="${cy - 2.5}" width="5" height="5" style="fill:var(--trade)" />`;
         else if (d.w === "arm") out += `<line x1="${cx}" x2="${cx}" y1="${cy - 3}" y2="${cy + 4}" stroke-width="1.2" style="stroke:var(--arm)" />`;
       });
     });
@@ -283,7 +287,10 @@ function renderWars() {
       : (w.how === "you said so" ? "you" : "their own hatred (" + esc(w.how) + ")");
     return `<tr><td class="year">${esc(w.year)}</td>
       <td><span class="swatch" style="display:inline-block;background:var(--${w.by}, var(--muted))"></span> ${NAME(w.by)} → ${NAME(w.on)}</td>
-      <td>${how}</td><td>${scoreBar(w.score)}</td><td class="why">${esc(w.why.replace(/, goal 0|, trade 0\.0/g, ""))}</td></tr>`;
+      <td>${how}</td><td>${scoreBar(w.score)}</td><td class="why">${esc(w.why.replace(/, goal 0|, trade -?0\.0/g, ""))}</td>
+      <td>${w.stay === null ? `<span class="dash">–</span>` : (w.stay >= DATA.threshold
+        ? `<span class="yes">yes</span>: ${esc(w.stayHow)} <span class="score">${w.stay.toFixed(0)}</span>`
+        : `<span class="no">no</span> <span class="score">${w.stay.toFixed(0)}</span>`)}</td></tr>`;
   }).join("");
 }
 

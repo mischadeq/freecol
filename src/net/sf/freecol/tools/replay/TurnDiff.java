@@ -104,6 +104,18 @@ public final class TurnDiff {
                 }
             }
         }
+        // Muskets and horses sold to tribes.
+        Set<String> armedTribes = new HashSet<>();
+        for (Map.Entry<String, Integer> e : b.armsSales.entrySet()) {
+            Integer before = a.armsSales.get(e.getKey());
+            if (before != null && before.equals(e.getValue())) continue;
+            String[] f = e.getKey().split("\\|");
+            Snapshot.Place p = b.places.get(f[1]);
+            if (p == null || !armedTribes.add(f[0] + "|" + p.owner + "|" + f[2])) continue;
+            ret.add(new Observed(Observed.What.ARM_TRIBE, f[0], p.owner, false,
+                0, net.sf.freecol.common.diplomacy.Action.shortId(f[2])
+                + " at " + p.name));
+        }
         // Troops lost and ships damaged.
         for (Snapshot.Nation n : a.nations.values()) {
             int lost = 0, damaged = 0;

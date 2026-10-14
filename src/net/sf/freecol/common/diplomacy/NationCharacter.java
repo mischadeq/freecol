@@ -30,14 +30,16 @@ import java.util.Set;
 public enum NationCharacter {
 
     //               gold trade land  sec  rel   rho
-    TRADING_EMPIRE(  1.0, 1.5, 0.3, 0.8, 1.0, 1.2,
+    TRADING_EMPIRE(  1.0, 1.5, 0.6, 0.8, 1.0, 1.2,
         EnumSet.of(Action.Kind.SELL_GOODS, Action.Kind.BUY_GOODS,
-                   Action.Kind.TRADE_AGREEMENT, Action.Kind.MAKE_PEACE)),
+                   Action.Kind.TRADE_AGREEMENT, Action.Kind.MAKE_PEACE,
+                   Action.Kind.ARM_TRIBE)),
     CONQUEROR(       0.6, 0.4, 1.5, 0.6, 0.4, 0.6,
         EnumSet.of(Action.Kind.DECLARE_WAR, Action.Kind.ATTACK_COLONY,
                    Action.Kind.ARM)),
     BALANCE_KEEPER(  0.6, 0.8, 0.6, 1.5, 0.8, 1.0,
-        EnumSet.of(Action.Kind.ALLIANCE, Action.Kind.INCITE)),
+        EnumSet.of(Action.Kind.ALLIANCE, Action.Kind.INCITE,
+                   Action.Kind.ARM_TRIBE)),
     SETTLER(         0.8, 0.8, 1.2, 1.0, 1.0, 1.0,
         EnumSet.of(Action.Kind.MAKE_PEACE, Action.Kind.BUY_GOODS)),
     INDEPENDENCE_FIRST(0.8, 0.6, 0.4, 1.4, 0.8, 1.1,

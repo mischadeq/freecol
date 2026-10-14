@@ -139,6 +139,22 @@ public class ReplayTest extends TestCase {
         assertEquals(IROQUOIS, m.other);
     }
 
+    public void testArmsSoldToATribe() {
+        Snapshot a = snap(10), b = snap(11);
+        a.places.put("is:1", new Snapshot.Place("is:1", "Urutu", IROQUOIS,
+                                               5, true, null));
+        b.places.put("is:1", new Snapshot.Place("is:1", "Urutu", IROQUOIS,
+                                               5, true, null));
+        a.armsSales.put(DUTCH + "|is:1|model.goods.horses", 5);
+        b.armsSales.put(DUTCH + "|is:1|model.goods.horses", 5); // old sale
+        b.armsSales.put(DUTCH + "|is:1|model.goods.muskets", 10);
+        Observed o = only(TurnDiff.diff(a, b, new HashSet<>()),
+                          Observed.What.ARM_TRIBE);
+        assertEquals(DUTCH, o.actor);
+        assertEquals(IROQUOIS, o.other);
+        assertEquals(Action.Kind.ARM_TRIBE, o.asAction().kind);
+    }
+
     private static Snapshot snap(int turn) {
         Snapshot s = new Snapshot(turn, "t" + turn);
         s.nations.put(DUTCH, new Snapshot.Nation(DUTCH, true, false));

@@ -70,10 +70,14 @@ public final class Replay {
         public final List<Action> moves = new ArrayList<>();
         /** Rank (1-based) of each move in the diplomat's list, 0 if absent. */
         public final List<Integer> ranks = new ArrayList<>();
+        /** The diplomat's score of each move, null if it did not list it. */
+        public final List<Double> moveScores = new ArrayList<>();
         /** War and peace scores per other nation. */
         public final Map<String, Double> warScore = new HashMap<>(),
             peaceScore = new HashMap<>();
         public Double outcome;
+        /** Staying out of each war: score and how ("pay 900 gold"). */
+        public final Map<String, Object[]> stayOut = new HashMap<>();
 
         Row(int index, int turn, String label, String nation, boolean human,
             NationCharacter character) {
@@ -85,9 +89,23 @@ public final class Replay {
             this.character = character;
         }
 
+        /**
+         * Would the diplomat have made one of the nation's moves too: in
+         * its top 3, or scoring enough to be made alongside the top one
+         * (arming, a sale)?
+         */
         public boolean agrees() {
-            for (int r : ranks) if (r > 0 && r <= AGREE_TOP) return true;
+            for (int k = 0; k < ranks.size(); k++) {
+                if (agrees(k)) return true;
+            }
             return false;
+        }
+
+        public boolean agrees(int k) {
+            int r = ranks.get(k);
+            Double s = moveScores.get(k);
+            return (r > 0 && r <= AGREE_TOP)
+                || (s != null && s >= Diplomat.threshold(moves.get(k).kind));
         }
 
         public boolean unprompted() {
@@ -105,6 +123,9 @@ public final class Replay {
         /** Best war score of the declarer for this enemy in the turns before. */
         public double bestScore = Double.NEGATIVE_INFINITY;
         public String why = "";
+        /** For a King's war: the score of paying to stay out, and how. */
+        public Double stayOut;
+        public String stayOutHow = "";
 
         War(int turn, String label, Observed seen) {
             this.turn = turn;
@@ -161,6 +182,14 @@ public final class Replay {
                     } else if (sa.action.kind == Action.Kind.MAKE_PEACE) {
                         row.peaceScore.put(sa.action.target, sa.total);
                     }
+                }
+                for (net.sf.freecol.common.diplomacy.NationView v : w.enemies()) {
+                    Object[] price = net.sf.freecol.common.diplomacy.Effects
+                        .kingsWarPrice(w, v);
+                    ScoredAction peace = Diplomat.score(Action.peace(v.id), s);
+                    double score = peace.total
+                        - w.character.gold * (Double)price[0] / 100;
+                    row.stayOut.put(v.id, new Object[] { score, price[1] });
                 }
                 rankedByRow.put(row, ranked);
                 rows.add(row);
@@ -225,13 +254,16 @@ public final class Replay {
                 if (a == null) continue;
                 row.moves.add(a);
                 int rank = 0;
+                Double score = null;
                 for (int k = 0; k < ranked.size(); k++) {
                     if (ranked.get(k).action.matches(a)) {
                         rank = k + 1;
+                        score = ranked.get(k).total;
                         break;
                     }
                 }
                 row.ranks.add(rank);
+                row.moveScores.add(score);
             }
             for (Observed o : d) { // things that happened to it
                 if (row.nation.equals(o.other) && !row.nation.equals(o.actor)
@@ -274,6 +306,16 @@ public final class Replay {
                                 war.why = sa.parts()
                                     + (sa.note.isEmpty() ? "" : "; " + sa.note);
                             }
+                        }
+                    }
+                }
+                if (o.forced) {
+                    for (Row row : rows) {
+                        if (row.index != i + 1 || !row.nation.equals(o.actor)) continue;
+                        Object[] so = row.stayOut.get(o.other);
+                        if (so != null) {
+                            war.stayOut = (Double)so[0];
+                            war.stayOutHow = (String)so[1];
                         }
                     }
                 }

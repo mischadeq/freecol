@@ -46,6 +46,12 @@ public final class PlaceView {
     public final double[] defence;
     /** What a weak last defender has (an unarmed colonist). */
     public final double lastDefence;
+    /**
+     * What the land it holds next to the observer's colonies would be
+     * worth to the observer once it is gone, in points (see
+     * {@link WorldViewBuilder}).
+     */
+    public double freed;
 
 
     public PlaceView(String id, String name, String owner, int x, int y,

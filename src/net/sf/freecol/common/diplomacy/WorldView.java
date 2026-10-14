@@ -55,6 +55,10 @@ public final class WorldView {
     public double soldierAttack = 3;
     /** Its tax rate. */
     public int tax;
+    /** The King's land army waiting in Europe, in soldiers' worth. */
+    public double kingArmy;
+    /** Its rebels, in percent. */
+    public int rebels;
     /** Nations at war with it that have armed units near its colonies. */
     public final java.util.Set<String> enemiesAtGates = new java.util.HashSet<>();
     /** What it remembers. */
@@ -110,7 +114,7 @@ public final class WorldView {
      */
     public double exposure() {
         double sum = 0;
-        for (NationView v : enemies()) sum += v.army * v.near;
+        for (NationView v : enemies()) sum += Effects.threatOf(v);
         return sum;
     }
 
