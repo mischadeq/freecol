@@ -1472,6 +1472,20 @@ Plan: `claude_docs/plans/step6-grievances.md`.
   in the plan; you liked the King's wars as they are, so left alone);
   terms other than gold ("withdraw your soldiers").
 
+### Step 7 leftovers: taking back a settlement, tribe offers listed (2026-10-15)
+- **A tribe takes back its breakaway settlement:** when its anger with
+  you (the ally) reaches 800 tension (it grows each turn the
+  settlement serves you), it marches on the settlement. You get a
+  dialog: defend it (war with the tribe; it stays yours) or let it go
+  back to its tribe. Ignoring it for 5 turns lets it go back too. A
+  computer ally defends it when its army is not weaker than the
+  tribe's. Turn report: "Ypiranga is under the Tupi again".
+- **The tribes' offers in the companion Offers list** (settlement
+  joins, alliance, call for help, take-back), with ultimatums and
+  buy-outs. The "turns to deliver" line now shows only on goods deals.
+- **Tested:** `AITribesTest` (not before the anger; let go, defended
+  with war, ignored until it runs out). All 662 tests green.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

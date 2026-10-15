@@ -72,13 +72,17 @@ public final class Offer {
         SETTLEMENT_JOINS,
         /** Our terms before war: pay {@code gold} (placeName holds the
             grievance in words). */
-        ULTIMATUM;
+        ULTIMATUM,
+        /** Our breakaway settlement ({@code place}) is raided by its
+            tribe ({@code from}): defend it, or it goes back. */
+        DEFEND_SETTLEMENT;
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
-                || this == SETTLEMENT_JOINS || this == ULTIMATUM;
+                || this == SETTLEMENT_JOINS || this == ULTIMATUM
+                || this == DEFEND_SETTLEMENT;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

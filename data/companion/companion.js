@@ -2214,8 +2214,7 @@
         '<div class="m">' + esc(cap(t.aggression || "")) + " aggression</div></div>";
     }).join("") + (dipRel.unmet ? '<p class="m">' + dipRel.unmet + (dipRel.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>" : "")
       : '<p class="m">You have not met any tribe yet.</p>';
-    $("tribesSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Taking back a breakaway settlement", "after step 7", "A tribe may raid a settlement that broke off to you; that is a call to arms for you.");
+    $("tribesSoon").innerHTML = "";
   }
 
   // ---------------------------------------------------------------- offers
@@ -2245,6 +2244,7 @@
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";
       else if (o.kind === "settlement_joins") what = "<b>" + esc(o.place) + "</b> asks to break off from its tribe and live under your protection";
       else if (o.kind === "ultimatum") what = "Ultimatum: pay <b>" + num(o.gold) + "</b> gold or war <span class=\"m\">(" + esc(o.place) + ")</span>";
       else if (o.kind === "buyout") what = "Offers <b>" + num(o.gold) + "</b> gold to leave the coalition of <b>" + esc(o.against) + "</b>";

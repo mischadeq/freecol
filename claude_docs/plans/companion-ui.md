@@ -83,7 +83,6 @@ Checked every place the page reads another nation's data.
 | Feature | Step | Where it will show |
 | --- | --- | --- |
 | Trade agreements | 4 | Diplomacy, Trade |
-| A tribe taking back a breakaway settlement | after 7 | Tribes |
 
 Built in step 7 (2026-10-15), on the tribe cards of the Diplomacy tab:
 character, mood and trust meters, unrest meter (turns before they may

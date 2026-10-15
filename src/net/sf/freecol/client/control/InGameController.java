@@ -3825,6 +3825,9 @@ public final class InGameController extends FreeColClientHolder {
         case ULTIMATUM:
             key = "offer.ultimatum";
             break;
+        case DEFEND_SETTLEMENT:
+            key = "offer.defendSettlement";
+            break;
         case JOINT_WAR:
             key = (o.place == null) ? "offer.jointWar" : "offer.jointWarColony";
             break;

@@ -134,6 +134,7 @@ public final class TribePlanner {
         trackMissions();
         settlementsBreakOff(cs, lb);
         resent();
+        takeBack(cs, lb);
         defendAllies(lb);
         tribeAlliances(cs, lb);
         allyWars(lb);
@@ -861,11 +862,72 @@ public final class TribePlanner {
     }
 
 
+    // Taking back a breakaway settlement (after step 7)
+
+    /** Tension with the ally at which the tribe tries to take it back. */
+    public static final int TAKE_BACK_TENSION = 800;
+
+    /**
+     * When its anger with the ally runs high, the tribe marches on its
+     * breakaway settlement: the ally must defend it (war with the
+     * tribe) or let it go back.  A computer ally defends it when its
+     * army is not weaker than the tribe's.
+     */
+    private void takeBack(net.sf.freecol.common.networking.ChangeSet cs,
+                          LogBuilder lb) {
+        final Player me = me();
+        for (IndianSettlement is : me.getIndianSettlementList()) {
+            final Player p = is.getAlliedPlayer();
+            if (p == null || me.getStance(p) == Stance.WAR
+                || me.getTension(p).getValue() < TAKE_BACK_TENSION
+                || askedLately(Offer.Kind.DEFEND_SETTLEMENT, is.getId(),
+                               p.getNationId())) continue;
+            lb.add("\n  Marches on ", is.getName(), " to take it back from ",
+                   p.getDebugName());
+            final Offer o = new Offer("raid:" + is.getId() + ":" + now(),
+                Offer.Kind.DEFEND_SETTLEMENT, me.getNationId(), null, 0, 0,
+                is.getId(), is.getName(), now(), 0);
+            o.against = me.getNationId();
+            o.audience.add(p.getNationId());
+            ai.getOffers().add(o);
+            if (!p.isAI()) continue;
+            if (p.calculateStrength(false) >= me.calculateStrength(false)) {
+                o.state = Offer.State.DONE;
+                ((net.sf.freecol.server.model.ServerPlayer)p)
+                    .csChangeStance(Stance.WAR, me, true, cs);
+            } else {
+                o.state = Offer.State.DECLINED;
+                giveBack(o, cs);
+            }
+        }
+    }
+
+    /** The ally did not defend it: the settlement is the tribe's again. */
+    private void giveBack(Offer o, net.sf.freecol.common.networking.ChangeSet cs) {
+        final IndianSettlement is = game().getFreeColGameObject(o.place,
+            IndianSettlement.class);
+        if (is == null || is.getOwner() != me() || is.getAlliedPlayer() == null) {
+            return;
+        }
+        final Player p = is.getAlliedPlayer();
+        is.setAlliedPlayer(null);
+        me().getTension(p).modify(-Tension.TENSION_ADD_NORMAL);
+        cs.add(net.sf.freecol.common.networking.ChangeSet.See.perhaps(), is.getTile());
+        if (!p.isAI()) {
+            cs.addMessage(p, new net.sf.freecol.common.model.ModelMessage(
+                net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "tribe.settlementLost", me())
+                .addName("%settlement%", is.getName())
+                .addStringTemplate("%nation%", me().getNationLabel()));
+        }
+    }
+
     // Offers to the players
 
     private static String postedKey(Offer o) {
         switch (o.kind) {
         case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
+        case DEFEND_SETTLEMENT: return "offer.postedDefendSettlement";
         case CALL_TO_ARMS: return "offer.postedTribeCall";
         default: return "offer.postedTribeAlliance";
         }
@@ -879,6 +941,7 @@ public final class TribePlanner {
         for (Offer o : ai.getOffers()) {
             if (o.stale(now)) {
                 o.state = Offer.State.EXPIRED;
+                if (o.kind == Offer.Kind.DEFEND_SETTLEMENT) giveBack(o, cs);
                 continue;
             }
             for (String id : o.audience) {
@@ -939,6 +1002,17 @@ public final class TribePlanner {
             } else if (!accept) {
                 ai.getMemories().add(new Memory(Memory.Kind.REFUSED_OFFER,
                     human.getNationId(), now(), 1));
+            }
+            return true;
+        case DEFEND_SETTLEMENT:
+            if (accept) {
+                o.state = Offer.State.DONE;
+                if (human.getStance(me()) != Stance.WAR) {
+                    human.csChangeStance(Stance.WAR, me(), true, cs);
+                }
+            } else {
+                o.state = Offer.State.DECLINED;
+                giveBack(o, cs);
             }
             return true;
         case CALL_TO_ARMS:

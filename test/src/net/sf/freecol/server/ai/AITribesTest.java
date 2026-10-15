@@ -610,4 +610,59 @@ public class AITribesTest extends FreeColTestCase {
         plan(tupi);
         assertEquals("paid hatred means war", Stance.WAR, tupi.getStance(arawak));
     }
+
+    /** An angry tribe marches on its breakaway settlement. */
+    public void testTribeTakesBackItsSettlement() {
+        setUpGame();
+        dutch.setAI(false);
+        tupi.setStance(dutch, Stance.PEACE);
+        dutch.setStance(tupi, Stance.PEACE);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        camp.setAlliedPlayer(dutch);
+        tupi.getTension(dutch).setValue(300);
+        plan(tupi);
+        assertNull("not angry enough yet", offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.DEFEND_SETTLEMENT));
+        tupi.getTension(dutch).setValue(900);
+        nextTurn();
+        plan(tupi);
+        net.sf.freecol.common.diplomacy.Offer o = offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.DEFEND_SETTLEMENT);
+        assertNotNull(o);
+        assertEquals(camp.getId(), o.place);
+        // Not defended: it goes back.
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, o.id, false,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertNull(camp.getAlliedPlayer());
+        // Defended: war with the tribe, it stays ours.
+        camp.setAlliedPlayer(dutch);
+        tupi.getTension(dutch).setValue(900);
+        ai(tupi).getOffers().clear();
+        nextTurn();
+        plan(tupi);
+        o = offer(ai(tupi), net.sf.freecol.common.diplomacy.Offer.Kind.DEFEND_SETTLEMENT);
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, o.id, true,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertSame(dutch, camp.getAlliedPlayer());
+        assertEquals(Stance.WAR, tupi.getStance(dutch));
+    }
+
+    /** Ignored: the settlement goes back when the offer runs out. */
+    public void testUndefendedSettlementGoesBack() {
+        setUpGame();
+        dutch.setAI(false);
+        tupi.setStance(dutch, Stance.PEACE);
+        dutch.setStance(tupi, Stance.PEACE);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        camp.setAlliedPlayer(dutch);
+        tupi.getTension(dutch).setValue(900);
+        plan(tupi);
+        assertNotNull(offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.DEFEND_SETTLEMENT));
+        for (int i = 0; i < net.sf.freecol.common.diplomacy.Offer.PEACE_TURNS; i++) {
+            nextTurn();
+        }
+        plan(tupi);
+        assertNull(camp.getAlliedPlayer());
+    }
 }
