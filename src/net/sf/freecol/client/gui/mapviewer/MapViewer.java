@@ -687,8 +687,15 @@ public final class MapViewer extends FreeColClientHolder {
             paintEachTile(nonAnimationG2d, tcb, (tileG2d, tile) -> {
                 final java.awt.geom.AffineTransform at = tileG2d.getTransform();
                 if (at.getScaleX() != 1.0 || at.getScaleY() != 1.0) return;
-                ParchmentPainter.fadeTile(target, (int)Math.round(at.getTranslateX()),
-                    (int)Math.round(at.getTranslateY()), tile, w, h, clipBounds);
+                try {
+                    ParchmentPainter.fadeTile(target, (int)Math.round(at.getTranslateX()),
+                        (int)Math.round(at.getTranslateY()), tile, w, h, clipBounds);
+                } catch (RuntimeException re) {
+                    // A fault in the old-chart look must never stop the
+                    // map from being drawn: skip the fade on this tile.
+                    logger.log(java.util.logging.Level.WARNING,
+                               "Parchment fade failed", re);
+                }
             });
         }
         

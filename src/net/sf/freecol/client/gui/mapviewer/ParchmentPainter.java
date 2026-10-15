@@ -275,9 +275,17 @@ public final class ParchmentPainter {
         final BufferedImage tex = getTexture();
         final int wx = worldX(tile.getX(), tile.getY(), w);
         final int wy = worldY(tile.getY(), h);
-        final int x0 = Math.max(ox, clip.x), x1 = Math.min(ox + w, clip.x + clip.width);
-        final int y0 = Math.max(oy, clip.y), y1 = Math.min(oy + h, clip.y + clip.height);
-        if (x1 > img.getWidth() || y1 > img.getHeight()) return;
+        // Only the part of the tile inside both the redrawn area and the
+        // image: a tile half off the edge of the screen (or a redrawn
+        // area reaching past it) once sent getRGB outside the image,
+        // which failed every repaint and froze the screen.
+        final int x0 = Math.max(0, Math.max(ox, clip.x));
+        final int x1 = Math.min(img.getWidth(),
+                                Math.min(ox + w, clip.x + clip.width));
+        final int y0 = Math.max(0, Math.max(oy, clip.y));
+        final int y1 = Math.min(img.getHeight(),
+                                Math.min(oy + h, clip.y + clip.height));
+        if (x0 >= x1 || y0 >= y1) return;
         for (int y = y0; y < y1; y++) {
             final double q = (y - oy + 0.5) / h;
             for (int x = x0; x < x1; x++) {

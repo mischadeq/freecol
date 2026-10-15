@@ -1617,8 +1617,16 @@ top, so the (modal) dialog was hidden but blocked every click.
   (unit, where it is, where it goes or its route) and "Tried this
   turn, can get no further now". To be tested: the list matches the
   units on the map; the count drops after pressing the button.
-- **Tested:** all 675 unit tests green (new: PendingOrdersTest); the
-  drawing and the turn order need Mischa's eye in the game.
+- **Freeze with the old-chart map (fixed):** the parchment fade read
+  pixels outside the map image for a tile half off the screen edge
+  (after the colony and build-queue panels were open), which failed on
+  every repaint and froze the game. The fade now stays inside the
+  image, and if it ever fails the tile is drawn without it instead of
+  stopping the map. New ParchmentFadeTest; the old ParchmentPainterTest
+  was not in the test suite and now is.
+- **Tested:** all 681 unit tests green (new: PendingOrdersTest,
+  ParchmentFadeTest); the drawing and the turn order need Mischa's eye
+  in the game.
 
 ## Ideas, not started
 

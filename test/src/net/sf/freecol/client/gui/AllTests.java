@@ -30,6 +30,8 @@ public class AllTests {
         //$JUnit-BEGIN$
         suite.addTestSuite(FontTest.class);
         suite.addTestSuite(ScreenChooserTest.class);
+        suite.addTestSuite(net.sf.freecol.client.gui.mapviewer.ParchmentPainterTest.class);
+        suite.addTestSuite(net.sf.freecol.client.gui.mapviewer.ParchmentFadeTest.class);
         //$JUnit-END$
         return suite;
     }
