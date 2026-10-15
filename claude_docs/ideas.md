@@ -1256,6 +1256,42 @@ The nation a coalition stands against can pay a member to leave it.
 - **Not done:** buying out the founder (the coalition would need a new
   keeper); counter-offers by the other members.
 
+### Step 7a built: tribes know each other, and remember (2026-10-15)
+- **They know each other from the start:** every pair of tribes is at
+  peace from turn one, also in an older save (set on the first native
+  turn). No first contact between tribes.
+- **Characters:** warlike Apache, Sioux, Aztec and Inca; peaceful
+  Arawak; trading Tupi; Cherokee and Iroquois in the middle. Peaceful
+  tribes bring gifts half again as often, warlike ones less; warlike
+  tribes go to war sooner.
+- **Old rival:** each tribe picks the tribe whose settlements come
+  nearest, once (saved). Settlements of two tribes within 4 tiles share
+  a border.
+- **Opinions between tribes:** start at 0; tension makes them worse,
+  the old rival is -30, each border -3 (up to 5), each European both
+  hate or fight +15, and memories count.
+- **Neighbours rub:** each turn the tension towards the old rival grows
+  by the borders (more for warlike tribes), so an old grudge builds up
+  over a long game.
+- **Wars between tribes stay rare:** only on the old rival, only with a
+  grudge (high tension or a bad memory), only when the opinion is down
+  to the character's line (warlike -39, middling -55, traders -69,
+  peaceful -92). The braves are made angry enough to really attack.
+  Peace after 15 turns or so (longer for warlike tribes), unless the
+  hatred is complete.
+- **Memories for tribes** (saved): a settlement destroyed, land taken
+  (a colony within 2 tiles of a settlement), a mission set up, arms
+  sold to them (trade) or to their rival, plus the usual (units lost,
+  peace, help). What happened is worked out once a turn for all tribes.
+- **Tested:** `TribeRelationsTest` (characters, opinions, rare wars,
+  memories); `AITribesTest` (everyone knows everyone, nearest rival,
+  shared enemy, war only on the rival with a grudge and peace later,
+  rubbing, land taken once, the turn record, save and load).
+  All 627 tests green.
+- **Not done yet:** the tribes do not use the full European diplomat
+  (they do not need its moves yet); Europeans paying a tribe to fight
+  another (`INCITE` against a tribe) comes with the grievances.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

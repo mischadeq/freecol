@@ -98,6 +98,18 @@ public final class NativeAIPlayer extends MissionAIPlayer {
      */
     private final java.util.Map<Unit, String> reasons = new HashMap<>();
 
+    // Tribe diplomacy (mod, step 7).  No initializers: read in the
+    // superclass constructor (see EuropeanAIPlayer.bearings).
+
+    /** What we remember of the others.  Saved. */
+    private net.sf.freecol.common.diplomacy.Memories memories;
+    /** Our old rival tribe (nation id), picked once.  Saved. */
+    private String rival;
+    /** Colonies on our lands, null before we first looked.  Saved. */
+    private Set<String> nearColonies;
+    /** The last turn turned into memories (not saved). */
+    private int remembered = -1;
+
 
     /**
      * Creates a new {@code AIPlayer}.
@@ -166,6 +178,8 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         lb.mark();
 
         for (Player p : getGame().getLivePlayerList(player)) {
+            // Between tribes: the TribePlanner decides (mod).
+            if (p.isIndian()) continue;
             Stance newStance = determineStance(p);
             if (newStance != player.getStance(p)) {
                 getAIMain().getFreeColServer().getInGameController()
@@ -462,8 +476,9 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private void bringGifts(int[] randoms, LogBuilder lb) {
         final Player player = getPlayer();
         final CostDecider cd = CostDeciders.numberOfLegalTiles();
-        final int giftPercent = getSpecification()
-            .getPercentage(GameOptions.GIFT_PROBABILITY);
+        // Peaceful tribes bring gifts more often, warlike ones less (mod).
+        final int giftPercent = (int)Math.round(getSpecification()
+            .getPercentage(GameOptions.GIFT_PROBABILITY) * getCharacter().gifts);
         int randomIdx = 0;
         lb.mark();
 
@@ -724,6 +739,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
 
         clearAIUnits();
 
+        new net.sf.freecol.server.ai.diplomacy.TribePlanner(this).plan(lb);
         determineStances(lb);
         List<AIUnit> more;
         if (turn.isFirstTurn()) {
@@ -983,4 +999,90 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     // Serialization
 
     // getXMLTagName not needed, uses parent
+
+    // Tribe diplomacy (mod)
+
+    /**
+     * What we remember of the others.
+     *
+     * @return The {@code Memories}.
+     */
+    public net.sf.freecol.common.diplomacy.Memories getMemories() {
+        if (memories == null) memories = new net.sf.freecol.common.diplomacy.Memories();
+        return memories;
+    }
+
+    /** Our character, from the nation. */
+    public net.sf.freecol.common.diplomacy.TribeCharacter getCharacter() {
+        return net.sf.freecol.common.diplomacy.TribeCharacter.of(getPlayer().getNationId());
+    }
+
+    /** Our old rival tribe, or null. */
+    public String getRival() {
+        return rival;
+    }
+
+    public void setRival(String rival) {
+        this.rival = rival;
+    }
+
+    /** Colonies on our lands, or null before we first looked. */
+    public Set<String> getNearColonies() {
+        return nearColonies;
+    }
+
+    public void setNearColonies(Set<String> near) {
+        this.nearColonies = near;
+    }
+
+    /** The last turn turned into memories. */
+    public int getRemembered() {
+        return remembered;
+    }
+
+    public void setRemembered(int turn) {
+        this.remembered = turn;
+    }
+
+
+    // Serialization (mod)
+
+    private static final String MEMORIES_TAG = "memories";
+    private static final String RIVAL_TAG = "rival";
+    private static final String NEAR_COLONIES_TAG = "nearColonies";
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void writeAttributes(net.sf.freecol.common.io.FreeColXMLWriter xw)
+        throws XMLStreamException {
+        super.writeAttributes(xw);
+        if (getMemories().size() > 0) {
+            xw.writeAttribute(MEMORIES_TAG, getMemories().serialize(';'));
+        }
+        if (rival != null) xw.writeAttribute(RIVAL_TAG, rival);
+        if (nearColonies != null) {
+            xw.writeAttribute(NEAR_COLONIES_TAG, String.join(",", nearColonies));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void readAttributes(FreeColXMLReader xr) throws XMLStreamException {
+        super.readAttributes(xr);
+        memories = net.sf.freecol.common.diplomacy.Memories.parse(
+            xr.getAttribute(MEMORIES_TAG, (String)null));
+        rival = xr.getAttribute(RIVAL_TAG, (String)null);
+        final String near = xr.getAttribute(NEAR_COLONIES_TAG, (String)null);
+        nearColonies = null;
+        if (near != null) {
+            nearColonies = new HashSet<>();
+            for (String id : near.split(",")) {
+                if (!id.isEmpty()) nearColonies.add(id);
+            }
+        }
+    }
 }

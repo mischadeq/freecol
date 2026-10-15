@@ -200,6 +200,11 @@ final class CompanionMoods {
         case TRADE: return "trade with you";
         case HELPED_IN_WAR: return "you fought their enemy";
         case REFUSED_OFFER: return "you turned down their offer";
+        case LAND_TAKEN: return "you built a colony on their land";
+        case MISSION: return "you sent them a mission";
+        case ARMED_RIVAL: return "you armed their old rival";
+        case CAME_TO_HELP: return "you came to their aid";
+        case LEFT_US_ALONE: return "you left them alone in their need";
         default: return m.kind.name().toLowerCase();
         }
     }
