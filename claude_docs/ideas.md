@@ -1546,6 +1546,18 @@ refused.
 - **To tune in step 8:** the sizes (a slower military build-up is the
   price).
 
+### Fix: frozen game at the start of a turn with offers (2026-10-15)
+Mischa's game froze after one turn with "France offers peace" and
+"England proposes a price agreement" in the turn report. A thread dump
+showed the screen thread inside an offer dialog: the dialogs were
+opened at the start of the turn and the turn report was then drawn on
+top, so the (modal) dialog was hidden but blocked every click.
+- **Fix:** offer dialogs now wait until no panel (the turn report, a
+  colony, Europe...) and no other dialog is showing, then come one at
+  a time.
+- **Tested:** all 674 unit tests green (no unit test for Swing timing;
+  Mischa to check in the game).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

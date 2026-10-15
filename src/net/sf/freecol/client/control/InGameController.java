@@ -3668,36 +3668,62 @@ public final class InGameController extends FreeColClientHolder {
         if (currentPlayerIsMyPlayer()) showOffers();
     }
 
-    /** Ask about every waiting offer, one dialog each. */
+    /** Shows the waiting offers when the screen is free (mod). */
+    private javax.swing.Timer offerTimer = null;
+
+    /**
+     * Ask about every waiting offer, one dialog at a time, and only
+     * when no panel or dialog is showing: an offer dialog opened under
+     * the turn report blocked every click (it is modal, but was hidden
+     * behind the report).
+     */
     private void showOffers() {
-        final java.util.List<net.sf.freecol.common.diplomacy.Offer> l;
         synchronized (this.pendingOffers) {
-            l = new java.util.ArrayList<>(this.pendingOffers);
-            this.pendingOffers.clear();
+            if (this.pendingOffers.isEmpty()) return;
         }
-        for (net.sf.freecol.common.diplomacy.Offer o : l) {
-            final StringTemplate t = offerTemplate(o);
-            if (t == null) continue;
+        invokeLater(() -> {
+                if (this.offerTimer == null) {
+                    this.offerTimer = new javax.swing.Timer(700, e -> nextOffer());
+                    this.offerTimer.setInitialDelay(1500);
+                }
+                if (!this.offerTimer.isRunning()) this.offerTimer.start();
+            });
+    }
+
+    /** One waiting offer, if the screen is free (on the Swing thread). */
+    private void nextOffer() {
+        final GUI gui = getGUI();
+        if (gui.isPanelShowing() || gui.isDialogShowing()) return; // later
+        final net.sf.freecol.common.diplomacy.Offer o;
+        synchronized (this.pendingOffers) {
+            if (this.pendingOffers.isEmpty()) {
+                this.offerTimer.stop();
+                return;
+            }
+            o = this.pendingOffers.remove(0);
+        }
+        final StringTemplate t = offerTemplate(o);
+        if (t == null) return;
+        this.offerTimer.stop(); // no second dialog while this one is open
+        try {
             if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
                 // How many to sell under a price agreement (step 4).
-                invokeLater(() -> {
-                        final String a = getGUI().modalInputDialog(null, t,
-                            String.valueOf(o.amount), "ok", "cancel");
-                        int n = 0;
-                        try {
-                            n = (a == null) ? 0 : Integer.parseInt(a.trim());
-                        } catch (NumberFormatException e) {
-                            n = 0;
-                        }
-                        askServer().answerOffer(o.id, Math.max(0, n));
-                    });
-                continue;
+                final String a = gui.modalInputDialog(null, t,
+                    String.valueOf(o.amount), "ok", "cancel");
+                int n = 0;
+                try {
+                    n = (a == null) ? 0 : Integer.parseInt(a.trim());
+                } catch (NumberFormatException e) {
+                    n = 0;
+                }
+                askServer().answerOffer(o.id, Math.max(0, n));
+            } else {
+                final boolean yes = gui.modalConfirmDialog(t,
+                    "offer.accept", "offer.decline");
+                askServer().answerOffer(o.id, yes);
             }
-            invokeLater(() -> {
-                    final boolean yes = getGUI().modalConfirmDialog(t,
-                        "offer.accept", "offer.decline");
-                    askServer().answerOffer(o.id, yes);
-                });
+        } finally {
+            this.offerTimer.restart();
         }
     }
 
