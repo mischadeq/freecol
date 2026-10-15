@@ -163,12 +163,16 @@ public abstract class MapControls extends FreeColClientHolder {
     public void update(GUI.ViewMode viewMode, Unit active, Tile tile) {
         updateLayoutIfNeeded();
         
-        if (active != null) {
+        // The bar of unit buttons stays on screen during a game, also
+        // when no unit is active: its Execute Orders button is needed
+        // most when no unit needs attention, and the buttons a unit
+        // would use grey out by themselves (mod).
+        if (getGame() != null && !getFreeColClient().isMapEditor()) {
             boolean iub = initializeUnitButtons();
             if (iub) logger.fine("Unit buttons initialized.");
         }
         for (UnitButton ub : this.unitButtons) {
-            ub.setVisible(active != null);
+            ub.setVisible(true);
         }
         
         switch (viewMode) {
@@ -211,4 +215,14 @@ public abstract class MapControls extends FreeColClientHolder {
     public void clear() {
         unitButtons.clear();
     } 
+
+    /**
+     * Are the map controls on the canvas (switched on)?  Not the same
+     * as showing: a minimised window shows nothing (mod).
+     *
+     * @return True if the info panel has been added.
+     */
+    public boolean isOnCanvas() {
+        return this.infoPanel.getParent() != null;
+    }
 }

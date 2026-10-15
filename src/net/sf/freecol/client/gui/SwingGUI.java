@@ -1134,6 +1134,14 @@ public class SwingGUI extends GUI {
         if (this.mapControls == null) return;
         this.mapControls.update(getViewMode(), getActiveUnit(),
                                 getSelectedTile());
+        // Unit buttons made after the controls went on the canvas
+        // (they are thrown away and made again when the window changes
+        // size) must go on it too, or the bar stays empty until the
+        // next resize (mod).
+        if (this.canvas != null && !getFreeColClient().isMapEditor()
+            && this.mapControls.isOnCanvas()) {
+            invokeNowOrLater(() -> this.canvas.addMapControls());
+        }
     }
 
     /**

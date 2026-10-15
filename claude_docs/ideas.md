@@ -1593,6 +1593,20 @@ top, so the (modal) dialog was hidden but blocked every click.
   treated it like land); it now gets the same paper over it. (A try
   with a flat "chart blue" sea in between was dropped: it made lighter
   diamonds with hard edges around the visible area.)
+- **The button bar no longer disappears:** the row of unit buttons
+  (with the execute-orders button) vanished in two ways. (1) The game
+  hides it while no unit is active, and since trade routes and go-to
+  orders wait for the player, that is now common: the turn starts with
+  only "End turn" in the corner and no execute-orders button. The bar
+  now stays during a game; buttons the unit would use are greyed out.
+  (2) A window resize (full screen, scaling) throws the buttons away
+  and makes them again only if a unit is active; with none active,
+  the new buttons were never put on screen until the next resize. They
+  are now put on screen whenever they are made. Also: when no orders
+  were carried out, a unit that becomes free later (out of a colony,
+  off a ship) is picked as the next active unit again. To be tested:
+  start a turn where every unit has orders; toggle full screen with
+  no unit selected, then select one.
 - **Tested:** all 674 unit tests green; the drawing and the turn order
   need Mischa's eye in the game.
 

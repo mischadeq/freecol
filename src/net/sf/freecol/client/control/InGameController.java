@@ -1146,6 +1146,7 @@ public final class InGameController extends FreeColClientHolder {
         boolean ret = true;
 
         // Ensure the goto mode sticks.
+        final MoveMode modeBefore = moveMode;
         moveMode = moveMode.maximize(MoveMode.EXECUTE_GOTO_ORDERS);
 
         // Deal with the trade route units first: only when the player
@@ -1178,6 +1179,10 @@ public final class InGameController extends FreeColClientHolder {
         // (the execute-orders button, or the end of the turn): a unit
         // given an order now has already moved (mod).
         if (!this.routesReleased) {
+            // Nothing was carried out, so the turn goes on as before:
+            // a unit that is free to move later (out of a colony, off
+            // a ship) is still picked as the next active unit (mod).
+            moveMode = modeBefore;
             nextModelMessage();
             changeView(active, false);
             return true;
