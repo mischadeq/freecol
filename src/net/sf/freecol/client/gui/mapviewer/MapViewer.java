@@ -688,9 +688,7 @@ public final class MapViewer extends FreeColClientHolder {
                 final java.awt.geom.AffineTransform at = tileG2d.getTransform();
                 if (at.getScaleX() != 1.0 || at.getScaleY() != 1.0) return;
                 ParchmentPainter.fadeTile(target, (int)Math.round(at.getTranslateX()),
-                    (int)Math.round(at.getTranslateY()), tile, w, h, clipBounds,
-                    fow != null && player != null && tile.isExplored()
-                        && !player.canSee(tile));
+                    (int)Math.round(at.getTranslateY()), tile, w, h, clipBounds);
             });
         }
         

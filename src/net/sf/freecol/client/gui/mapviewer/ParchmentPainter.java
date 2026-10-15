@@ -264,27 +264,6 @@ public final class ParchmentPainter {
      */
     public static void fadeTile(BufferedImage img, int ox, int oy, Tile tile,
                                 int w, int h, java.awt.Rectangle clip) {
-        fadeTile(img, ox, oy, tile, w, h, clip, false);
-    }
-
-    /**
-     * Fade an explored tile near the unknown (see above), keeping the
-     * fog of war on it: the chart sea of a tile out of sight is as dark
-     * as the fog, fading with the paper, so the fog does not stop at
-     * the fade line.
-     *
-     * @param img The image the map is drawn into.
-     * @param ox The tile image's x position in that image.
-     * @param oy The tile image's y position in that image.
-     * @param tile The explored {@code Tile}.
-     * @param w The tile width.
-     * @param h The tile height.
-     * @param clip The area being redrawn, in image coordinates.
-     * @param fogged True if the tile is under the fog of war.
-     */
-    public static void fadeTile(BufferedImage img, int ox, int oy, Tile tile,
-                                int w, int h, java.awt.Rectangle clip,
-                                boolean fogged) {
         if (!tile.isExplored() && !edgeOfUnknown(tile)) return;
         // Corners: left, top, right, bottom of the diamond.
         final float fL = corner(tile, Direction.W, Direction.NW, Direction.SW);
@@ -317,43 +296,36 @@ public final class ParchmentPainter {
                                              Math.floorMod(wy + y - oy, T));
                 final int pr = (paper >> 16) & 0xff, pg = (paper >> 8) & 0xff,
                     pb = paper & 0xff;
-                // The sea near the unknown: a flat chart blue (no waves,
-                // no high-seas edges poking into the mist), then paper.
+                // Paper laid over the sea, thicker towards the unknown.
                 final double cover = Math.max(smooth(0.3, 1.0, f),
                                               0.55 * smooth(0.0, 0.6, f));
-                final double flat = smooth(0.0, 0.25, f);
-                final double seaA = Math.max(cover, flat);
-                final double sr0 = (pr * cover + SEA_R * (seaA - cover)) / seaA;
-                final double sg0 = (pg * cover + SEA_G * (seaA - cover)) / seaA;
-                final double sb0 = (pb * cover + SEA_B * (seaA - cover)) / seaA;
-                // The fog of war stays on the chart sea, fading with it
-                // into the paper.
-                final double fogA = (fogged) ? FOG * (1 - cover) : 0;
                 if (alpha < 255) {
-                    // Nothing (or little) drawn here: the animated sea
-                    // shows through from below.  Lay the chart sea, its
-                    // fog and the paper over it, thicker towards the
-                    // unknown.
-                    final double la = 1 - (1 - fogA) * (1 - seaA);
-                    final double k = (1 - fogA) * seaA / la;
-                    final int pa = (int)Math.round(255 * la);
-                    if (pa > alpha) {
-                        img.setRGB(x, y, (pa << 24) | ((int)(sr0 * k) << 16)
-                                   | ((int)(sg0 * k) << 8) | (int)(sb0 * k));
-                    }
+                    // Little or nothing drawn here (the animated sea, or
+                    // the fog of war, shows through): blend the paper
+                    // over what is there, never cut it off, so the fog
+                    // and the sea fade smoothly into the paper.
+                    if (cover <= 0) continue;
+                    final double a0 = alpha / 255.0;
+                    final double oa = cover + a0 * (1 - cover);
+                    final double keep = a0 * (1 - cover) / oa;
+                    final double put = cover / oa;
+                    final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
+                        b0 = argb & 0xff;
+                    img.setRGB(x, y, ((int)Math.round(255 * oa) << 24)
+                        | ((int)Math.round(pr * put + r0 * keep) << 16)
+                        | ((int)Math.round(pg * put + g0 * keep) << 8)
+                        | (int)Math.round(pb * put + b0 * keep));
                     continue;
                 }
                 if (water) {
-                    // Drawn straight onto the sea (the scrolling painter;
-                    // the fog is already in the pixel): the same chart
-                    // sea and paper, not brown ink.
-                    final double d = 1 - fogA;
+                    // Drawn straight onto the sea (the scrolling painter):
+                    // the same paper over it, not the brown ink of land.
                     final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
                         b0 = argb & 0xff;
                     img.setRGB(x, y, (0xff << 24)
-                        | ((int)Math.round(r0 + (sr0 * d - r0) * seaA) << 16)
-                        | ((int)Math.round(g0 + (sg0 * d - g0) * seaA) << 8)
-                        | (int)Math.round(b0 + (sb0 * d - b0) * seaA));
+                        | ((int)Math.round(r0 + (pr - r0) * cover) << 16)
+                        | ((int)Math.round(g0 + (pg - g0) * cover) << 8)
+                        | (int)Math.round(b0 + (pb - b0) * cover));
                     continue;
                 }
                 final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
@@ -381,12 +353,6 @@ public final class ParchmentPainter {
             }
         }
     }
-
-    /** The fog of war: black at this opacity (as the map viewer's). */
-    private static final double FOG = 0.2;
-
-    /** The flat sea of the chart, near the unknown. */
-    private static final int SEA_R = 30, SEA_G = 72, SEA_B = 96;
 
     private static double smooth(double e0, double e1, double x) {
         final double t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));

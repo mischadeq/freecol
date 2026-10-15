@@ -1573,17 +1573,16 @@ top, so the (modal) dialog was hidden but blocked every click.
   could land in the wrong image (patches and odd rounded shapes left
   in place). The image is now passed along each drawing, the scrolling
   painter gets the fade too.
-- **Second round on the parchment:** while edge-scrolling the sea
-  turned brown (that painter draws the sea into the same image, and the
-  fade turned it into sepia ink like land). And the game's dark
-  high-seas shapes with their rounded corners showed through the half
-  paper at the mist line. Now, near the unknown, the sea becomes a flat
-  chart blue (no waves, no high-seas edges) fading into the paper, the
-  same on both painters.
-- **Third round:** the flat chart sea dropped the fog of war (the
-  game's dark rounded diamonds on tiles out of sight), so the fog
-  stopped at the fade line and left lone rounded patches. The chart sea
-  now keeps the fog, fading with the paper.
+- **Parchment, the real cause of the rounded corners:** the paper laid
+  over the sea near the unknown did not blend: wherever it was thicker
+  than the fog of war it replaced the pixel, which cut the fog (the
+  game's dark rounded diamonds on tiles out of sight) off along a hard
+  contour. It now blends over whatever is there, so sea and fog fade
+  smoothly into the paper. While edge-scrolling the sea had turned
+  brown (that painter draws the sea into the same image and the fade
+  treated it like land); it now gets the same paper over it. (A try
+  with a flat "chart blue" sea in between was dropped: it made lighter
+  diamonds with hard edges around the visible area.)
 - **Tested:** all 674 unit tests green; the drawing and the turn order
   need Mischa's eye in the game.
 
