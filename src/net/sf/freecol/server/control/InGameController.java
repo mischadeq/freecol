@@ -1910,6 +1910,22 @@ public final class InGameController extends Controller {
                                net.sf.freecol.common.diplomacy.Offer offer) {
         final net.sf.freecol.server.ai.AIMain aiMain
             = getFreeColServer().getAIMain();
+        if (offer.kind == net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT) {
+            // A price agreement goes to one nation, which answers now.
+            final Player to = (offer.audience.isEmpty()) ? null
+                : getGame().getPlayerByNationId(offer.audience.get(0));
+            final net.sf.freecol.server.ai.AIPlayer ai = (to == null) ? null
+                : aiMain.getAIPlayer(to);
+            if (!(ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer)
+                || offer.gold <= 0) {
+                return serverPlayer.clientError("Bad agreement");
+            }
+            final ChangeSet cs = new ChangeSet();
+            new net.sf.freecol.server.ai.diplomacy.OfferPlanner(
+                (net.sf.freecol.server.ai.EuropeanAIPlayer)ai)
+                .considerAgreement(serverPlayer, offer, cs);
+            return cs;
+        }
         final String why = net.sf.freecol.server.ai.diplomacy.OfferPlanner
             .checkPosted(serverPlayer, offer);
         if (why != null) return serverPlayer.clientError(why);
@@ -1944,6 +1960,21 @@ public final class InGameController extends Controller {
      */
     public ChangeSet answerOffer(ServerPlayer serverPlayer, String id,
                                  boolean accept) {
+        return answerOffer(serverPlayer, id, accept, -1);
+    }
+
+    /**
+     * A player answers an offer, with an amount for a sale under a
+     * price agreement (mod).
+     *
+     * @param serverPlayer The {@code ServerPlayer} answering.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @param amount The amount, -1 if not asked.
+     * @return A {@code ChangeSet} encapsulating this action.
+     */
+    public ChangeSet answerOffer(ServerPlayer serverPlayer, String id,
+                                 boolean accept, int amount) {
         final ChangeSet cs = new ChangeSet();
         final net.sf.freecol.server.ai.AIMain aiMain
             = getFreeColServer().getAIMain();
@@ -1952,7 +1983,7 @@ public final class InGameController extends Controller {
             if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer
                 && new net.sf.freecol.server.ai.diplomacy.OfferPlanner(
                     (net.sf.freecol.server.ai.EuropeanAIPlayer)ai)
-                .answer(serverPlayer, id, accept, cs)) {
+                .answer(serverPlayer, id, accept, amount, cs)) {
                 getGame().sendToOthers(serverPlayer, cs);
                 return cs;
             }

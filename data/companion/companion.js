@@ -2239,13 +2239,17 @@
       return;
     }
     $("offers").innerHTML = list.map((o) => {
-      const st = o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
+      const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
+        : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
       else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";
       else if (o.kind === "settlement_joins") what = "<b>" + esc(o.place) + "</b> asks to break off from its tribe and live under your protection";
+      else if (o.kind === "agreement") what = "Price agreement: buys " + (o.goods ? gi(o.goods, o.goodsName) : "") + " " + esc(o.goodsName) +
+        " at <b>" + num(o.gold) + "</b> each, as many as you bring by ship to their coastal colonies" +
+        (o.delivered ? ' <span class="m">· ' + num(o.delivered) + " delivered, " + num(o.paid || 0) + " gold earned</span>" : "");
       else if (o.kind === "ultimatum") what = "Ultimatum: pay <b>" + num(o.gold) + "</b> gold or war <span class=\"m\">(" + esc(o.place) + ")</span>";
       else if (o.kind === "buyout") what = "Offers <b>" + num(o.gold) + "</b> gold to leave the coalition of <b>" + esc(o.against) + "</b>";
       else if (o.kind === "joint_war") what = "Join their war against <b>" + esc(o.against) + "</b> for <b>" + num(o.gold) + "</b> gold" +
@@ -2263,7 +2267,7 @@
       if (o.left != null) {
         const used = Math.max(0, Math.min(1, (o.deadline - o.left) / o.deadline));
         const cls = o.left > 3 ? "ok" : o.left >= 0 ? "warn" : "alarm";
-        clock = '<div class="oclock" title="Turns left to complete the deal; late pays less, very late ends it">' +
+        clock = '<div class="oclock" title="' + (o.kind === "agreement" ? "Turns left in the agreement; come as often as you like" : "Turns left to complete the deal; late pays less, very late ends it") + '">' +
           '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * used) + '%"></i></span> ' +
           (o.left >= 0 ? o.left + " turns left" : (-o.left) + " turns late, pays " + num(o.priceNow)) + "</div>";
       } else if ((o.kind === "want" || o.kind === "sell") && o.state === "open") {
@@ -2271,7 +2275,7 @@
       }
       return '<div class="ocard' + (o.yours ? " yours" : "") + '"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.yours ? "Your offer" : o.from) + "</b>" +
         '<span class="tag ' + st[0] + '">' + st[1] + '</span><span class="m">' + esc(o.posted) + "</span></div>" +
-        '<div class="owhat">' + what + (o.paid ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
+        '<div class="owhat">' + what + (o.paid && o.kind !== "agreement" ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
     }).join("");
   }
 

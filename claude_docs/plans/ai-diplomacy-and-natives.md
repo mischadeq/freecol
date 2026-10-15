@@ -214,8 +214,8 @@ decisions are logged so we can see why it did something.
    events, shown on the companion cards. Medium.
 3. **The score loop and goals**, with only trade actions at first:
    goods offers, purchase requests, boycott sales. Medium.
-4. **Trade agreements** with per-turn settlement and broken-deal
-   memories. Medium.
+4. **Trade agreements**, redesigned as **price agreements** by ship
+   (see `step4-price-agreements.md`, built 2026-10-15). Medium.
 5. **Alliances, joint wars and coalitions**, using the threat formula;
    invitations to you. Large.
 6. **Grievances and ultimatums before war**; an option so the King's

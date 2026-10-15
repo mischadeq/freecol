@@ -74,6 +74,7 @@ final class CompanionOffers {
                     : null;
                 if (book == null) continue;
                 for (Offer o : new ArrayList<>(book)) {
+                    if (o.kind == Offer.Kind.SALE) continue; // a dialog only
                     if ((o.told.contains(id) || id.equals(o.takenBy)
                          || id.equals(o.from)) && seen.add(o.id)) {
                         final Offer c = Offer.parse(o.serialize());
@@ -135,6 +136,7 @@ final class CompanionOffers {
                 j.put("left", o.turnsLeft(now)).put("priceNow", o.priceAt(now));
             }
             if (o.paid > 0) j.put("paid", o.paid);
+            if (o.delivered > 0) j.put("delivered", o.delivered);
             j.put("tribe", from != null && from.isIndian());
             j.end();
         }

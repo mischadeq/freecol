@@ -42,6 +42,7 @@ public class AllTests {
         suite.addTestSuite(AIAlliancesTest.class);
         suite.addTestSuite(AITribesTest.class);
         suite.addTestSuite(AIGrievancesTest.class);
+        suite.addTestSuite(AIAgreementsTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.InvasionPlannerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.ScoutPlannerTest.class);
         suite.addTestSuite(net.sf.freecol.server.ai.military.WarPreparationsTest.class);

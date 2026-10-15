@@ -3678,6 +3678,21 @@ public final class InGameController extends FreeColClientHolder {
         for (net.sf.freecol.common.diplomacy.Offer o : l) {
             final StringTemplate t = offerTemplate(o);
             if (t == null) continue;
+            if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
+                // How many to sell under a price agreement (step 4).
+                invokeLater(() -> {
+                        final String a = getGUI().modalInputDialog(null, t,
+                            String.valueOf(o.amount), "ok", "cancel");
+                        int n = 0;
+                        try {
+                            n = (a == null) ? 0 : Integer.parseInt(a.trim());
+                        } catch (NumberFormatException e) {
+                            n = 0;
+                        }
+                        askServer().answerOffer(o.id, Math.max(0, n));
+                    });
+                continue;
+            }
             invokeLater(() -> {
                     final boolean yes = getGUI().modalConfirmDialog(t,
                         "offer.accept", "offer.decline");
@@ -3709,6 +3724,66 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Propose a price agreement to a computer nation (mod, step 4): it
+     * buys a good at a price per unit for some turns, as much as we
+     * bring by ship to its coastal colonies.
+     *
+     * @param player Our {@code Player}.
+     * @param gui The {@code GUI}.
+     */
+    private void proposeAgreement(Player player, GUI gui) {
+        java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            if (p == player || p.isREF() || !p.isAI()
+                || !player.hasContacted(p)
+                || player.getStance(p) == Stance.WAR) continue;
+            nations.add(new ChoiceItem<>(Messages.message(p.getNationLabel()), p));
+        }
+        if (nations.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("offer.post.noNation"));
+            return;
+        }
+        final Player to = gui.modalChoiceDialog(
+            StringTemplate.template("offer.post.nation"), "cancel", nations);
+        if (to == null) return;
+        final net.sf.freecol.common.model.Market market = player.getMarket();
+        java.util.List<ChoiceItem<GoodsType>> goods = new java.util.ArrayList<>();
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            final int price = (market == null) ? 0 : market.getPaidForSale(gt);
+            goods.add(new ChoiceItem<>(Messages.getName(gt)
+                + ((player.canTrade(gt)) ? " (" + price + ")" : " (boycott)"), gt));
+        }
+        final GoodsType gt = gui.modalChoiceDialog(
+            StringTemplate.template("offer.post.goods"), "cancel", goods);
+        if (gt == null) return;
+        final int unit = (market == null) ? 1 : Math.max(1, market.getPaidForSale(gt));
+        final String g = gui.modalInputDialog(null,
+            StringTemplate.template("offer.post.unitPrice").addNamed("%goods%", gt)
+                .addAmount("%price%", unit),
+            String.valueOf(unit), "ok", "cancel");
+        final String t = (g == null) ? null : gui.modalInputDialog(null,
+            StringTemplate.template("offer.post.turns"),
+            String.valueOf(net.sf.freecol.common.diplomacy.PriceAgreement.TURNS),
+            "ok", "cancel");
+        int price, turns;
+        try {
+            price = Integer.parseInt(g.trim());
+            turns = Integer.parseInt(t.trim());
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (price <= 0) return;
+        final net.sf.freecol.common.diplomacy.Offer o
+            = new net.sf.freecol.common.diplomacy.Offer("new",
+                net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT,
+                player.getNationId(), gt.getId(), 0, price, null, "",
+                getGame().getTurn().getNumber(),
+                net.sf.freecol.common.diplomacy.PriceAgreement.turns(turns));
+        o.audience.add(to.getNationId());
+        askServer().postOffer(o);
+    }
+
+    /**
      * Post a trade offer of our own on the notice board (mod): want or
      * sell, which goods, how many, for how much, at which colony.
      *
@@ -3732,10 +3807,16 @@ public final class InGameController extends FreeColClientHolder {
             net.sf.freecol.common.diplomacy.Offer.Kind.WANT));
         kinds.add(new ChoiceItem<>(Messages.message("offer.post.sell"),
             net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
+        kinds.add(new ChoiceItem<>(Messages.message("offer.post.agreement"),
+            net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT));
         final net.sf.freecol.common.diplomacy.Offer.Kind kind = gui
             .modalChoiceDialog(StringTemplate.template("offer.post.kind"),
                                "cancel", kinds);
         if (kind == null) return;
+        if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT) {
+            proposeAgreement(player, gui);
+            return;
+        }
         final boolean sell = kind == net.sf.freecol.common.diplomacy.Offer.Kind.SELL;
         java.util.List<ChoiceItem<GoodsType>> goods = new java.util.ArrayList<>();
         for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
@@ -3827,6 +3908,12 @@ public final class InGameController extends FreeColClientHolder {
             break;
         case DEFEND_SETTLEMENT:
             key = "offer.defendSettlement";
+            break;
+        case AGREEMENT:
+            key = "offer.agreement";
+            break;
+        case SALE:
+            key = "offer.sale";
             break;
         case JOINT_WAR:
             key = (o.place == null) ? "offer.jointWar" : "offer.jointWarColony";

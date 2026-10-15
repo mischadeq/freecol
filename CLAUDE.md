@@ -10,8 +10,8 @@ Read these first, in this order:
 2. `claude_docs/plans/ai-diplomacy-and-natives.md`: the full design.
 3. `claude_docs/plans/step2-step3.md`: steps 2 and 3 (built).
 4. `claude_docs/plans/step5-step7.md`: the next two steps, in detail
-   (alliances, then native tribes; both built; grievances next, trade
-   agreements last).
+   (alliances, then native tribes; both built). Then
+   `step6-grievances.md` and `step4-price-agreements.md` (built).
 5. `claude_docs/plans/companion-ui.md`: what each companion tab shows,
    where it comes from, the honesty check, and the "not yet
    implemented" boxes to replace as steps are built.
@@ -93,6 +93,11 @@ Read these first, in this order:
   `Grievance` in `EuropeanAIPlayer.getGrievances()`. Paying tribes to
   fight tribes: `AlliancePlanner.inciteTribes`,
   `InGameController.tribeIncitePrice`.
+- Price agreements (step 4): `common/diplomacy/PriceAgreement` (the
+  rules), `Offer.Kind.AGREEMENT` (running, in the buyer's offer book)
+  and `SALE` (the "how many" dialog when a ship visits, answered with
+  an amount via `OfferMessage`), handled in `OfferPlanner`
+  (`considerAgreement`, `followAgreement`, `sell`).
 - `tools/replay/`: replays a series of saves, compares the diplomat with
   what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from

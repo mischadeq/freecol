@@ -1486,6 +1486,41 @@ Plan: `claude_docs/plans/step6-grievances.md`.
 - **Tested:** `AITribesTest` (not before the anger; let go, defended
   with war, ignored until it runs out). All 662 tests green.
 
+### Step 4 built: price agreements by ship (2026-10-15)
+Plan: `claude_docs/plans/step4-price-agreements.md` (Mischa's redesign:
+not per-turn deliveries, but a price for a period).
+- **What:** a computer nation buys a good from you at a fixed price per
+  unit for 5 to 30 turns, as many as you bring by ship to any of its
+  coastal colonies, as often as you like. Handy when your goods are
+  boycotted: they sell them in Europe themselves.
+- **The dialog:** on their turn, a ship of yours next to their colony
+  with the good gets "they take up to 100 coats at 9 each: how many do
+  you sell?". Each colony takes what its warehouse has room for (at
+  most 200 a visit) and what they can pay; full says so. Every sale is
+  a trade memory: trust grows.
+- **The price:** they agree up to 85% of their own Europe price after
+  tax; asked more, they answer with 75% (accept or not); they refuse
+  when boycotted themselves, when the good sells for nothing, when they
+  do not like you or are at war with you, or when an agreement for that
+  good is already running.
+- **Who proposes:** you, from Reports, "Post an offer", "A price
+  agreement with one nation" (nation, goods with your own Europe price
+  or "boycott", price per unit, turns); the computer, at most every 20
+  turns, for a good it keeps needing, at 85% of its Europe cost.
+- **Ends** when the turns run out, or with a war.
+- **Fixed amounts in parts:** a notice board "wanted" deal can now be
+  delivered in parts (40 now, 60 later), paid pro rata.
+- **Companion page:** the Offers list shows running agreements
+  (goods, price, delivered and gold earned, turns left bar, "running").
+  The per-visit questions stay dialogs only.
+- **Tested:** `PriceAgreementTest` (prices, counter, room, turns,
+  saving); `AIAgreementsTest` (accept, counter, one per good,
+  boycotted, not at war, a ship sells what you say and trust grows, not
+  asked twice at once, full warehouse, ends with time and with war,
+  delivery in parts, saved). All 672 tests green.
+- **Not done:** the computer selling to you under an agreement (only
+  buying for now); an agreement making war less likely.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

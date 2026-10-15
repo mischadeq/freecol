@@ -82,7 +82,6 @@ Checked every place the page reads another nation's data.
 
 | Feature | Step | Where it will show |
 | --- | --- | --- |
-| Trade agreements | 4 | Diplomacy, Trade |
 
 Built in step 7 (2026-10-15), on the tribe cards of the Diplomacy tab:
 character, mood and trust meters, unrest meter (turns before they may
