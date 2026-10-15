@@ -1566,6 +1566,9 @@ top, so the (modal) dialog was hidden but blocked every click.
   end of the turn if they have not moved yet. The same for units with
   a go-to order (they set off when Mischa gave another ship a new
   route); a unit given an order right now still moves at once.
+- **Ships sailing to or from Europe no longer count as pending
+  orders** (the end-turn warning and the count on the execute-orders
+  button): they have their order but nothing to do until they arrive.
 - **Trade routes wait for the turn report:** units with orders (trade
   routes, goto) used to start moving while the turn report was still
   open. They now wait until it is closed (pressing End Turn with the

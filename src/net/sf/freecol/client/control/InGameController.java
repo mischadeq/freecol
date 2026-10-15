@@ -4194,6 +4194,10 @@ public final class InGameController extends FreeColClientHolder {
         }
         int n = 0;
         for (Unit u : player.getUnitSet()) {
+            // A ship sailing between the map and Europe has its order
+            // but nothing to do until it arrives (mod).
+            if (u.isAtSea()) continue;
+            if (u.isInEurope() && u.getDestination() instanceof Europe) continue;
             if (u.goingToDestination() || u.isReadyToTrade()) n++;
         }
         return n;
