@@ -41,7 +41,7 @@ Read these first, in this order:
 - Build: `ant -q` (makes `FreeCol.jar`).
 - One test suite: `ant -lib test/lib/junit.jar test -Dtest=common.diplomacy.AllTests`
   (also `tools.replay.AllTests`, `server.ai.AllTests`).
-- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 534
+- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 674
   tests at the last count). Results land in `build/TEST-*.txt`; delete
   those and `build/dependencies.txt` afterwards (they are untracked).
 - Replay of a saved game (step 0 measuring tool; needs Mischa's
@@ -98,6 +98,9 @@ Read these first, in this order:
   and `SALE` (the "how many" dialog when a ship visits, answered with
   an amount via `OfferMessage`), handled in `OfferPlanner`
   (`considerAgreement`, `followAgreement`, `sell`).
+- Treasury: `common/diplomacy/Treasury`, `EuropeanAIPlayer.reserve()` /
+  `spendable()`: shopping in Europe only spends gold above the reserve
+  (deals may spend it).
 - `tools/replay/`: replays a series of saves, compares the diplomat with
   what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from

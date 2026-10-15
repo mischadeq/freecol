@@ -254,4 +254,27 @@ public class AIAgreementsTest extends FreeColTestCase {
         }
         assertTrue(found);
     }
+
+    /** The treasury: kept back from shopping, grows with promises. */
+    public void testTreasury() {
+        setUpGame();
+        final int base = ai.reserve();
+        assertTrue(base > 0);
+        assertEquals(0, ai.promisedGold());
+        final Offer a = propose(coats, 5, 20);
+        assertEquals(net.sf.freecol.common.diplomacy.Treasury.forAgreement(5),
+                     ai.promisedGold());
+        assertEquals(base + ai.promisedGold(), ai.reserve());
+        // Shopping in Europe leaves the reserve.
+        dutch.setGold(ai.reserve() + 50);
+        ai.buyUnitsInEurope(new LogBuilder(64));
+        assertTrue("kept " + dutch.getGold(), dutch.getGold() >= ai.reserve());
+        // Losing a war: only the promises are kept.
+        dutch.setStance(english, Stance.WAR);
+        english.setStance(dutch, Stance.WAR);
+        ai.getMemories().add(new Memory(Memory.Kind.COLONY_TAKEN, ENGLISH,
+                                        game.getTurn().getNumber(), 1));
+        assertTrue(ai.losingWar());
+        assertEquals(ai.promisedGold(), ai.reserve());
+    }
 }

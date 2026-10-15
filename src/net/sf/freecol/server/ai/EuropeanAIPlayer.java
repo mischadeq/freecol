@@ -507,7 +507,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
      */
     public void cheatGold(int amount, LogBuilder lb) {
         final Player player = getPlayer();
-        int gold = player.getGold();
+        // What it may spend: the treasury stays (mod).
+        int gold = spendable();
         if (gold < amount) {
             amount -= gold;
             player.modifyGold(amount);
@@ -2455,6 +2456,82 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return coalitionTries;
     }
 
+    // The treasury (mod): gold kept back from shopping for deals.
+
+    /**
+     * Gold we have promised in open deals: notices we posted, peace and
+     * joint-war gold we offered, a couple of loads for each running
+     * price agreement.
+     *
+     * @return The gold.
+     */
+    public int promisedGold() {
+        int g = 0;
+        final String me = getPlayer().getNationId();
+        for (Offer o : getOffers()) {
+            if (!me.equals(o.from)) continue;
+            if (o.state == Offer.State.OPEN
+                && (o.kind == Offer.Kind.WANT || o.kind == Offer.Kind.PEACE
+                    || o.kind == Offer.Kind.JOINT_WAR
+                    || o.kind == Offer.Kind.SHIP_BUY)) {
+                g += o.gold;
+            } else if (o.state == Offer.State.TAKEN && o.kind == Offer.Kind.WANT) {
+                g += Math.max(0, o.gold - o.paid);
+            } else if ((o.state == Offer.State.TAKEN || o.state == Offer.State.OPEN)
+                       && o.kind == Offer.Kind.AGREEMENT) {
+                g += net.sf.freecol.common.diplomacy.Treasury.forAgreement(o.gold);
+            }
+        }
+        return g;
+    }
+
+    /** Turns back we look for a lost war. */
+    public static final int LOSING_TURNS = 10;
+
+    /**
+     * Are we losing a war: at war, and a colony taken or several units
+     * lost lately?
+     *
+     * @return True if so.
+     */
+    public boolean losingWar() {
+        final Player player = getPlayer();
+        if (!player.isAtWar()) return false;
+        final int now = getGame().getTurn().getNumber();
+        int lost = 0;
+        for (Memory m : getMemories().list()) {
+            if (now - m.turn > LOSING_TURNS) continue;
+            if (m.kind == Memory.Kind.COLONY_TAKEN) return true;
+            if (m.kind == Memory.Kind.UNIT_LOST) lost += m.count;
+        }
+        return lost >= 3;
+    }
+
+    /**
+     * The gold we keep back from shopping in Europe.
+     *
+     * @return The reserve.
+     */
+    public int reserve() {
+        if (getPlayer().isREF()) return 0;
+        final net.sf.freecol.common.diplomacy.NationCharacter ch
+            = net.sf.freecol.common.diplomacy.NationCharacter.forNationType(
+                (getPlayer().getNationType() == null) ? null
+                    : getPlayer().getNationType().getId(), true);
+        return net.sf.freecol.common.diplomacy.Treasury.reserve(
+            getPlayer().getColonyList().size(), ch, promisedGold(), losingWar());
+    }
+
+    /**
+     * Gold free for shopping: what is above the reserve.
+     *
+     * @return The gold.
+     */
+    public int spendable() {
+        return net.sf.freecol.common.diplomacy.Treasury.spendable(
+            getPlayer().getGold(), reserve());
+    }
+
     /** Our grievances by nation id (mod, step 6).  Saved; no initializer. */
     private java.util.Map<String, net.sf.freecol.common.diplomacy.Grievance> grievances;
 
@@ -2834,7 +2911,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         outlook = null;
     }
 
-    private void buyUnitsInEurope(LogBuilder lb) {
+    void buyUnitsInEurope(LogBuilder lb) {
         /*
          * It seems that training/recruiting units, in other cases than cheating,
          * was removed from the code in 2012. This prevents the AI from actually
@@ -2908,7 +2985,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 continue;
             }
             
-            if (unitPrice > player.getGold()) {
+            if (unitPrice > spendable()) { // keep the treasury (mod)
                 return;
             }
             
@@ -2950,7 +3027,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return false;
         }
-        if (purchasePrice > getPlayer().getGold()) {
+        if (purchasePrice > spendable()) { // keep the treasury (mod)
             return false;
         }
         
@@ -3004,7 +3081,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return null;
         }
-        if (purchasePrice > getPlayer().getGold()) {
+        if (purchasePrice > spendable()) { // keep the treasury (mod)
             return null;
         }
         
@@ -3036,7 +3113,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         
         final int unitPrice = europe.getUnitPrice(cheapestArtilleryUnitType);
-        if (unitPrice > player.getGold()) {
+        if (unitPrice > spendable()) { // keep the treasury (mod)
             return null;
         }
         

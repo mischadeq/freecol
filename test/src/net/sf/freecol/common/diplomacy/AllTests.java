@@ -38,6 +38,7 @@ public class AllTests {
         suite.addTestSuite(TribeRelationsTest.class);
         suite.addTestSuite(GrievanceTest.class);
         suite.addTestSuite(PriceAgreementTest.class);
+        suite.addTestSuite(TreasuryTest.class);
         return suite;
     }
 }

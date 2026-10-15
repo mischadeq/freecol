@@ -1521,6 +1521,31 @@ not per-turn deliveries, but a price for a period).
 - **Not done:** the computer selling to you under an agreement (only
   buying for now); an agreement making war less likely.
 
+### The computer keeps a treasury (2026-10-15)
+Mischa noticed the computer nations never keep spare gold: every turn
+they bought units in Europe until the next one cost more than they had
+(`buyUnitsInEurope`). So they could not pay for deals: price agreements
+took 0 goods, no notices, no buy-outs, no paid tribes, ultimatums
+refused.
+- **A reserve shopping cannot touch:** 300 gold plus 50 a colony (at
+  most 2,000), times the character (traders 1.5, independence 1.2,
+  conquerors 0.7), plus what it has promised in open deals: its
+  notices, peace and joint-war gold, unpaid "wanted" deals, and two
+  loads (2 x 100 goods) for each price agreement.
+- **Shopping in Europe** (colonists, ships, artillery, dragoons, the
+  diplomat's war ship) only spends gold above the reserve. The cheats
+  top up without eating it.
+- **Deals spend it:** price agreements, notices, peace, buy-outs,
+  paying tribes, paying ultimatums.
+- **Losing a war** (a colony taken, or 3 units lost in the last 10
+  turns): only the promises are kept; the rest buys soldiers.
+- **Not on the companion page:** the reserve is the nation's own
+  business; their gold is in the Foreign Affairs report.
+- **Tested:** `TreasuryTest`; `AIAgreementsTest.testTreasury` (reserve,
+  promises, shopping leaves it, losing a war). All 674 tests green.
+- **To tune in step 8:** the sizes (a slower military build-up is the
+  price).
+
 ## Ideas, not started
 
 ### Unit groups, next steps
