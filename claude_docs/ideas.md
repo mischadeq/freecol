@@ -1559,6 +1559,12 @@ top, so the (modal) dialog was hidden but blocked every click.
   Mischa to check in the game).
 
 ### Fixes from Mischa's first game with steps 4-7 (2026-10-15)
+- **Trade routes go at the player's word:** units on trade routes no
+  longer move by themselves whenever no unit needs attention (after the
+  turn report, after closing a colony). They move when the player
+  presses the execute-orders button (the double triangle), or at the
+  end of the turn if they have not moved yet. Single units with a goto
+  order still move as before.
 - **Trade routes wait for the turn report:** units with orders (trade
   routes, goto) used to start moving while the turn report was still
   open. They now wait until it is closed (pressing End Turn with the

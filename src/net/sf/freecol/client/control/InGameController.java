@@ -1148,10 +1148,12 @@ public final class InGameController extends FreeColClientHolder {
         // Ensure the goto mode sticks.
         moveMode = moveMode.maximize(MoveMode.EXECUTE_GOTO_ORDERS);
 
-        // Deal with the trade route units first.
+        // Deal with the trade route units first: only when the player
+        // asks (the execute-orders button, or the end of the turn), not
+        // whenever no unit needs attention (mod).
         List<ModelMessage> messages = new ArrayList<>();
-        final Predicate<Unit> tradePred = u ->
-            u.isReadyToTrade() && player.owns(u);
+        final Predicate<Unit> tradePred = u -> this.routesReleased
+            && u.isReadyToTrade() && player.owns(u);
         for (Unit unit : transform(player.getUnits(), tradePred,
                                    Function.<Unit>identity(),
                                    tradeRouteUnitComparator)) {
@@ -1221,6 +1223,8 @@ public final class InGameController extends FreeColClientHolder {
 
         // Ensure end-turn mode sticks.
         moveMode = moveMode.maximize(MoveMode.END_TURN);
+        // Trade routes not run yet this turn go now (mod).
+        this.routesReleased = true;
 
         changeView(null);
         final List<Unit> units = transform(player.getUnits(), Unit::couldMove);
@@ -4198,8 +4202,15 @@ public final class InGameController extends FreeColClientHolder {
         if (!requireOurTurn()
             || getGUI().isPanelShowing()) return false;
 
+        this.routesReleased = true; // the player's go for the trade routes
         return doExecuteGotoOrders();
     }
+
+    /**
+     * May the trade routes move this turn: the player pressed the
+     * execute-orders button or ended the turn (mod).  Reset each turn.
+     */
+    private boolean routesReleased = false;
 
     /**
      * Handle feature changes.
@@ -6028,6 +6039,8 @@ public final class InGameController extends FreeColClientHolder {
             noteFights();
             // Offers that came during the others' turns (mod).
             showOffers();
+            // The trade routes wait for the player's go (mod).
+            this.routesReleased = false;
             // Keep the route history in step with the turn (and forget
             // turns that are being played again).
             try {
