@@ -1573,6 +1573,13 @@ top, so the (modal) dialog was hidden but blocked every click.
   could land in the wrong image (patches and odd rounded shapes left
   in place). The image is now passed along each drawing, the scrolling
   painter gets the fade too.
+- **Second round on the parchment:** while edge-scrolling the sea
+  turned brown (that painter draws the sea into the same image, and the
+  fade turned it into sepia ink like land). And the game's dark
+  high-seas shapes with their rounded corners showed through the half
+  paper at the mist line. Now, near the unknown, the sea becomes a flat
+  chart blue (no waves, no high-seas edges) fading into the paper, the
+  same on both painters.
 - **Tested:** all 674 unit tests green; the drawing and the turn order
   need Mischa's eye in the game.
 

@@ -271,6 +271,7 @@ public final class ParchmentPainter {
         final float fR = corner(tile, Direction.E, Direction.NE, Direction.SE);
         final float fB = corner(tile, Direction.S, Direction.SE, Direction.SW);
         if (fL <= 0 && fT <= 0 && fR <= 0 && fB <= 0) return;
+        final boolean water = !tile.isLand();
         final BufferedImage tex = getTexture();
         final int wx = worldX(tile.getX(), tile.getY(), w);
         final int wy = worldY(tile.getY(), h);
@@ -295,16 +296,35 @@ public final class ParchmentPainter {
                                              Math.floorMod(wy + y - oy, T));
                 final int pr = (paper >> 16) & 0xff, pg = (paper >> 8) & 0xff,
                     pb = paper & 0xff;
+                // The sea near the unknown: a flat chart blue (no waves,
+                // no high-seas edges poking into the mist), then paper.
+                final double cover = Math.max(smooth(0.3, 1.0, f),
+                                              0.55 * smooth(0.0, 0.6, f));
+                final double flat = smooth(0.0, 0.25, f);
+                final double seaA = Math.max(cover, flat);
+                final double sr0 = (pr * cover + SEA_R * (seaA - cover)) / seaA;
+                final double sg0 = (pg * cover + SEA_G * (seaA - cover)) / seaA;
+                final double sb0 = (pb * cover + SEA_B * (seaA - cover)) / seaA;
                 if (alpha < 255) {
                     // Nothing (or little) drawn here: the animated sea
-                    // shows through from below.  Lay paper over it,
-                    // thicker towards the unknown.
-                    final double cover = Math.max(smooth(0.3, 1.0, f),
-                                                  0.55 * smooth(0.0, 0.6, f));
-                    final int pa = (int)Math.round(255 * cover);
+                    // shows through from below.  Lay the chart sea and
+                    // the paper over it, thicker towards the unknown.
+                    final int pa = (int)Math.round(255 * seaA);
                     if (pa > alpha) {
-                        img.setRGB(x, y, (pa << 24) | (pr << 16) | (pg << 8) | pb);
+                        img.setRGB(x, y, (pa << 24) | ((int)sr0 << 16)
+                                   | ((int)sg0 << 8) | (int)sb0);
                     }
+                    continue;
+                }
+                if (water) {
+                    // Drawn straight onto the sea (the scrolling painter):
+                    // the same chart sea and paper, not brown ink.
+                    final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
+                        b0 = argb & 0xff;
+                    img.setRGB(x, y, (0xff << 24)
+                        | ((int)Math.round(r0 + (sr0 - r0) * seaA) << 16)
+                        | ((int)Math.round(g0 + (sg0 - g0) * seaA) << 8)
+                        | (int)Math.round(b0 + (sb0 - b0) * seaA));
                     continue;
                 }
                 final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
@@ -332,6 +352,9 @@ public final class ParchmentPainter {
             }
         }
     }
+
+    /** The flat sea of the chart, near the unknown. */
+    private static final int SEA_R = 30, SEA_G = 72, SEA_B = 96;
 
     private static double smooth(double e0, double e1, double x) {
         final double t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
