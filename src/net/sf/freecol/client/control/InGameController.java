@@ -1174,6 +1174,15 @@ public final class InGameController extends FreeColClientHolder {
         // Wait for user to close outstanding panels.
         if (getGUI().isPanelShowing()) return false;
 
+        // Other units with go-to orders also wait for the player's go
+        // (the execute-orders button, or the end of the turn): a unit
+        // given an order now has already moved (mod).
+        if (!this.routesReleased) {
+            nextModelMessage();
+            changeView(active, false);
+            return true;
+        }
+
         // The active unit might also be a going-to unit.  Make sure it
         // gets processed first.  setNextGoingToUnit will fail harmlessly
         // if it is not a going-to unit so this is safe.
@@ -4207,8 +4216,9 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
-     * May the trade routes move this turn: the player pressed the
-     * execute-orders button or ended the turn (mod).  Reset each turn.
+     * May the trade routes and go-to orders move this turn: the player
+     * pressed the execute-orders button or ended the turn (mod).  Reset
+     * each turn.
      */
     private boolean routesReleased = false;
 

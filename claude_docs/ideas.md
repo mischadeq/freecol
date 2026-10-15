@@ -1563,8 +1563,9 @@ top, so the (modal) dialog was hidden but blocked every click.
   longer move by themselves whenever no unit needs attention (after the
   turn report, after closing a colony). They move when the player
   presses the execute-orders button (the double triangle), or at the
-  end of the turn if they have not moved yet. Single units with a goto
-  order still move as before.
+  end of the turn if they have not moved yet. The same for units with
+  a go-to order (they set off when Mischa gave another ship a new
+  route); a unit given an order right now still moves at once.
 - **Trade routes wait for the turn report:** units with orders (trade
   routes, goto) used to start moving while the turn report was still
   open. They now wait until it is closed (pressing End Turn with the
