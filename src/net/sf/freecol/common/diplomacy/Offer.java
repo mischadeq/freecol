@@ -63,12 +63,15 @@ public final class Offer {
         /** Join us in a war: gold now, and maybe a colony we take. */
         JOINT_WAR,
         /** Join our coalition against a nation that grows too strong. */
-        COALITION;
+        COALITION,
+        /** We, the target of a coalition, pay a member to leave it
+            ({@code against} is the coalition's founder). */
+        BUYOUT;
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
-                || this == JOINT_WAR || this == COALITION;
+                || this == JOINT_WAR || this == COALITION || this == BUYOUT;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

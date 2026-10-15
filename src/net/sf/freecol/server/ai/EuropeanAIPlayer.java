@@ -2591,6 +2591,40 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (k == null || other == null) return;
         getMemories().add(new Memory(k, other.getNationId(),
                                      getGame().getTurn().getNumber(), 1));
+        if (k == Memory.Kind.GIFT) boughtOut(other, agreement);
+    }
+
+    /**
+     * A gift from the target of a coalition we are in (not founded):
+     * at our asking price or more, it buys us out.
+     *
+     * @param other The giver.
+     * @param agreement The {@code DiplomaticTrade}.
+     */
+    private void boughtOut(Player other, DiplomaticTrade agreement) {
+        final net.sf.freecol.common.diplomacy.Coalition c
+            = net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+                .coalitionOf(this, other.getNationId(), getPlayer().getNationId());
+        if (c == null || c.members.indexOf(getPlayer().getNationId()) == 0) return;
+        int gold = 0;
+        for (TradeItem ti : agreement.getItemsGivenBy(other)) gold += ti.getGold();
+        if (gold <= 0 || gold < buyoutPrice(c)) return;
+        final net.sf.freecol.common.networking.ChangeSet cs
+            = new net.sf.freecol.common.networking.ChangeSet();
+        net.sf.freecol.server.ai.diplomacy.AlliancePlanner.of(this, c)
+            .leave(c, getPlayer(), cs);
+        ((net.sf.freecol.server.model.ServerGame)getGame()).sendToAll(cs);
+    }
+
+    /**
+     * What we ask to leave a coalition.
+     *
+     * @param c The {@code Coalition}.
+     * @return The price in gold.
+     */
+    public int buyoutPrice(net.sf.freecol.common.diplomacy.Coalition c) {
+        return net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+            .buyoutPrice(this, c, getPlayer());
     }
 
     /** Turns colonists armed by the diplomat stay armed after danger. */
@@ -2711,6 +2745,9 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                      : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.allCoalitions(this)) {
                 if (c.members.contains(player.getNationId()) && c.members.size() >= 2) {
                     m.coalitionTargets.add(c.target);
+                    if (c.members.indexOf(player.getNationId()) > 0) {
+                        m.buyoutPrices.put(c.target, buyoutPrice(c));
+                    }
                 }
             }
             mood = m;

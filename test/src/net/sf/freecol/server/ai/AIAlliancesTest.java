@@ -404,4 +404,127 @@ public class AIAlliancesTest extends FreeColTestCase {
         assertEquals(1, fai2.getCoalitions().size());
         assertEquals(c.serialize(), fai2.getCoalitions().get(0).serialize());
     }
+
+    /** A coalition of the French and a member, against the Spanish. */
+    private net.sf.freecol.common.diplomacy.Coalition coalition(
+            EuropeanAIPlayer founder, ServerPlayer... members) {
+        net.sf.freecol.common.diplomacy.Coalition c
+            = new net.sf.freecol.common.diplomacy.Coalition(SPANISH,
+                game.getTurn().getNumber());
+        c.members.add(founder.getPlayer().getNationId());
+        for (ServerPlayer m : members) {
+            c.members.add(m.getNationId());
+            ally(founder.getPlayer(), m);
+        }
+        founder.getCoalitions().add(c);
+        return c;
+    }
+
+    /** The target buys a trader out: it takes the gold and leaves. */
+    public void testTargetBuysOutATrader() {
+        setUpGame();
+        english.setAI(false);
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch), sai = ai(spanish);
+        assertEquals(net.sf.freecol.common.diplomacy.NationCharacter.TRADING_EMPIRE,
+                     dai.getOutlook().view.character);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(fai, dutch);
+        final int price = dai.buyoutPrice(c);
+        assertTrue(price >= net.sf.freecol.common.diplomacy.Coalition.MIN_PRICE);
+        spanish.setGold(10 * price);
+        final int dutchGold = dutch.getGold();
+        sai.rememberTurn();
+        new AlliancePlanner(sai).plan(sai.getOutlook(), new LogBuilder(64));
+        assertFalse(c.members.contains(DUTCH));
+        assertEquals(Stance.PEACE, french.getStance(dutch));
+        assertEquals(dutchGold + price, dutch.getGold());
+        assertEquals(9 * price, spanish.getGold());
+        assertTrue(remembers(fai, Memory.Kind.DEAL_BROKEN, DUTCH));
+        assertTrue(remembers(dai, Memory.Kind.GIFT, SPANISH));
+        // Too poor: no offer.
+        net.sf.freecol.common.diplomacy.Coalition c2 = coalition(fai, dutch);
+        spanish.setGold(dai.buyoutPrice(c2));
+        game.setTurn(new Turn(game.getTurn().getNumber() + OfferPlanner.GAP));
+        new AlliancePlanner(sai).plan(sai.getOutlook(), new LogBuilder(64));
+        assertTrue(c2.members.contains(DUTCH));
+    }
+
+    /** The price grows with how well the member gets on with the others. */
+    public void testPriceGrowsWithSynergy() {
+        setUpGame();
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(fai, dutch);
+        final int before = dai.buyoutPrice(c);
+        for (int i = 0; i < 3; i++) {
+            dai.getMemories().add(new Memory(Memory.Kind.HELPED_IN_WAR, FRENCH,
+                                             game.getTurn().getNumber(), 1));
+        }
+        assertTrue(dai.buyoutPrice(c) > before);
+    }
+
+    /** A balance keeper holds out, and the target remembers. */
+    public void testBalanceKeeperRefuses() {
+        setUpGame();
+        english.setAI(false);
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch), sai = ai(spanish);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(dai, french);
+        spanish.setGold(100000);
+        sai.rememberTurn();
+        new AlliancePlanner(sai).plan(sai.getOutlook(), new LogBuilder(64));
+        assertTrue(c.members.contains(FRENCH));
+        assertEquals(Stance.ALLIANCE, french.getStance(dutch));
+        assertTrue(remembers(sai, Memory.Kind.REFUSED_OFFER, FRENCH));
+    }
+
+    /** The player in a coalition is offered gold to leave. */
+    public void testPlayerIsOfferedABuyout() {
+        setUpGame();
+        english.setAI(false);
+        EuropeanAIPlayer fai = ai(french), sai = ai(spanish);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(fai, english);
+        spanish.setGold(100000);
+        sai.rememberTurn();
+        new AlliancePlanner(sai).plan(sai.getOutlook(), new LogBuilder(64));
+        Offer b = null;
+        for (Offer o : sai.getOffers()) if (o.kind == Offer.Kind.BUYOUT) b = o;
+        assertNotNull(b);
+        assertEquals(FRENCH, b.against);
+        assertTrue(b.visibleTo(ENGLISH, game.getTurn().getNumber()));
+        final int gold = english.getGold();
+        assertTrue(new OfferPlanner(sai).answer(english, b.id, true,
+                                                new ChangeSet()));
+        assertFalse(c.members.contains(ENGLISH));
+        assertEquals(Stance.PEACE, english.getStance(french));
+        assertEquals(gold + b.gold, english.getGold());
+        assertTrue(remembers(fai, Memory.Kind.DEAL_BROKEN, ENGLISH));
+    }
+
+    /** The player as the target buys a member out with a gift. */
+    public void testPlayerBuysOutWithAGift() {
+        setUpGame();
+        spanish.setAI(false);
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(fai, dutch);
+        final int price = dai.buyoutPrice(c);
+        // Too little: they keep the gold and stay.
+        dai.tradeDone(gift(spanish, dutch, price - 50));
+        assertTrue(c.members.contains(DUTCH));
+        dai.tradeDone(gift(spanish, dutch, price));
+        assertFalse(c.members.contains(DUTCH));
+        assertEquals(Stance.PEACE, french.getStance(dutch));
+        // The founder can not be bought out.
+        net.sf.freecol.common.diplomacy.Coalition c2 = coalition(fai, english);
+        fai.tradeDone(gift(spanish, french, 100000));
+        assertTrue(c2.members.contains(FRENCH));
+    }
+
+    private net.sf.freecol.common.model.DiplomaticTrade gift(Player from,
+            Player to, int gold) {
+        net.sf.freecol.common.model.DiplomaticTrade t
+            = new net.sf.freecol.common.model.DiplomaticTrade(game,
+                net.sf.freecol.common.model.DiplomaticTrade.TradeContext.DIPLOMATIC,
+                from, to, null, 0);
+        t.add(new net.sf.freecol.common.model.GoldTradeItem(game, from, to, gold));
+        t.setStatus(net.sf.freecol.common.model.DiplomaticTrade.TradeStatus.ACCEPT_TRADE);
+        return t;
+    }
 }

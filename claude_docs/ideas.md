@@ -1221,6 +1221,41 @@ nothing peeks at hidden data, and room for the coming steps.
   sight is not counted, the one next door is); the tab in headless
   Chromium with made-up data. All 609 tests green.
 
+### Coalition buy-outs, priced by synergy (2026-10-15)
+The nation a coalition stands against can pay a member to leave it.
+- **Synergy:** how tightly a member is bound to its coalition, in
+  points: a base of 5, its opinion of the other members (-10..+10),
+  its trust in them (-5..+5), its fear of the target (threat x 20),
+  how long the coalition has lasted (up to +5 after 20 turns), and +3
+  for each other war it fights side by side with a member. The asking
+  price is 150 gold a point (at least 300), so a fresh, lukewarm
+  member asks about 2,000 gold, an old comrade in arms much more.
+- **The computer as target:** every 5 turns it offers the cheapest
+  member (never the founder) its price, if that is at most half its
+  gold. A computer member takes it when the gold, as its character
+  values gold, outweighs its synergy: traders and settlers take the
+  asking price, balance keepers and conquerors hold out (the target
+  remembers the refusal).
+- **You as a member:** a dialog "Spain offers you 2,200 gold to leave
+  the coalition". Accepting: the gold, your alliances in the coalition
+  end, your war on the target too, and the members remember you broke
+  your word.
+- **You as the target:** the Diplomacy tab shows each member's asking
+  price ("leaves for 2,200 gold"; a member lets its price be known to
+  the target, nobody else sees it). Give at least that much gold in the
+  game's diplomacy screen and it leaves. Less is kept as a plain gift.
+- **Turn report:** "France took gold from Spain and left your
+  coalition" (to the members), "France took your gold and left the
+  coalition against you" (to the target).
+- **Tested:** `CoalitionTest.testSynergyPrice`; in `AIAlliancesTest` a
+  trader bought out (gold, peace, memories), too poor to try, the price
+  rising with friendship, a balance keeper refusing, the player
+  accepting an offer, the player buying a member out with a gift (and
+  the founder not for sale); `MoodsTest` (the price only on coalitions
+  against you).
+- **Not done:** buying out the founder (the coalition would need a new
+  keeper); counter-offers by the other members.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

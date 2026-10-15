@@ -270,6 +270,7 @@ public final class OfferPlanner {
         case ALLIANCE: return "offer.postedAlliance";
         case JOINT_WAR: return "offer.postedJointWar";
         case COALITION: return "offer.postedCoalition";
+        case BUYOUT: return "offer.postedBuyout";
         default: return "offer.postedSell";
         }
     }
@@ -695,6 +696,24 @@ public final class OfferPlanner {
                     new AlliancePlanner(ai).join(c, human, cs);
                 }
             }
+            return true;
+        }
+        if (o.kind == Offer.Kind.BUYOUT) {
+            final net.sf.freecol.common.diplomacy.Coalition c
+                = AlliancePlanner.coalitionOf(ai, me().getNationId(),
+                                              human.getNationId());
+            if (c == null) {
+                o.state = Offer.State.EXPIRED;
+                return true;
+            }
+            o.state = Offer.State.DONE;
+            o.takenBy = human.getNationId();
+            o.takenTurn = now();
+            final int gold = Math.min(o.gold, Math.max(0, me().getGold()));
+            gold(me(), -gold, cs);
+            gold(human, gold, cs);
+            o.paid = gold;
+            AlliancePlanner.of(ai, c).leave(c, human, cs);
             return true;
         }
         if (o.kind == Offer.Kind.ALLIANCE) {

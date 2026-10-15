@@ -3804,6 +3804,9 @@ public final class InGameController extends FreeColClientHolder {
         case COALITION:
             key = "offer.coalition";
             break;
+        case BUYOUT:
+            key = "offer.buyout";
+            break;
         case WANT:
             key = "offer.want";
             break;

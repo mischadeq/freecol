@@ -114,7 +114,11 @@ final class CompanionMoods {
             if (q == null) continue;
             j.obj().put("name", (q == me) ? "you"
                     : Messages.message(q.getNationLabel()))
-                .put("you", q == me).end();
+                .put("you", q == me);
+            // Their asking price to leave, known to the target only.
+            final Integer price = m.buyoutPrices.get(t);
+            if (q == me && price != null) j.put("price", price.intValue());
+            j.end();
         }
         j.endArr();
         // Their feelings about others: only wars and alliances are public.

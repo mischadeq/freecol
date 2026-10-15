@@ -2056,12 +2056,13 @@
     for (const n of N) {
       for (const c of (n.mood && n.mood.coalitions) || []) {
         if (!coal.has(c.name)) coal.set(c.name, { you: c.you, members: [] });
-        coal.get(c.name).members.push(n);
+        coal.get(c.name).members.push({ n: n, price: c.price });
       }
     }
     $("dipCoal").innerHTML = coal.size ? [...coal.entries()].map(([target, c]) =>
       '<div class="mline"><span class="tag ' + (c.you ? "alarm" : "warn") + '">Against ' + esc(target) + "</span> " +
-      c.members.map((m) => '<i class="sw" style="background:' + esc(m.color) + '"></i> ' + esc(m.name)).join(", ") + "</div>").join("")
+      c.members.map((m) => '<i class="sw" style="background:' + esc(m.n.color) + '"></i> ' + esc(m.n.name) +
+        (m.price ? ' <span class="tag info" title="Their asking price to leave the coalition. Give at least this much gold in the game\'s diplomacy screen and they leave: their alliances in it end.">leaves for ' + m.price.toLocaleString() + " gold</span>" : "")).join(", ") + "</div>").join("")
       : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
 
     $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +

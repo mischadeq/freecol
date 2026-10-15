@@ -87,6 +87,65 @@ public final class Coalition {
         return now - calmSince >= CALM_TURNS;
     }
 
+    // Buy-outs: the target pays a member to leave.
+
+    /** Synergy every member starts with, in points. */
+    public static final double BASE_SYNERGY = 5;
+    /** Least synergy, in points. */
+    public static final double MIN_SYNERGY = 2;
+    /** Gold asked per point of synergy (1 point is 100 gold, plus a margin). */
+    public static final double GOLD_PER_POINT = 150;
+    /** Least price, in gold. */
+    public static final int MIN_PRICE = 300;
+
+    /**
+     * How tightly a member is bound to its coalition, in points: what
+     * leaving would cost it.
+     *
+     * @param opinion Its average opinion of the other members (-100..100).
+     * @param trust Its average trust in them (0..100).
+     * @param threat The target's threat as it sees it (0..1).
+     * @param turns Turns the coalition has lasted.
+     * @param sharedEnemies Nations it fights together with another member.
+     * @return The synergy, at least {@link #MIN_SYNERGY}.
+     */
+    public static double synergy(double opinion, double trust, double threat,
+                                 int turns, int sharedEnemies) {
+        final double s = BASE_SYNERGY
+            + opinion / 10.0                          // -10..10
+            + (trust - Relations.DEFAULT_TRUST) / 10.0 // -5..5
+            + 20.0 * Math.max(0, threat)              // fear: 0.35 is 7
+            + Math.min(20, Math.max(0, turns)) / 4.0  // 0..5
+            + 3.0 * sharedEnemies;
+        return Math.max(MIN_SYNERGY, s);
+    }
+
+    /**
+     * The gold a member asks to leave.
+     *
+     * @param synergy Its synergy.
+     * @return The price, rounded to 50 gold.
+     */
+    public static int price(double synergy) {
+        final int p = (int)Math.round(synergy * GOLD_PER_POINT / 50.0) * 50;
+        return Math.max(MIN_PRICE, p);
+    }
+
+    /**
+     * Does a computer member take the gold?  The gold, as its
+     * character values it, must outweigh the synergy.  At the asking
+     * price a nation that values gold at 2/3 or more takes it; one
+     * that values security or conquest over gold holds out.
+     *
+     * @param goldWeight Its character's weight for gold.
+     * @param gold The gold offered.
+     * @param synergy Its synergy.
+     * @return True if it leaves.
+     */
+    public static boolean takes(double goldWeight, int gold, double synergy) {
+        return goldWeight * gold / 100.0 >= synergy;
+    }
+
     public String serialize() {
         return target + "|" + since + "|" + calmSince + "|"
             + String.join(",", members);

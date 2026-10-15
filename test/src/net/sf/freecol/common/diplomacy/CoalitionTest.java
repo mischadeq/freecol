@@ -86,4 +86,28 @@ public class CoalitionTest extends TestCase {
         assertEquals(2, d.members.size());
         assertNull(Coalition.parse("junk"));
     }
+
+    /** The tighter the bond, the higher the price to leave. */
+    public void testSynergyPrice() {
+        final double cold = Coalition.synergy(-50, 30, 0.3, 1, 0);
+        final double warm = Coalition.synergy(60, 80, 0.3, 1, 0);
+        final double old = Coalition.synergy(60, 80, 0.3, 30, 0);
+        final double comrades = Coalition.synergy(60, 80, 0.3, 30, 2);
+        assertTrue(cold < warm);
+        assertTrue(warm < old);
+        assertTrue(old < comrades);
+        assertEquals("never below the least", Coalition.MIN_SYNERGY,
+                     Coalition.synergy(-100, 0, 0, 0, 0), 1e-9);
+        // A neutral member, threat 0.35, ten turns: 5 + 7 + 2.5 = 14.5.
+        assertEquals(14.5, Coalition.synergy(0, 50, 0.35, 10, 0), 1e-9);
+        assertEquals(2200, Coalition.price(14.5)); // 2175, to 50s
+        assertTrue(Coalition.price(cold) < Coalition.price(comrades));
+        assertEquals(Coalition.MIN_PRICE, Coalition.price(0));
+        // At the asking price: traders take it, balance keepers do not.
+        final int p = Coalition.price(14.5);
+        assertTrue(Coalition.takes(NationCharacter.TRADING_EMPIRE.gold, p, 14.5));
+        assertTrue(Coalition.takes(NationCharacter.SETTLER.gold, p, 14.5));
+        assertFalse(Coalition.takes(NationCharacter.BALANCE_KEEPER.gold, p, 14.5));
+        assertFalse(Coalition.takes(NationCharacter.TRADING_EMPIRE.gold, p / 2, 14.5));
+    }
 }

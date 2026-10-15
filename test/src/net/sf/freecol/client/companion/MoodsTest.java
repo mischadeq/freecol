@@ -96,6 +96,18 @@ public class MoodsTest extends FreeColTestCase {
         assertEquals("sell furs", CompanionMoods.goal(
             new Goal(Goal.Type.SELL_SURPLUS, "model.goods.furs"), game, me, m));
 
+        // A coalition against us, with their asking price to leave;
+        // one against another nation shows no price.
+        m.coalitionTargets.add(DUTCH);
+        m.buyoutPrices.put(DUTCH, 1500);
+        m.coalitionTargets.add(ENGLISH);
+        m.buyoutPrices.put(ENGLISH, 900);
+        Json k = new Json().obj();
+        CompanionMoods.put(k, m, game, me);
+        final String ks = k.end().toString();
+        assertTrue(ks, ks.contains("{\"name\":\"you\",\"you\":true,\"price\":1500}"));
+        assertFalse(ks, ks.contains("900"));
+
         // Nor does a missing mood (another human, a multiplayer game).
         Json n = new Json().obj();
         CompanionMoods.put(n, null, game, me);
