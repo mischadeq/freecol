@@ -1289,6 +1289,7 @@ public final class InGameController extends FreeColClientHolder {
      */
     private boolean moveToDestination(Unit unit, List<ModelMessage> messages) {
         final Player player = getMyPlayer();
+        this.ordersTried.add(unit); // tried this turn (mod)
         Location destination = unit.getDestination();
         PathNode path;
         Tile pace;
@@ -4193,20 +4194,54 @@ public final class InGameController extends FreeColClientHolder {
      * @return The number of such units, 0 if it is not our turn.
      */
     public int countPendingOrders() {
+        return getOrderUnits(false).size();
+    }
+
+    /**
+     * The units with orders they could carry out by themselves this
+     * turn (mod).
+     *
+     * @param tried If true, the units that already tried this turn and
+     *     could get no further (waiting for a ship, a blocked path);
+     *     if false, the units that have not tried yet.
+     * @return The units, empty if it is not our turn.
+     */
+    public List<Unit> getOrderUnits(boolean tried) {
+        final List<Unit> ret = new ArrayList<>();
         final Player player = getMyPlayer();
         if (player == null || !getFreeColClient().currentPlayerIsMyPlayer()) {
-            return 0;
+            return ret;
         }
-        int n = 0;
         for (Unit u : player.getUnitSet()) {
-            // A ship sailing between the map and Europe has its order
-            // but nothing to do until it arrives (mod).
-            if (u.isAtSea()) continue;
-            if (u.isInEurope() && u.getDestination() instanceof Europe) continue;
-            if (u.goingToDestination() || u.isReadyToTrade()) n++;
+            if (hasOrdersToCarryOut(u)
+                && this.ordersTried.contains(u) == tried) ret.add(u);
         }
-        return n;
+        return ret;
     }
+
+    /**
+     * Does a unit have orders it could carry out by itself (mod)?
+     * Not a ship sailing between the map and Europe, nor one in Europe
+     * that is to stay there: they have nothing to do until they
+     * arrive.  Not a land unit in Europe either: it waits for a ship.
+     *
+     * @param u The {@code Unit} to check.
+     * @return True if it has a go-to order or a trade route to follow.
+     */
+    static boolean hasOrdersToCarryOut(Unit u) {
+        if (u.isAtSea()) return false;
+        if (u.isInEurope() && (!u.isNaval()
+                || u.getDestination() instanceof Europe)) return false;
+        return u.goingToDestination() || u.isReadyToTrade();
+    }
+
+    /**
+     * The units whose orders were tried this turn: they no longer count
+     * as waiting, so a unit that cannot get further (waiting for a
+     * ship, a blocked path) does not keep the warning up (mod).
+     */
+    private final java.util.Set<Unit> ordersTried
+        = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * Execute all orders that are planned but not carried out yet:
@@ -6060,6 +6095,7 @@ public final class InGameController extends FreeColClientHolder {
             showOffers();
             // The trade routes wait for the player's go (mod).
             this.routesReleased = false;
+            this.ordersTried.clear();
             // Keep the route history in step with the turn (and forget
             // turns that are being played again).
             try {

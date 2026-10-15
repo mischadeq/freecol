@@ -1607,8 +1607,18 @@ top, so the (modal) dialog was hidden but blocked every click.
   off a ship) is picked as the next active unit again. To be tested:
   start a turn where every unit has orders; toggle full screen with
   no unit selected, then select one.
-- **Tested:** all 674 unit tests green; the drawing and the turn order
-  need Mischa's eye in the game.
+- **Execute-orders count no longer stuck at 1:** a unit that tried
+  its order and could get no further (waiting at Nijmegen for a ship,
+  a blocked path) kept counting as waiting all turn, and kept the
+  end-turn warning up. Units that tried this turn no longer count;
+  the button stays usable to try them again (a ship came in). Land
+  units in Europe waiting for a ship do not count either.
+- **Hover the execute-orders button** for the list: "Still to move"
+  (unit, where it is, where it goes or its route) and "Tried this
+  turn, can get no further now". To be tested: the list matches the
+  units on the map; the count drops after pressing the button.
+- **Tested:** all 675 unit tests green (new: PendingOrdersTest); the
+  drawing and the turn order need Mischa's eye in the game.
 
 ## Ideas, not started
 

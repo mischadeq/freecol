@@ -32,8 +32,13 @@ import java.util.List;
 import javax.swing.ImageIcon;
 
 import net.sf.freecol.client.FreeColClient;
+import net.sf.freecol.client.gui.panel.UnitButton;
 import net.sf.freecol.common.i18n.Messages;
+import net.sf.freecol.common.model.Location;
+import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.StringTemplate;
+import net.sf.freecol.common.model.TradeRoute;
+import net.sf.freecol.common.model.Unit;
 
 
 /**
@@ -70,11 +75,94 @@ public class ExecuteGotoOrdersAction extends MapboardAction {
      */
     @Override
     protected boolean shouldBeEnabled() {
-        if (!super.shouldBeEnabled()) return false;
-        final int n = igc().countPendingOrders();
+        if (!super.shouldBeEnabled()) {
+            putValue(UnitButton.TOOLTIP, null);
+            return false;
+        }
+        final List<Unit> waiting = igc().getOrderUnits(false);
+        final List<Unit> stuck = igc().getOrderUnits(true);
+        final int n = waiting.size();
         if (n != this.shownCount
             || getValue(BUTTON_IMAGE) != this.shownImage) showCount(n);
-        return n > 0;
+        final String tip = tooltip(waiting, stuck);
+        if (!tip.equals(getValue(UnitButton.TOOLTIP))) {
+            putValue(UnitButton.TOOLTIP, tip);
+        }
+        // Units that tried already may be tried again (a ship came in).
+        return n > 0 || !stuck.isEmpty();
+    }
+
+    /** At most this many units are listed in each part of the tooltip. */
+    private static final int TOOLTIP_LINES = 12;
+
+    /**
+     * The button's tooltip: which units still have orders, where they
+     * are and where they are going (mod).
+     *
+     * @param waiting The units that have not moved on their orders yet.
+     * @param stuck The units that tried and could get no further.
+     * @return An html tooltip.
+     */
+    private String tooltip(List<Unit> waiting, List<Unit> stuck) {
+        final Player player = getFreeColClient().getMyPlayer();
+        final StringBuilder sb = new StringBuilder("<html><b>");
+        sb.append(esc(Messages.message(id + ".name"))).append("</b>");
+        if (waiting.isEmpty() && stuck.isEmpty()) {
+            sb.append("<br>").append(esc(Messages.message(id + ".tip.none")));
+        }
+        appendUnits(sb, id + ".tip.waiting", waiting, player);
+        appendUnits(sb, id + ".tip.stuck", stuck, player);
+        return sb.append("</html>").toString();
+    }
+
+    private static void appendUnits(StringBuilder sb, String key,
+                                    List<Unit> units, Player player) {
+        if (units.isEmpty()) return;
+        sb.append("<br><br><i>").append(esc(Messages.message(key)))
+            .append("</i>");
+        int i = 0;
+        for (Unit u : units) {
+            if (i++ >= TOOLTIP_LINES) {
+                sb.append("<br>").append(esc(Messages.message(StringTemplate
+                    .template(id + ".tip.more")
+                    .addAmount("%number%", units.size() - TOOLTIP_LINES))));
+                break;
+            }
+            sb.append("<br>").append(esc(line(u, player)));
+        }
+    }
+
+    /**
+     * One unit: what it is, where it is, where it goes.
+     *
+     * @param u The {@code Unit}.
+     * @param player The player looking.
+     * @return The line.
+     */
+    private static String line(Unit u, Player player) {
+        final StringTemplate at = (u.getLocation() == null)
+            ? StringTemplate.name("?")
+            : u.getLocation().getLocationLabelFor(player);
+        final TradeRoute route = u.getTradeRoute();
+        final Location dest = u.getDestination();
+        StringTemplate t;
+        if (route != null) {
+            t = StringTemplate.template(id + ".tip.route")
+                .addName("%route%", route.getName());
+        } else {
+            t = StringTemplate.template(id + ".tip.goto")
+                .addStringTemplate("%destination%", (dest == null)
+                    ? StringTemplate.name("?")
+                    : dest.getLocationLabelFor(player));
+        }
+        t.addStringTemplate("%unit%", u.getLabel(Unit.UnitLabelType.PLAIN))
+            .addStringTemplate("%location%", at);
+        return Messages.message(t);
+    }
+
+    private static String esc(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;");
     }
 
     /**
