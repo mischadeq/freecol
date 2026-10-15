@@ -324,6 +324,22 @@ public abstract class Mission extends AIObject {
      * @param other The {@code Player} to attack.
      * @return A reason why the attack would be invalid, or null if none found.
      */
+    /**
+     * A brave of an allied native settlement (mod, step 7d) fights its
+     * European ally's enemies.
+     *
+     * @param unit The brave.
+     * @param other The target owner.
+     * @return True if its settlement's ally is at war with them.
+     */
+    private static boolean defendsAlly(Unit unit, Player other) {
+        final net.sf.freecol.common.model.IndianSettlement is
+            = unit.getHomeIndianSettlement();
+        final Player ally = (is == null) ? null : is.getAlliedPlayer();
+        return ally != null && ally != other
+            && ally.getStance(other) == Stance.WAR;
+    }
+
     public static String invalidAttackReason(AIUnit aiUnit, Player other) {
         final Unit unit = aiUnit.getUnit();
         final Player player = unit.getOwner();
@@ -331,7 +347,8 @@ public abstract class Mission extends AIObject {
             ? Mission.TARGETOWNERSHIP
             : (player.isIndian()
                 && player.getTension(other).getLevel()
-                .compareTo(Tension.Level.CONTENT) <= 0)
+                .compareTo(Tension.Level.CONTENT) <= 0
+                && !defendsAlly(unit, other))
             ? "target-native-tension-too-low"
             : (player.isEuropean()
                 && !(player.getStance(other) == Stance.WAR
@@ -342,6 +359,11 @@ public abstract class Mission extends AIObject {
                 && ((EuropeanAIPlayer)aiUnit.getAIOwner()).getCommitments()
                     .inTruce(other.getNationId()))
             ? "target-local-truce" // mod: a King's war on a loyal ally
+            : (player.isIndian() && unit.getHomeIndianSettlement() != null
+                && unit.getHomeIndianSettlement().getAlliedPlayer() == other)
+            ? "target-settlement-ally" // mod: an allied settlement's braves
+            : (player.isIndian() && player.getStance(other) == Stance.ALLIANCE)
+            ? "target-native-ally" // mod: a tribe allied to a European
             : null;
     }
 

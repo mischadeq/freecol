@@ -3793,10 +3793,13 @@ public final class InGameController extends FreeColClientHolder {
             key = (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
             break;
         case CALL_TO_ARMS:
-            key = "offer.callToArms";
+            key = (from.isIndian()) ? "offer.tribeCall" : "offer.callToArms";
             break;
         case ALLIANCE:
-            key = "offer.alliance";
+            key = (from.isIndian()) ? "offer.tribeAlliance" : "offer.alliance";
+            break;
+        case SETTLEMENT_JOINS:
+            key = "offer.settlementJoins";
             break;
         case JOINT_WAR:
             key = (o.place == null) ? "offer.jointWar" : "offer.jointWarColony";

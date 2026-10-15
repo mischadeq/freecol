@@ -109,6 +109,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private Set<String> nearColonies;
     /** The last turn turned into memories (not saved). */
     private int remembered = -1;
+    /** Our offers to Europeans (mod, step 7d/7e).  Saved. */
+    private List<net.sf.freecol.common.diplomacy.Offer> offers;
+    /** Settlement id to "nation:turn" of its current mission.  Saved. */
+    private java.util.Map<String, String> missionSince;
     /** Calls for help heard: "caller|enemy" to turn (not saved). */
     private final java.util.Map<String, Integer> callsHeard = new HashMap<>();
 
@@ -873,6 +877,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         int anger, haggle;
         Tension tension = is.getAlarm(other);
         if (tension == null) return NativeTradeAction.NAK_INVALID;
+        // An allied settlement trades without anger (mod, step 7d).
+        if (is.getAlliedPlayer() == other) {
+            tension = new Tension(Tension.Level.HAPPY.getLimit());
+        }
 
         switch (action) {
         case OPEN:
@@ -1063,6 +1071,32 @@ public final class NativeAIPlayer extends MissionAIPlayer {
      * @return The number sent.
      */
     public int sendWarParty(Player enemy, Tile near, int n) {
+        return sendWarParty(enemy, near, n, null);
+    }
+
+    /** Our offers to Europeans. */
+    public List<net.sf.freecol.common.diplomacy.Offer> getOffers() {
+        if (offers == null) offers = new ArrayList<>();
+        return offers;
+    }
+
+    /** Settlement id to "nation:turn" of its current mission. */
+    public java.util.Map<String, String> getMissionSince() {
+        if (missionSince == null) missionSince = new HashMap<>();
+        return missionSince;
+    }
+
+    /**
+     * Send braves against an enemy, from one settlement only.
+     *
+     * @param enemy The enemy {@code Player}.
+     * @param near Where the trouble is, may be null.
+     * @param n Braves to send at most.
+     * @param from Only braves of this settlement, or null for any.
+     * @return The number sent.
+     */
+    public int sendWarParty(Player enemy, Tile near, int n,
+                            IndianSettlement from) {
         final Tile at = (near != null) ? near
             : (getPlayer().getIndianSettlementList().isEmpty()) ? null
             : getPlayer().getIndianSettlementList().get(0).getTile();
@@ -1089,6 +1123,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         final List<Unit> braves = new ArrayList<>();
         for (Unit u : getPlayer().getUnitSet()) {
             if (u.isNaval() || u.getTile() == null) continue;
+            if (from != null && u.getHomeIndianSettlement() != from) continue;
             final IndianSettlement is = u.getSettlement() instanceof IndianSettlement
                 ? (IndianSettlement)u.getSettlement() : null;
             if (is != null && is.getUnitCount() <= is.getRequiredDefenders()) continue;
@@ -1113,6 +1148,8 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private static final String MEMORIES_TAG = "memories";
     private static final String RIVAL_TAG = "rival";
     private static final String NEAR_COLONIES_TAG = "nearColonies";
+    private static final String OFFERS_TAG = "offers";
+    private static final String MISSION_SINCE_TAG = "missionSince";
 
     /**
      * {@inheritDoc}
@@ -1127,6 +1164,22 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         if (rival != null) xw.writeAttribute(RIVAL_TAG, rival);
         if (nearColonies != null) {
             xw.writeAttribute(NEAR_COLONIES_TAG, String.join(",", nearColonies));
+        }
+        if (!getOffers().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Offer o : getOffers()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(o.serialize());
+            }
+            xw.writeAttribute(OFFERS_TAG, sb.toString());
+        }
+        if (!getMissionSince().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, String> e : getMissionSince().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(MISSION_SINCE_TAG, sb.toString());
         }
     }
 
@@ -1145,6 +1198,23 @@ public final class NativeAIPlayer extends MissionAIPlayer {
             nearColonies = new HashSet<>();
             for (String id : near.split(",")) {
                 if (!id.isEmpty()) nearColonies.add(id);
+            }
+        }
+        offers = new ArrayList<>();
+        final String os = xr.getAttribute(OFFERS_TAG, (String)null);
+        if (os != null && !os.isEmpty()) {
+            for (String rec : os.split(";")) {
+                final net.sf.freecol.common.diplomacy.Offer o
+                    = net.sf.freecol.common.diplomacy.Offer.parse(rec);
+                if (o != null) offers.add(o);
+            }
+        }
+        missionSince = new HashMap<>();
+        final String ms = xr.getAttribute(MISSION_SINCE_TAG, (String)null);
+        if (ms != null && !ms.isEmpty()) {
+            for (String rec : ms.split(";")) {
+                final int i = rec.indexOf('=');
+                if (i > 0) missionSince.put(rec.substring(0, i), rec.substring(i + 1));
             }
         }
     }

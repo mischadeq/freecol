@@ -66,12 +66,16 @@ public final class Offer {
         COALITION,
         /** We, the target of a coalition, pay a member to leave it
             ({@code against} is the coalition's founder). */
-        BUYOUT;
+        BUYOUT,
+        /** A native settlement asks to break off from its tribe and
+            join us ({@code place} is the settlement). */
+        SETTLEMENT_JOINS;
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
-                || this == JOINT_WAR || this == COALITION || this == BUYOUT;
+                || this == JOINT_WAR || this == COALITION || this == BUYOUT
+                || this == SETTLEMENT_JOINS;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

@@ -153,6 +153,12 @@ public class IndianSettlement extends Settlement implements TradeLocation {
     protected Player mostHated = null;
 
     /**
+     * The European this settlement has broken off to (mod, step 7d):
+     * an allied native settlement, under its protection.  Public.
+     */
+    protected Player alliedPlayer = null;
+
+    /**
      * Stores the alarm levels. <b>Only used by AI.</b>
      * "Alarm" means: Tension with respect to a player from an
      *      IndianSettlement.
@@ -488,6 +494,24 @@ public class IndianSettlement extends Settlement implements TradeLocation {
         return ret;
     }                
             
+    /**
+     * The European this settlement is allied to (mod), or null.
+     *
+     * @return The allied {@code Player}.
+     */
+    public Player getAlliedPlayer() {
+        return alliedPlayer;
+    }
+
+    /**
+     * Ally this settlement to a European (mod), or null to end it.
+     *
+     * @param p The allied {@code Player}.
+     */
+    public void setAlliedPlayer(Player p) {
+        this.alliedPlayer = p;
+    }
+
     /**
      * Gets the most hated nation of this settlement.
      *
@@ -1570,6 +1594,8 @@ public class IndianSettlement extends Settlement implements TradeLocation {
         this.convertProgress = o.getConvertProgress();
         this.lastTribute = o.getLastTribute();
         this.mostHated = o.getMostHated();
+        this.alliedPlayer = (o.getAlliedPlayer() == null) ? null
+            : game.updateRef(o.getAlliedPlayer());
         this.setAlarm(o.getAlarm());
         this.setGoodsForSale(o.getGoodsForSale());
         return true;
@@ -1585,6 +1611,7 @@ public class IndianSettlement extends Settlement implements TradeLocation {
     private static final String LEVEL_TAG = "level";
     private static final String MISSIONARY_TAG = "missionary";
     private static final String MOST_HATED_TAG = "mostHated";
+    private static final String ALLIED_PLAYER_TAG = "alliedPlayer";
     private static final String NAME_TAG = "name";
     private static final String OWNED_UNITS_TAG = "ownedUnits";
     private static final String PLAYER_TAG = "player";
@@ -1607,6 +1634,10 @@ public class IndianSettlement extends Settlement implements TradeLocation {
         String name = getName();
         if (name != null) {
             xw.writeAttribute(NAME_TAG, name);
+        }
+
+        if (alliedPlayer != null) { // Public (mod)
+            xw.writeAttribute(ALLIED_PLAYER_TAG, alliedPlayer);
         }
 
         if (full) { // Server internal fields only
@@ -1722,6 +1753,9 @@ public class IndianSettlement extends Settlement implements TradeLocation {
 
         mostHated = xr.findFreeColGameObject(getGame(), MOST_HATED_TAG,
                                              Player.class, (Player)null, false);
+
+        alliedPlayer = xr.findFreeColGameObject(getGame(), ALLIED_PLAYER_TAG,
+                                                Player.class, (Player)null, false);
 
         for (int i = 0; i < WANTED_GOODS_COUNT; i++) {
             setWantedGoods(i, xr.getType(spec, WANTED_GOODS_TAG + i,

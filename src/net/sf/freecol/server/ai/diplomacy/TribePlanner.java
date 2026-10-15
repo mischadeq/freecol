@@ -29,6 +29,7 @@ import java.util.WeakHashMap;
 
 import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.Observed;
+import net.sf.freecol.common.diplomacy.Offer;
 import net.sf.freecol.common.diplomacy.Relations;
 import net.sf.freecol.common.diplomacy.Snapshot;
 import net.sf.freecol.common.diplomacy.TribeCharacter;
@@ -121,6 +122,8 @@ public final class TribePlanner {
      * @param lb A {@code LogBuilder} to log to.
      */
     public void plan(LogBuilder lb) {
+        final net.sf.freecol.common.networking.ChangeSet cs
+            = new net.sf.freecol.common.networking.ChangeSet();
         meetTribes(game());
         pickRival();
         remember();
@@ -128,6 +131,15 @@ public final class TribePlanner {
         rub();
         tribeStances(lb);
         answerCalls(lb);
+        trackMissions();
+        settlementsBreakOff(cs, lb);
+        resent();
+        defendAllies(lb);
+        tribeAlliances(cs, lb);
+        allyWars(lb);
+        callAllies(cs, lb);
+        tellOffers(cs);
+        ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
     }
 
 
@@ -531,6 +543,414 @@ public final class TribePlanner {
             .addStringTemplate("%nation%", me().getNationLabel())
             .addStringTemplate("%caller%", c.caller.getNationLabel()));
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
+    }
+
+    // Allied settlements (7d) and tribes (7e)
+
+    /** Turns a mission must last before its settlement may break off. */
+    public static final int MISSION_TURNS = 20;
+    /** Turns before asking the same thing again. */
+    public static final int ASK_GAP = 10;
+    /** Tension each turn towards the European an allied settlement serves... */
+    public static final int RESENT = 5;
+    /** ... and from the tribes next to it. */
+    public static final int NEIGHBOUR_RESENT = 2;
+    /** Share of a tribe's settlements with a happy mission to join. */
+    public static final double TRIBE_SHARE = 2.0 / 3;
+    /** Tiles around an allied settlement its braves defend. */
+    public static final int DEFEND_RADIUS = 4;
+
+    /** Note when each settlement's mission began. */
+    private void trackMissions() {
+        final java.util.Map<String, String> since = ai.getMissionSince();
+        final Set<String> live = new HashSet<>();
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            live.add(is.getId());
+            final Unit m = is.getMissionary();
+            if (m == null) {
+                since.remove(is.getId());
+                continue;
+            }
+            final String n = m.getOwner().getNationId();
+            final String old = since.get(is.getId());
+            if (old == null || !old.startsWith(n + ":")) {
+                since.put(is.getId(), n + ":" + now());
+            }
+        }
+        since.keySet().retainAll(live);
+    }
+
+    /** Turns the settlement has had a mission of this nation. */
+    private int missionTurns(IndianSettlement is, Player p) {
+        final String v = ai.getMissionSince().get(is.getId());
+        if (v == null || !v.startsWith(p.getNationId() + ":")) return 0;
+        try {
+            return now() - Integer.parseInt(v.substring(v.indexOf(':') + 1));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** Happy with a European: its alarm at the lowest level. */
+    static boolean happy(IndianSettlement is, Player p) {
+        final Tension t = is.getAlarm(p);
+        return t != null && t.getLevel() == Tension.Level.HAPPY;
+    }
+
+    /**
+     * Our tribe is weak, or angry with the European: at war with it,
+     * lost a settlement to it, lost its capital, or down to two
+     * settlements.
+     */
+    private boolean weakOrAngry(Player p) {
+        final Player me = me();
+        if (me.getStance(p) == Stance.WAR) return true;
+        for (Memory m : ai.getMemories().list()) {
+            if (m.kind == Memory.Kind.SETTLEMENT_DESTROYED
+                && p.getNationId().equals(m.about)) return true;
+        }
+        boolean capital = false;
+        for (IndianSettlement is : me.getIndianSettlementList()) {
+            capital |= is.isCapital();
+        }
+        return !capital || me.getIndianSettlementList().size() <= 2;
+    }
+
+    /**
+     * Would this settlement break off and join the European whose
+     * mission it has?
+     *
+     * @param is The {@code IndianSettlement}.
+     * @return The European, or null.
+     */
+    public Player breaksOffTo(IndianSettlement is) {
+        if (is.getAlliedPlayer() != null || is.getMissionary() == null) return null;
+        final Player p = is.getMissionary().getOwner();
+        if (!p.isEuropean() || p.isREF()) return null;
+        return (missionTurns(is, p) >= MISSION_TURNS && happy(is, p)
+                && weakOrAngry(p)) ? p : null;
+    }
+
+    private boolean askedLately(Offer.Kind kind, String place, String to) {
+        for (Offer o : ai.getOffers()) {
+            if (o.kind == kind && o.audience.contains(to)
+                && (place == null || place.equals(o.place))
+                && (o.state == Offer.State.OPEN || now() - o.posted < ASK_GAP)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void settlementsBreakOff(net.sf.freecol.common.networking.ChangeSet cs,
+                                     LogBuilder lb) {
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            final Player p = breaksOffTo(is);
+            if (p == null || askedLately(Offer.Kind.SETTLEMENT_JOINS,
+                                         is.getId(), p.getNationId())) continue;
+            lb.add("\n  ", is.getName(), " breaks off to ", p.getDebugName());
+            if (p.isAI()) {
+                ally(is, p, cs);
+                continue;
+            }
+            final Offer o = new Offer("joins:" + is.getId() + ":" + now(),
+                Offer.Kind.SETTLEMENT_JOINS, me().getNationId(), null, 0, 0,
+                is.getId(), is.getName(), now(), 0);
+            o.audience.add(p.getNationId());
+            ai.getOffers().add(o);
+        }
+    }
+
+    /**
+     * A settlement breaks off and becomes the European's ally: it stays
+     * native, under its protection.  Its tribe resents it.
+     *
+     * @param is The {@code IndianSettlement}.
+     * @param p The European.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    public void ally(IndianSettlement is, Player p,
+                     net.sf.freecol.common.networking.ChangeSet cs) {
+        is.setAlliedPlayer(p);
+        me().getTension(p).modify(Tension.TENSION_ADD_NORMAL);
+        cs.add(net.sf.freecol.common.networking.ChangeSet.See.perhaps(), is.getTile());
+        net.sf.freecol.server.model.TribeNews.add(game(),
+            new net.sf.freecol.server.model.TribeNews.News(now(),
+                net.sf.freecol.server.model.TribeNews.Kind.JOINED,
+                me().getNationId(), null, p.getNationId(), is.getName()));
+        if (!p.isAI()) {
+            cs.addMessage(p, new net.sf.freecol.common.model.ModelMessage(
+                net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "tribe.settlementJoined", me())
+                .addName("%settlement%", is.getName())
+                .addStringTemplate("%nation%", me().getNationLabel()));
+        }
+    }
+
+    /** An allied settlement is resented by its tribe and neighbours. */
+    private void resent() {
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            final Player p = is.getAlliedPlayer();
+            if (p == null) continue;
+            if (p.isDead()) {
+                is.setAlliedPlayer(null);
+                continue;
+            }
+            me().getTension(p).modify(RESENT);
+            for (Player q : game().getLiveNativePlayerList()) {
+                if (q == me()) continue;
+                for (IndianSettlement x : q.getIndianSettlementList()) {
+                    if (x.getTile().getDistanceTo(is.getTile()) <= TribeRelations.NEAR) {
+                        q.getTension(p).modify(NEIGHBOUR_RESENT);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /** An allied settlement's braves attack its ally's enemies nearby. */
+    private void defendAllies(LogBuilder lb) {
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            final Player p = is.getAlliedPlayer();
+            if (p == null) continue;
+            for (Tile t : is.getTile().getSurroundingTiles(DEFEND_RADIUS)) {
+                final Unit u = t.getFirstUnit();
+                if (u == null || u.isNaval() || u.getOwner() == me()
+                    || u.getOwner() == p
+                    || p.getStance(u.getOwner()) != Stance.WAR) continue;
+                final int n = ai.sendWarParty(u.getOwner(), t, 1, is);
+                if (n > 0) lb.add("\n  ", is.getName(), " defends ",
+                                  p.getDebugName(), " against ",
+                                  u.getOwner().getDebugName());
+                break;
+            }
+        }
+    }
+
+    /**
+     * Would the whole tribe ally with a European: two thirds of its
+     * settlements with a happy mission of it and liking it, or (as the
+     * Tlaxcala) both at war with our old rival?
+     *
+     * @param p The European.
+     * @return True if so.
+     */
+    public boolean joins(Player p) {
+        final Player me = me();
+        if (!p.isEuropean() || p.isREF() || me.getStance(p) != Stance.PEACE) {
+            return false;
+        }
+        final List<IndianSettlement> all = me.getIndianSettlementList();
+        if (all.isEmpty()) return false;
+        int n = 0;
+        for (IndianSettlement is : all) {
+            if (is.getMissionary() != null
+                && is.getMissionary().getOwner() == p && happy(is, p)) n++;
+        }
+        final double o = opinion(ai, p);
+        if (n >= TRIBE_SHARE * all.size()
+            && o >= net.sf.freecol.common.diplomacy.Mood.FRIENDLY) return true;
+        final Player r = (ai.getRival() == null) ? null
+            : game().getPlayerByNationId(ai.getRival());
+        return r != null && me.getStance(r) == Stance.WAR
+            && p.getStance(r) == Stance.WAR && o >= 0;
+    }
+
+    private void tribeAlliances(net.sf.freecol.common.networking.ChangeSet cs,
+                                LogBuilder lb) {
+        for (Player p : game().getLiveEuropeanPlayerList()) {
+            if (!joins(p) || askedLately(Offer.Kind.ALLIANCE, null,
+                                         p.getNationId())) continue;
+            lb.add("\n  Offers alliance to ", p.getDebugName());
+            if (p.isAI()) {
+                changeStance(Stance.ALLIANCE, p);
+                news(net.sf.freecol.server.model.TribeNews.Kind.JOINED,
+                     new Call(me(), p, null, ""));
+                continue;
+            }
+            final Offer o = new Offer("tribe:" + me().getNationId() + ":"
+                + p.getNationId() + ":" + now(), Offer.Kind.ALLIANCE,
+                me().getNationId(), null, 0, 0, null, "", now(), 0);
+            o.audience.add(p.getNationId());
+            ai.getOffers().add(o);
+        }
+    }
+
+    /** Our European allies' wars are ours. */
+    private void allyWars(LogBuilder lb) {
+        final Player me = me();
+        for (Player p : game().getLiveEuropeanPlayerList()) {
+            if (me.getStance(p) != Stance.ALLIANCE) continue;
+            for (Player e : game().getLivePlayerList()) {
+                if (e == me || e == p || p.getStance(e) != Stance.WAR
+                    || me.getStance(e) == Stance.WAR
+                    || me.getStance(e) == Stance.ALLIANCE
+                    || e.isUnknownEnemy() || e.isUndead()) continue;
+                changeStance(Stance.WAR, e);
+                anger(me, e);
+                lb.add("\n  Joins ally ", p.getDebugName(), "'s war on ",
+                       e.getDebugName());
+            }
+        }
+    }
+
+    /** We call for help: our European allies must answer. */
+    private void callAllies(net.sf.freecol.common.networking.ChangeSet cs,
+                            LogBuilder lb) {
+        final Player me = me();
+        for (Call c : calls(game())) {
+            if (c.caller != me) continue;
+            for (Player p : game().getLiveEuropeanPlayerList()) {
+                if (me.getStance(p) != Stance.ALLIANCE || p == c.enemy
+                    || p.getStance(c.enemy) == Stance.WAR) continue;
+                final String key = "ally|" + p.getNationId() + "|"
+                    + c.enemy.getNationId();
+                final Integer heard = ai.getCallsHeard().get(key);
+                if (heard != null && now() - heard < CALL_GAP) continue;
+                ai.getCallsHeard().put(key, now());
+                if (!p.isAI()) {
+                    final Offer o = new Offer("tcall:" + me.getNationId() + ":"
+                        + p.getNationId() + ":" + now(), Offer.Kind.CALL_TO_ARMS,
+                        me.getNationId(), null, 0, 0, null, c.why, now(), 0);
+                    o.against = c.enemy.getNationId();
+                    o.audience.add(p.getNationId());
+                    ai.getOffers().add(o);
+                    continue;
+                }
+                final net.sf.freecol.server.ai.AIPlayer pa
+                    = ai.getAIMain().getAIPlayer(p);
+                boolean join = false;
+                if (pa instanceof net.sf.freecol.server.ai.EuropeanAIPlayer) {
+                    final net.sf.freecol.common.diplomacy.Outlook po
+                        = ((net.sf.freecol.server.ai.EuropeanAIPlayer)pa).getOutlook();
+                    join = po.view.others.containsKey(c.enemy.getNationId())
+                        && net.sf.freecol.common.diplomacy.Diplomat.score(
+                            net.sf.freecol.common.diplomacy.Action.joinWar(
+                                c.enemy.getNationId(), me.getNationId()),
+                            po.situation).total >= 0;
+                }
+                if (join) {
+                    ((net.sf.freecol.server.model.ServerPlayer)p)
+                        .csChangeStance(Stance.WAR, c.enemy, true, cs);
+                    ai.getMemories().add(new Memory(Memory.Kind.CAME_TO_HELP,
+                        p.getNationId(), now(), 1));
+                } else {
+                    leaveAlliance(p, cs);
+                }
+                lb.add("\n  Calls ally ", p.getDebugName(), ": ",
+                       (join) ? "joins" : "refuses");
+            }
+        }
+    }
+
+    /** An ally that would not help: the alliance is over, remembered. */
+    private void leaveAlliance(Player p,
+                               net.sf.freecol.common.networking.ChangeSet cs) {
+        ((net.sf.freecol.server.model.ServerPlayer)me())
+            .csChangeStance(Stance.PEACE, p, true, cs);
+        ai.getMemories().add(new Memory(Memory.Kind.DEAL_BROKEN,
+                                        p.getNationId(), now(), 1));
+    }
+
+
+    // Offers to the players
+
+    private static String postedKey(Offer o) {
+        switch (o.kind) {
+        case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
+        case CALL_TO_ARMS: return "offer.postedTribeCall";
+        default: return "offer.postedTribeAlliance";
+        }
+    }
+
+    /** Show open offers to the players once; forget old ones. */
+    private void tellOffers(net.sf.freecol.common.networking.ChangeSet cs) {
+        final int now = now();
+        ai.getOffers().removeIf(o -> o.state.over()
+                                && now - o.posted > OfferPlanner.KEEP);
+        for (Offer o : ai.getOffers()) {
+            if (o.stale(now)) {
+                o.state = Offer.State.EXPIRED;
+                continue;
+            }
+            for (String id : o.audience) {
+                final Player h = game().getPlayerByNationId(id);
+                if (h == null || h.isAI() || o.told.contains(id)
+                    || !o.visibleTo(id, now)) continue;
+                o.told.add(id);
+                cs.add(net.sf.freecol.common.networking.ChangeSet.See.only(h),
+                       new net.sf.freecol.common.networking.OfferMessage(o));
+                final Player enemy = (o.against == null) ? null
+                    : game().getPlayerByNationId(o.against);
+                final net.sf.freecol.common.model.ModelMessage mm
+                    = new net.sf.freecol.common.model.ModelMessage(
+                        net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                        postedKey(o), me())
+                    .addStringTemplate("%nation%", me().getNationLabel())
+                    .addName("%settlement%", o.placeName);
+                if (enemy != null) mm.addStringTemplate("%enemy%", enemy.getNationLabel());
+                else mm.addName("%enemy%", "");
+                cs.addMessage(h, mm);
+            }
+        }
+    }
+
+    /**
+     * A player answers one of our offers.
+     *
+     * @param human The player.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @param cs A {@code ChangeSet} to update.
+     * @return True if the offer was ours and open to this player.
+     */
+    public boolean answer(net.sf.freecol.server.model.ServerPlayer human,
+                          String id, boolean accept,
+                          net.sf.freecol.common.networking.ChangeSet cs) {
+        Offer o = null;
+        for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
+        if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
+        switch (o.kind) {
+        case SETTLEMENT_JOINS:
+            final IndianSettlement is = game().getFreeColGameObject(o.place,
+                IndianSettlement.class);
+            if (is == null || is.getOwner() != me()) {
+                o.state = Offer.State.EXPIRED;
+            } else if (accept) {
+                o.state = Offer.State.DONE;
+                ally(is, human, cs);
+            } else {
+                o.state = Offer.State.DECLINED;
+            }
+            return true;
+        case ALLIANCE:
+            o.state = (accept) ? Offer.State.DONE : Offer.State.DECLINED;
+            if (accept && me().getStance(human) != Stance.WAR) {
+                ((net.sf.freecol.server.model.ServerPlayer)me())
+                    .csChangeStance(Stance.ALLIANCE, human, true, cs);
+            } else if (!accept) {
+                ai.getMemories().add(new Memory(Memory.Kind.REFUSED_OFFER,
+                    human.getNationId(), now(), 1));
+            }
+            return true;
+        case CALL_TO_ARMS:
+            final Player enemy = game().getPlayerByNationId(o.against);
+            if (accept) {
+                o.state = Offer.State.DONE;
+                if (enemy != null && human.getStance(enemy) != Stance.WAR) {
+                    human.csChangeStance(Stance.WAR, enemy, true, cs);
+                }
+                ai.getMemories().add(new Memory(Memory.Kind.CAME_TO_HELP,
+                    human.getNationId(), now(), 1));
+            } else {
+                o.state = Offer.State.DECLINED;
+                if (me().getStance(human) == Stance.ALLIANCE) leaveAlliance(human, cs);
+            }
+            return true;
+        default:
+            return false;
+        }
     }
 
     private void changeStance(Stance stance, Player other) {

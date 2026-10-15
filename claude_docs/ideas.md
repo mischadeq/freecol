@@ -1325,6 +1325,42 @@ The nation a coalition stands against can pay a member to leave it.
   existing seek-and-destroy mission); help by tribes for each other in
   wars between tribes.
 
+### Steps 7d and 7e built: allied settlements, tribes as allies (2026-10-15)
+- **A settlement breaks off and joins you** when your mission has been
+  there 20 turns or more, the settlement is happy with you (alarm at
+  the lowest level), and its tribe is weak or angry with you (at war
+  with you, lost a settlement to you, lost its capital, or down to two
+  settlements). It asks in a dialog; a computer nation always accepts.
+- **An allied settlement** stays native, flagged as yours (saved,
+  public):
+  - you use its land for free;
+  - it trades with you without anger on its prices;
+  - its braves never attack you, even when their tribe is at war with
+    you or angry;
+  - its braves attack your enemies within 4 tiles of it (they never
+    stand in your colonies);
+  - its tribe resents you (tension up at once, and a little each turn),
+    and so do tribes next to it.
+- **A whole tribe joins you** when two thirds of its settlements have
+  your happy mission and it likes you (or, as the Tlaxcala, when you
+  are both at war with its old rival). Its chiefs offer an alliance (a
+  dialog). Then:
+  - your wars are its wars (it declares war on your enemies);
+  - when it calls for help you get a call to arms; refusing ends the
+    alliance and is remembered. A computer ally decides with its
+    diplomat.
+  - its braves never attack you.
+- **Offers from tribes:** the tribes keep their own offer book (saved);
+  the answer goes through the same dialog as the European offers.
+- **Tested** (`AITribesTest`): a young mission does not break off, an
+  old happy one asks and becomes an ally (still native, free land for
+  you only, braves will not attack you, the tribe resents you); a whole
+  tribe joins and takes up your war; an ally who refuses a call loses
+  the alliance; Tlaxcala; all saved. All 638 tests green.
+- **Not done:** the tribe raiding its breakaway settlement to take it
+  back; the companion Offers list does not show tribe offers yet (they
+  come as dialogs and in the turn report).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

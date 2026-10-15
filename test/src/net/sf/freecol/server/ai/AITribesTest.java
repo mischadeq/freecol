@@ -325,4 +325,151 @@ public class AITribesTest extends FreeColTestCase {
         assertNull(dutch.csRefugees(camp,
             new net.sf.freecol.common.networking.ChangeSet()));
     }
+
+    /** A Dutch mission, happy, for some turns. */
+    void mission(IndianSettlement is, Player p, int turns) {
+        final net.sf.freecol.common.model.Unit m
+            = new net.sf.freecol.server.model.ServerUnit(game, null, p,
+                spec().getUnitType("model.unit.jesuitMissionary"),
+                spec().getRole("model.role.missionary"));
+        is.setMissionary(m);
+        m.setLocation(is);
+        is.setAlarm(p, new net.sf.freecol.common.model.Tension(0));
+        ai((ServerPlayer)is.getOwner()).getMissionSince().put(is.getId(),
+            p.getNationId() + ":" + (game.getTurn().getNumber() - turns));
+    }
+
+    net.sf.freecol.common.diplomacy.Offer offer(NativeAIPlayer a,
+            net.sf.freecol.common.diplomacy.Offer.Kind k) {
+        for (net.sf.freecol.common.diplomacy.Offer o : a.getOffers()) {
+            if (o.kind == k) return o;
+        }
+        return null;
+    }
+
+    public void testSettlementBreaksOff() {
+        setUpGame();
+        dutch.setAI(false);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        // A young mission: not yet.
+        mission(camp, dutch, 5);
+        plan(tupi);
+        assertNull(offer(ai(tupi), net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
+        // Twenty turns, happy, and the tribe is weak (two settlements).
+        mission(camp, dutch, 25);
+        nextTurn();
+        plan(tupi);
+        final net.sf.freecol.common.diplomacy.Offer o = offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS);
+        assertNotNull(o);
+        assertEquals(camp.getId(), o.place);
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, o.id, true,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertSame(dutch, camp.getAlliedPlayer());
+        assertSame("it stays native", tupi, camp.getOwner());
+        // Its land is free for the ally only.
+        net.sf.freecol.common.model.Tile land = null;
+        for (net.sf.freecol.common.model.Tile t : camp.getOwnedTiles()) {
+            if (!t.hasSettlement() && t.getOwner() == tupi) land = t;
+        }
+        assertNotNull(land);
+        assertEquals(0, dutch.getLandPrice(land));
+        assertTrue(french.getLandPrice(land) > 0);
+        // Its braves do not attack the ally, even when the tribe is angry.
+        tupi.getTension(dutch).setValue(1000);
+        net.sf.freecol.common.model.Unit brave = camp.getUnitList().get(0);
+        assertEquals("target-settlement-ally",
+            net.sf.freecol.server.ai.mission.Mission.invalidAttackReason(
+                aiMain.getAIUnit(brave), dutch));
+        // The tribe resents the ally.
+        tupi.getTension(dutch).setValue(500);
+        nextTurn();
+        plan(tupi);
+        assertTrue(tupi.getTension(dutch).getValue() > 500);
+    }
+
+    public void testWholeTribeJoins() {
+        setUpGame();
+        dutch.setAI(false);
+        final IndianSettlement camp = arawak.getIndianSettlementList().get(0);
+        mission(camp, dutch, 1);
+        arawak.setStance(dutch, Stance.PEACE);
+        dutch.setStance(arawak, Stance.PEACE);
+        plan(arawak);
+        final net.sf.freecol.common.diplomacy.Offer o = offer(ai(arawak),
+            net.sf.freecol.common.diplomacy.Offer.Kind.ALLIANCE);
+        assertNotNull(o);
+        assertTrue(new TribePlanner(ai(arawak)).answer(dutch, o.id, true,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals(Stance.ALLIANCE, arawak.getStance(dutch));
+        assertEquals(Stance.ALLIANCE, dutch.getStance(arawak));
+        // Our wars are theirs.
+        dutch.setStance(french, Stance.WAR);
+        french.setStance(dutch, Stance.WAR);
+        nextTurn();
+        plan(arawak);
+        assertEquals(Stance.WAR, arawak.getStance(french));
+        // A tribe that is not ours does not join.
+        assertFalse(sioux.getStance(french) == Stance.WAR);
+    }
+
+    public void testAllyMustAnswerTheCall() {
+        setUpGame();
+        dutch.setAI(false);
+        arawak.setStance(dutch, Stance.ALLIANCE);
+        dutch.setStance(arawak, Stance.ALLIANCE);
+        arawak.setStance(french, Stance.WAR);
+        french.setStance(arawak, Stance.WAR);
+        new net.sf.freecol.server.model.ServerUnit(game,
+            game.getMap().getTile(8, 6), french,
+            spec().getUnitType("model.unit.veteranSoldier"),
+            spec().getRole("model.role.dragoon"));
+        plan(arawak);
+        final net.sf.freecol.common.diplomacy.Offer o = offer(ai(arawak),
+            net.sf.freecol.common.diplomacy.Offer.Kind.CALL_TO_ARMS);
+        assertNotNull(o);
+        assertEquals(FRENCH, o.against);
+        assertTrue(new TribePlanner(ai(arawak)).answer(dutch, o.id, false,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals(Stance.PEACE, arawak.getStance(dutch));
+        assertTrue(remembers(ai(arawak), Memory.Kind.DEAL_BROKEN, DUTCH));
+    }
+
+    public void testTlaxcala() {
+        setUpGame();
+        plan(tupi);
+        tupi.setStance(arawak, Stance.WAR);
+        arawak.setStance(tupi, Stance.WAR);
+        dutch.setStance(arawak, Stance.WAR);
+        arawak.setStance(dutch, Stance.WAR);
+        tupi.setStance(dutch, Stance.PEACE);
+        dutch.setStance(tupi, Stance.PEACE);
+        tupi.getTension(dutch).setValue(300);
+        assertTrue("at war with our old rival too: allies",
+                   new TribePlanner(ai(tupi)).joins(dutch));
+        assertFalse(new TribePlanner(ai(tupi)).joins(french));
+    }
+
+    public void testAlliesAreSaved() throws Exception {
+        setUpGame();
+        dutch.setAI(false);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        mission(camp, dutch, 25);
+        nextTurn();
+        plan(tupi);
+        camp.setAlliedPlayer(french);
+        java.io.File file = java.io.File.createTempFile("allies", ".fsg");
+        file.deleteOnExit();
+        ServerTestHelper.getServer().saveGame(file, null, null);
+        net.sf.freecol.server.FreeColServer loaded
+            = ServerTestHelper.startServer(file, false, true);
+        final Game g = loaded.getGame();
+        final IndianSettlement c2 = g.getFreeColGameObject(camp.getId(),
+                                                           IndianSettlement.class);
+        assertEquals(FRENCH, c2.getAlliedPlayer().getNationId());
+        NativeAIPlayer t2 = (NativeAIPlayer)loaded.getAIMain()
+            .getAIPlayer(g.getPlayerByNationId(TUPI));
+        assertNotNull(offer(t2, net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
+        assertTrue(t2.getMissionSince().get(camp.getId()).startsWith(DUTCH + ":"));
+    }
 }

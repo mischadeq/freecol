@@ -1957,6 +1957,17 @@ public final class InGameController extends Controller {
                 return cs;
             }
         }
+        // The tribes' offers (mod, step 7d/7e).
+        for (Player p : getGame().getLiveNativePlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.NativeAIPlayer
+                && new net.sf.freecol.server.ai.diplomacy.TribePlanner(
+                    (net.sf.freecol.server.ai.NativeAIPlayer)ai)
+                .answer(serverPlayer, id, accept, cs)) {
+                getGame().sendToOthers(serverPlayer, cs);
+                return cs;
+            }
+        }
         return serverPlayer.clientError("No such offer: " + id);
     }
 
