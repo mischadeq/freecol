@@ -1433,6 +1433,45 @@ The nation a coalition stands against can pay a member to leave it.
 - **Not done:** members bringing their armies to one muster point
   first; the player's own armies are of course up to the player.
 
+### Step 6 built: grievances and ultimatums (2026-10-15)
+Plan: `claude_docs/plans/step6-grievances.md`.
+- **No war out of nowhere:** when a computer nation wants a war of its
+  own choice (against you by the old anger rule, against a computer
+  nation by its diplomat), it first **complains** (turn report:
+  "France complains: your soldiers stand near our colonies"), after 3
+  turns sets **terms** (a dialog: "pay 450 gold, or war"), and declares
+  **war** only when you refuse or let 3 more turns pass. Paying settles
+  it: no new grievance against you for 15 turns, and they remember you
+  kept your word. An open grievance is forgotten after 12 turns if the
+  reason for war goes away.
+- **The cause, from what they see:** your soldiers within 2 tiles of
+  their colonies; harm they remember; your colonies within 4 tiles of
+  theirs; else "you stand in the way of our plans".
+- **The demand:** a quarter of your gold (public in the Foreign
+  Affairs report), between 200 and 2,000.
+- **Between computer nations:** the other side pays when it can and
+  is not stronger, else refuses and the war comes.
+- **Not through grievances:** calls to arms, joint wars, coalition wars
+  (they have a public reason), the King's wars, the tribes.
+- **Paying a tribe to fight a tribe:** your missionary's "incite" now
+  also lists the other tribes you met; cheaper against the tribe's old
+  rival. A computer nation at war with a tribe pays the cheapest other
+  tribe (up to a third of its gold, every 10 turns). A tribe whose
+  hatred of another tribe is at the top goes to war with it.
+- **Companion page:** "Complaint: your soldiers stand near our
+  colonies (terms in 2 turns)" or "Ultimatum: 450 gold or war, 2 turns
+  left" on the nation card and in the Diplomacy table. The Offers list
+  shows ultimatums, buy-outs and the tribes' offers (step 7 leftover).
+- **Tested:** `GrievanceTest`; `AIGrievancesTest` (complaint, terms,
+  war when ignored; paying settles it; refusing means war; the cause;
+  a computer nation pays or fights; saved); `AITribesTest` (a European
+  pays a tribe, the rival is cheaper, the paid tribe goes to war);
+  older stance tests now expect the complaint first. All 660 tests
+  green.
+- **Not done:** the King's random wars needing real tension (an option
+  in the plan; you liked the King's wars as they are, so left alone);
+  terms other than gold ("withdraw your soldiers").
+
 ## Ideas, not started
 
 ### Unit groups, next steps

@@ -329,8 +329,12 @@ public final class TribePlanner {
                 final boolean grudge = TribeRelations.grudge(
                     me.getTension(p).getValue(), ai.getMemories().list(),
                     id, now());
-                if (TribeRelations.wantsWar(ch, o, id.equals(ai.getRival()),
-                                            grudge)) {
+                // Hatred at the top (a war of old, or paid for by a
+                // European) means war on any tribe (mod, step 6).
+                final boolean hatred = me.getTension(p).getValue()
+                    >= Tension.Level.HATEFUL.getLimit();
+                if (hatred || TribeRelations.wantsWar(ch, o,
+                        id.equals(ai.getRival()), grudge)) {
                     changeStance(Stance.WAR, p);
                     // Braves attack only who they are angry with.
                     final int hate = Tension.Level.ANGRY.getLimit();

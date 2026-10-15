@@ -93,6 +93,8 @@ public final class Mood {
     /** Target to a copy of our coalition against it (its members and
         joint plan: shown to the members only). */
     public final Map<String, Coalition> coalitions = new LinkedHashMap<>();
+    /** Our grievances by nation id (each shown only to its nation). */
+    public final Map<String, Grievance> grievances = new LinkedHashMap<>();
 
 
     private Mood(String nation, int turn, NationCharacter character,

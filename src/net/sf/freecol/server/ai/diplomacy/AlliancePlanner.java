@@ -99,6 +99,7 @@ public final class AlliancePlanner {
         changed |= inviteToJointWar(outlook, cs, lb);
         changed |= runCoalitions(outlook, cs, lb);
         changed |= buyOut(outlook, cs, lb);
+        inciteTribes(lb);
         changed |= startCoalition(outlook, cs, lb);
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
         return changed;
@@ -742,6 +743,56 @@ public final class AlliancePlanner {
         for (Coalition c : allCoalitions(ai)) {
             if (c.target.equals(enemy) && c.hasPlan(now)
                 && c.members.contains(ai.getPlayer().getNationId())) return c;
+        }
+        return null;
+    }
+
+    // Paying a tribe to fight a tribe (step 6)
+
+    /** Share of our gold we spend on inciting a tribe at most. */
+    public static final double INCITE_SHARE = 1.0 / 3;
+    /** Turns between tries against the same tribe. */
+    public static final int INCITE_GAP = 10;
+
+    /**
+     * At war with a tribe: pay another tribe (the cheapest: its old
+     * rival first) to go to war with it.  Secret: only the tribes know.
+     *
+     * @param lb A {@code LogBuilder} to log to.
+     * @return The tribe paid, or null.
+     */
+    public Player inciteTribes(LogBuilder lb) {
+        final Player me = me();
+        final net.sf.freecol.server.control.InGameController igc
+            = ai.getAIMain().getFreeColServer().getInGameController();
+        for (Player r : game().getLiveNativePlayerList()) {
+            if (me.getStance(r) != Stance.WAR) continue;
+            final String key = "incite:" + r.getNationId();
+            final Integer tried = ai.getCoalitionTries().get(key);
+            if (tried != null && now() - tried < INCITE_GAP) continue;
+            ai.getCoalitionTries().put(key, now());
+            Player best = null;
+            int bestPrice = Integer.MAX_VALUE;
+            for (Player t : game().getLiveNativePlayerList()) {
+                if (t == r || t.getStance(r) == Stance.WAR
+                    || me.getStance(t) == Stance.WAR
+                    || me.getStance(t) == Stance.UNCONTACTED) continue;
+                final int price = igc.tribeIncitePrice(t, r,
+                    t.getTension(me).getValue());
+                if (price < bestPrice) {
+                    best = t;
+                    bestPrice = price;
+                }
+            }
+            if (best == null || bestPrice > INCITE_SHARE * me.getGold()) continue;
+            me.modifyGold(-bestPrice);
+            best.modifyGold(bestPrice);
+            best.getTension(r).modify(net.sf.freecol.common.model.Tension.WAR_MODIFIER);
+            r.getTension(me).modify(
+                net.sf.freecol.common.model.Tension.TENSION_ADD_WAR_INCITER);
+            lb.add("\n  Pays ", best.getDebugName(), " ", bestPrice,
+                   " to fight ", r.getDebugName());
+            return best;
         }
         return null;
     }

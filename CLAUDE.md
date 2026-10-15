@@ -85,7 +85,14 @@ Read these first, in this order:
   `TribeRelations`; `TribeMood` for the page; public news in
   `server/model/TribeNews`; refugees in `ServerPlayer.csRefugees`.
   Coalition buy-outs: `AlliancePlanner.buyOut`, priced by
-  `Coalition.synergy`.
+  `Coalition.synergy`; joint strikes: `Coalition.jointTarget` /
+  `strikeTurn`, kept by `InvasionPlanner`.
+- `server/ai/diplomacy/GrievancePlanner` (step 6): every war a
+  computer nation declares by its own choice (`determineStances`)
+  goes complaint, ultimatum (`Offer.Kind.ULTIMATUM`), war; saved as
+  `Grievance` in `EuropeanAIPlayer.getGrievances()`. Paying tribes to
+  fight tribes: `AlliancePlanner.inciteTribes`,
+  `InGameController.tribeIncitePrice`.
 - `tools/replay/`: replays a series of saves, compares the diplomat with
   what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from

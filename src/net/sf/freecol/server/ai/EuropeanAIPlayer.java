@@ -1568,6 +1568,9 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         final int now = getGame().getTurn().getNumber();
         boolean changed = false;
         lb.mark();
+        final net.sf.freecol.server.ai.diplomacy.GrievancePlanner grievancePlanner
+            = new net.sf.freecol.server.ai.diplomacy.GrievancePlanner(this);
+        grievancePlanner.tidy();
 
         for (Player p : getGame().getLivePlayerList(player)) {
             ScoredAction why = null;
@@ -1593,6 +1596,10 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             if (newStance != player.getStance(p)) {
                 if (newStance == Stance.WAR && peaceHolds(p)) {
                     ; // Peace treaty holds for now
+                } else if (newStance == Stance.WAR && p.isEuropean()
+                    && !p.isREF() && !player.isREF()
+                    && !grievancePlanner.mayDeclareWar(p, lb)) {
+                    ; // Complaint and terms first (mod, step 6)
                 } else {
                     getAIMain().getFreeColServer().getInGameController()
                         .changeStance(player, newStance, p, true);
@@ -2448,6 +2455,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return coalitionTries;
     }
 
+    /** Our grievances by nation id (mod, step 6).  Saved; no initializer. */
+    private java.util.Map<String, net.sf.freecol.common.diplomacy.Grievance> grievances;
+
+    public java.util.Map<String, net.sf.freecol.common.diplomacy.Grievance> getGrievances() {
+        if (grievances == null) grievances = new java.util.LinkedHashMap<>();
+        return grievances;
+    }
+
     public List<net.sf.freecol.common.diplomacy.Coalition> getCoalitions() {
         if (coalitions == null) coalitions = new ArrayList<>();
         return coalitions;
@@ -2741,6 +2756,10 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (stances && !player.isREF()) outlook = makeOutlook();
         if (!player.isREF()) {
             final Mood m = Mood.of(outlook, getCommitments());
+            for (net.sf.freecol.common.diplomacy.Grievance g : getGrievances().values()) {
+                m.grievances.put(g.against, net.sf.freecol.common.diplomacy
+                    .Grievance.parse(g.serialize()));
+            }
             for (net.sf.freecol.common.diplomacy.Coalition c
                      : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.allCoalitions(this)) {
                 if (c.members.contains(player.getNationId()) && c.members.size() >= 2) {
@@ -3508,6 +3527,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String OFFERS_TAG = "offers";
     /** Our war and peace choices (mod), see {@link Commitments}. */
     private static final String STANCE_CHOICES_TAG = "stanceChoices";
+    /** Our grievances (mod), see {@code Grievance.serialize}, ';' separated. */
+    private static final String GRIEVANCES_TAG = "grievances";
 
     /**
      * {@inheritDoc}
@@ -3541,6 +3562,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
             xw.writeAttribute(COALITIONS_TAG, sb.toString());
         }
+        if (!getGrievances().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Grievance g : getGrievances().values()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(g.serialize());
+            }
+            xw.writeAttribute(GRIEVANCES_TAG, sb.toString());
+        }
         if (!getOffers().isEmpty()) {
             StringBuilder sb = new StringBuilder();
             for (Offer o : getOffers()) {
@@ -3568,6 +3597,15 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 final net.sf.freecol.common.diplomacy.Coalition c
                     = net.sf.freecol.common.diplomacy.Coalition.parse(rec);
                 if (c != null) coalitions.add(c);
+            }
+        }
+        grievances = new java.util.LinkedHashMap<>();
+        final String gs = xr.getAttribute(GRIEVANCES_TAG, (String)null);
+        if (gs != null && !gs.isEmpty()) {
+            for (String rec : gs.split(";")) {
+                final net.sf.freecol.common.diplomacy.Grievance g
+                    = net.sf.freecol.common.diplomacy.Grievance.parse(rec);
+                if (g != null) grievances.put(g.against, g);
             }
         }
         offers = new ArrayList<>();

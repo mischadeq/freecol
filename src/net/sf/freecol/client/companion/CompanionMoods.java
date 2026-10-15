@@ -93,6 +93,18 @@ final class CompanionMoods {
             .put("trust", f.trustWord())
             .put("ambition", ambition(m))
             .put("truce", Mood.TRUCE.equals(f.why));
+        // Their grievance against you (addressed to you; step 6).
+        final net.sf.freecol.common.diplomacy.Grievance gr
+            = m.grievances.get(me.getNationId());
+        if (gr != null && (gr.stage == net.sf.freecol.common.diplomacy.Grievance.Stage.COMPLAINT
+                || gr.stage == net.sf.freecol.common.diplomacy.Grievance.Stage.ULTIMATUM)) {
+            final int now = game.getTurn().getNumber();
+            j.key("grievance").obj()
+                .put("stage", gr.stage.name().toLowerCase())
+                .put("cause", gr.cause.words)
+                .put("demand", gr.demand)
+                .put("turns", gr.turnsLeft(now)).end();
+        }
         j.key("goals").arr();
         for (Goal g : m.goals) {
             final String s = goal(g, game, me, m);

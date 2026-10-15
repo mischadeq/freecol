@@ -445,8 +445,7 @@ public final class InGameController extends FreeColClientHolder {
                     Player enemy = getGUI().modalChoiceDialog(unit.getTile(),
                         StringTemplate.key("missionarySettlement.inciteQuestion"),
                         unit, "missionarySettlement.cancel",
-                        transform(getGame().getLiveEuropeanPlayers(player), alwaysTrue(),
-                            p -> new ChoiceItem<>(Messages.message(p.getCountryLabel()), p)));
+                        inciteTargets(player, is));
                     if (enemy != null) askServer().incite(unit, is, enemy, -1);
                     break;
                 default:
@@ -3688,6 +3687,28 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Who a missionary may incite a tribe against: the other Europeans,
+     * and (mod, step 6) the other tribes we have met.
+     *
+     * @param player Our {@code Player}.
+     * @param is The {@code IndianSettlement} to incite.
+     * @return The choices.
+     */
+    private java.util.List<ChoiceItem<Player>> inciteTargets(Player player,
+                                                            IndianSettlement is) {
+        java.util.List<ChoiceItem<Player>> ret = new java.util.ArrayList<>();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            if (p == player) continue;
+            ret.add(new ChoiceItem<>(Messages.message(p.getCountryLabel()), p));
+        }
+        for (Player p : getGame().getLiveNativePlayerList()) {
+            if (p == is.getOwner() || !player.hasContacted(p)) continue;
+            ret.add(new ChoiceItem<>(Messages.message(p.getNationLabel()), p));
+        }
+        return ret;
+    }
+
+    /**
      * Post a trade offer of our own on the notice board (mod): want or
      * sell, which goods, how many, for how much, at which colony.
      *
@@ -3800,6 +3821,9 @@ public final class InGameController extends FreeColClientHolder {
             break;
         case SETTLEMENT_JOINS:
             key = "offer.settlementJoins";
+            break;
+        case ULTIMATUM:
+            key = "offer.ultimatum";
             break;
         case JOINT_WAR:
             key = (o.place == null) ? "offer.jointWar" : "offer.jointWarColony";

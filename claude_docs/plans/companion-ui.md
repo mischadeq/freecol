@@ -66,6 +66,10 @@ Checked every place the page reads another nation's data.
   Foreign Affairs report), so in multiplayer only your own; old rivals
   only as the tribe cards show them; allied settlements (public);
   coalitions (public).
+- **Grievances (step 6):** a complaint or ultimatum shows only to the
+  nation it is addressed to (you); grievances between computer nations
+  stay private. The Offers list now also shows ultimatums and the
+  tribes' offers.
 - **Joint strike:** a coalition's target colony and landing turn show
   only to its members, never to the target.
 - **Coalition buy-out price:** a member's asking price to leave is
@@ -78,7 +82,6 @@ Checked every place the page reads another nation's data.
 
 | Feature | Step | Where it will show |
 | --- | --- | --- |
-| Grievances and ultimatums | 6 | Diplomacy, nation cards |
 | Trade agreements | 4 | Diplomacy, Trade |
 | A tribe taking back a breakaway settlement | after 7 | Tribes |
 

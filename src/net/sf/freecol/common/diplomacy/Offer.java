@@ -69,13 +69,16 @@ public final class Offer {
         BUYOUT,
         /** A native settlement asks to break off from its tribe and
             join us ({@code place} is the settlement). */
-        SETTLEMENT_JOINS;
+        SETTLEMENT_JOINS,
+        /** Our terms before war: pay {@code gold} (placeName holds the
+            grievance in words). */
+        ULTIMATUM;
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
-                || this == SETTLEMENT_JOINS;
+                || this == SETTLEMENT_JOINS || this == ULTIMATUM;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

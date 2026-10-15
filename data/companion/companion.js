@@ -1853,6 +1853,13 @@
     for (let i = 1; i <= of; i++) h += "<i" + (i <= level ? ' class="on"' : "") + "></i>";
     return h + "</span>";
   }
+  // A grievance against you (step 6): a complaint, then terms, then war.
+  function grievanceTag(g) {
+    const t = g.turns === 1 ? "1 turn" : g.turns + " turns";
+    return g.stage === "ultimatum"
+      ? '<span class="tag alarm" title="Pay in the game\'s dialog, or they declare war when the time is up.">Ultimatum: ' + num(g.demand) + " gold or war, " + t + " left</span>"
+      : '<span class="tag warn" title="A complaint comes first; if nothing changes they set terms, then go to war.">Complaint: ' + esc(g.cause) + " (terms in " + t + ")</span>";
+  }
   function moodChips(n) {
     const m = n.mood;
     if (!m) return "";
@@ -1863,6 +1870,7 @@
       '<span class="tag ' + t[1] + '" title="Kept deals, gifts and trade raise trust; a broken deal cuts it hard.">' +
         meter(t[0], 3, t[1]) + " " + t[2] + "</span>" +
       '<span class="tag info" title="Their long-term ambition, from their nation type.">' + esc(cap(m.ambition)) + "</span>" +
+      (m.grievance ? grievanceTag(m.grievance) : "") +
       (m.truce ? '<span class="tag info" title="The King declared this war; they keep the peace with you here in the New World and will offer peace.">Local truce</span>' : "") +
       (m.coalitions || []).map((c) => '<span class="tag ' + (c.you ? "alarm" : "warn") + '" title="Allied with others against a nation that grows too strong; they go to war together.">Coalition against ' +
         esc(c.name) + "</span>").join("") + "</div>";
@@ -2025,6 +2033,7 @@
       const a = m && (MOOD_LV[m.word] || MOOD_LV.neutral), t = m && (TRUST_LV[m.trust] || TRUST_LV.careful);
       const notes = [];
       if (m && m.truce) notes.push('<span class="tag info">Local truce</span>');
+      if (m && m.grievance) notes.push(grievanceTag(m.grievance));
       for (const c of (m && m.coalitions) || []) notes.push('<span class="tag ' + (c.you ? "alarm" : "warn") + '">Coalition against ' + esc(c.name) + "</span>");
       if (m && m.remembers && m.remembers.length) notes.push('<span class="m" title="Their strongest memory of you">' + esc(m.remembers[0].text) + " (" + esc(m.remembers[0].year) + ")</span>");
       return '<div class="dr' + (n.met ? "" : " unmet") + '"><span><i class="sw" style="background:' + esc(n.color) + '"></i> ' + esc(n.name) + "</span>" +
@@ -2070,7 +2079,6 @@
 
     renderGraph();
     $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Grievances and ultimatums", "step 6", "No war on you out of nowhere: first a complaint, then terms (\"withdraw or pay 500\"), then war if you ignore it. Shown here and on their card.") +
       soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
     $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +
       "Their plans stay secret: you see only what they make known, such as goods they want to trade or that they want peace.";
@@ -2235,8 +2243,11 @@
       const st = o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
-      else if (o.kind === "call_to_arms") what = "Calls you to arms against <b>" + esc(o.against) + "</b>";
-      else if (o.kind === "alliance") what = "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
+      else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "settlement_joins") what = "<b>" + esc(o.place) + "</b> asks to break off from its tribe and live under your protection";
+      else if (o.kind === "ultimatum") what = "Ultimatum: pay <b>" + num(o.gold) + "</b> gold or war <span class=\"m\">(" + esc(o.place) + ")</span>";
+      else if (o.kind === "buyout") what = "Offers <b>" + num(o.gold) + "</b> gold to leave the coalition of <b>" + esc(o.against) + "</b>";
       else if (o.kind === "joint_war") what = "Join their war against <b>" + esc(o.against) + "</b> for <b>" + num(o.gold) + "</b> gold" +
         (o.place ? " and " + esc(o.place) + " if they take it" : "");
       else if (o.kind === "coalition") what = "Invites you into a coalition against <b>" + esc(o.against) + "</b>";
@@ -2255,7 +2266,7 @@
         clock = '<div class="oclock" title="Turns left to complete the deal; late pays less, very late ends it">' +
           '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * used) + '%"></i></span> ' +
           (o.left >= 0 ? o.left + " turns left" : (-o.left) + " turns late, pays " + num(o.priceNow)) + "</div>";
-      } else if (o.kind !== "peace" && o.state === "open") {
+      } else if ((o.kind === "want" || o.kind === "sell") && o.state === "open") {
         clock = '<div class="m">' + o.deadline + " turns to deliver once accepted</div>";
       }
       return '<div class="ocard' + (o.yours ? " yours" : "") + '"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.yours ? "Your offer" : o.from) + "</b>" +

@@ -2535,6 +2535,27 @@ public final class InGameController extends Controller {
      * @param gold The amount of gold in the bribe.
      * @return A {@code ChangeSet} encapsulating this action.
      */
+    /**
+     * What a tribe asks to go to war with another tribe (mod, step 6):
+     * cheaper against its old rival and a tribe it already dislikes,
+     * dearer when it dislikes the one who pays.
+     *
+     * @param tribe The tribe to incite.
+     * @param enemy The other tribe.
+     * @param payingTension The tribe's tension towards the payer.
+     * @return The price in gold.
+     */
+    public int tribeIncitePrice(Player tribe, Player enemy, int payingTension) {
+        final net.sf.freecol.server.ai.AIPlayer ai
+            = getFreeColServer().getAIMain().getAIPlayer(tribe);
+        final boolean rival = ai instanceof net.sf.freecol.server.ai.NativeAIPlayer
+            && enemy.getNationId().equals(
+                ((net.sf.freecol.server.ai.NativeAIPlayer)ai).getRival());
+        int price = (rival) ? 800 : 2000;
+        price += 3 * payingTension - 2 * tribe.getTension(enemy).getValue();
+        return Math.max(300, (price / 50) * 50);
+    }
+
     public ChangeSet incite(ServerPlayer serverPlayer, ServerUnit unit,
                             IndianSettlement is, Player enemy, int gold) {
         ChangeSet cs = new ChangeSet();
@@ -2551,6 +2572,9 @@ public final class InGameController extends Controller {
         int goldToPay = (payingValue > targetValue) ? 10000 : 5000;
         goldToPay += 20 * (payingValue - targetValue);
         goldToPay = Math.max(goldToPay, 650);
+        if (enemy.isIndian()) { // Against another tribe (mod, step 6)
+            goldToPay = tribeIncitePrice(nativePlayer, enemy, payingValue);
+        }
 
         // Try to incite?
         if (gold < 0) { // Initial inquiry

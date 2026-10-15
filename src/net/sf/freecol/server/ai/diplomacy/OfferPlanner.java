@@ -271,6 +271,7 @@ public final class OfferPlanner {
         case JOINT_WAR: return "offer.postedJointWar";
         case COALITION: return "offer.postedCoalition";
         case BUYOUT: return "offer.postedBuyout";
+        case ULTIMATUM: return "offer.postedUltimatum";
         default: return "offer.postedSell";
         }
     }
@@ -671,6 +672,26 @@ public final class OfferPlanner {
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         if (o.kind == Offer.Kind.CALL_TO_ARMS) {
             return answerCall(o, human, accept, cs);
+        }
+        if (o.kind == Offer.Kind.ULTIMATUM) {
+            final GrievancePlanner gp = new GrievancePlanner(ai);
+            final net.sf.freecol.common.diplomacy.Grievance g
+                = ai.getGrievances().get(human.getNationId());
+            if (g == null || g.stage
+                != net.sf.freecol.common.diplomacy.Grievance.Stage.ULTIMATUM) {
+                o.state = Offer.State.EXPIRED;
+            } else if (accept && human.getGold() >= g.demand) {
+                o.state = Offer.State.DONE;
+                o.takenBy = human.getNationId();
+                o.takenTurn = now();
+                o.paid = g.demand;
+                gp.settle(g, human, cs);
+            } else {
+                o.state = Offer.State.DECLINED;
+                gp.refused(human);
+                message(cs, human, "grievance.refused", o, o.gold);
+            }
+            return true;
         }
         if (!accept) {
             if (o.kind.direct()) {

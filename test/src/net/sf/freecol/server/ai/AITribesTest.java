@@ -148,7 +148,7 @@ public class AITribesTest extends FreeColTestCase {
         assertEquals("no grudge: peace", Stance.PEACE, tupi.getStance(arawak));
         // A deep grudge against both: only the old rival is attacked.
         tupi.getTension(arawak).setValue(1000);
-        tupi.getTension(sioux).setValue(1000);
+        tupi.getTension(sioux).setValue(900); // a grudge, not hatred
         nextTurn();
         plan(tupi);
         assertEquals(Stance.WAR, tupi.getStance(arawak));
@@ -585,5 +585,29 @@ public class AITribesTest extends FreeColTestCase {
         NativeAIPlayer t2 = (NativeAIPlayer)loaded.getAIMain()
             .getAIPlayer(loaded.getGame().getPlayerByNationId(TUPI));
         assertEquals(ai(tupi).getUnrest(), t2.getUnrest());
+    }
+
+    /** A European pays a tribe to fight the tribe it is at war with. */
+    public void testEuropeanPaysATribe() {
+        setUpGame();
+        final net.sf.freecol.server.control.InGameController igc
+            = ServerTestHelper.getServer().getInGameController();
+        plan(tupi, arawak, sioux);
+        assertTrue("the old rival is cheaper",
+            igc.tribeIncitePrice(tupi, arawak, 0) < igc.tribeIncitePrice(sioux, arawak, 0));
+        for (Player t : new Player[] { tupi, sioux }) {
+            dutch.setStance(t, Stance.PEACE);
+            t.setStance(dutch, Stance.PEACE);
+        }
+        dutch.setStance(arawak, Stance.WAR);
+        arawak.setStance(dutch, Stance.WAR);
+        dutch.setGold(10000);
+        final Player paid = new net.sf.freecol.server.ai.diplomacy.AlliancePlanner(
+            (EuropeanAIPlayer)aiMain.getAIPlayer(dutch)).inciteTribes(new LogBuilder(64));
+        assertSame(tupi, paid);
+        assertTrue(dutch.getGold() < 10000);
+        nextTurn();
+        plan(tupi);
+        assertEquals("paid hatred means war", Stance.WAR, tupi.getStance(arawak));
     }
 }
