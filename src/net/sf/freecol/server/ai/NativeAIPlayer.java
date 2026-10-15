@@ -109,6 +109,8 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private Set<String> nearColonies;
     /** The last turn turned into memories (not saved). */
     private int remembered = -1;
+    /** Calls for help heard: "caller|enemy" to turn (not saved). */
+    private final java.util.Map<String, Integer> callsHeard = new HashMap<>();
 
 
     /**
@@ -1044,6 +1046,67 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         this.remembered = turn;
     }
 
+
+    /** Calls for help heard, "caller|enemy" to the turn. */
+    public java.util.Map<String, Integer> getCallsHeard() {
+        return callsHeard;
+    }
+
+    /**
+     * Send braves against a European: those not needed at home, the
+     * nearest to the trouble first, to seek and destroy its units and
+     * colonies near there.
+     *
+     * @param enemy The enemy {@code Player}.
+     * @param near Where the trouble is, may be null.
+     * @param n Braves to send at most.
+     * @return The number sent.
+     */
+    public int sendWarParty(Player enemy, Tile near, int n) {
+        final Tile at = (near != null) ? near
+            : (getPlayer().getIndianSettlementList().isEmpty()) ? null
+            : getPlayer().getIndianSettlementList().get(0).getTile();
+        if (at == null) return 0;
+        // The target: the enemy's colony or soldier nearest the trouble.
+        Location target = null;
+        int top = Integer.MAX_VALUE;
+        for (Colony c : enemy.getColonyList()) {
+            final int d = c.getTile().getDistanceTo(at);
+            if (d < top) {
+                top = d;
+                target = c;
+            }
+        }
+        for (Unit u : (Iterable<Unit>)enemy.getUnits()::iterator) {
+            if (u.getTile() == null || u.isNaval()) continue;
+            final int d = u.getTile().getDistanceTo(at);
+            if (d < top) {
+                top = d;
+                target = u;
+            }
+        }
+        if (target == null) return 0;
+        final List<Unit> braves = new ArrayList<>();
+        for (Unit u : getPlayer().getUnitSet()) {
+            if (u.isNaval() || u.getTile() == null) continue;
+            final IndianSettlement is = u.getSettlement() instanceof IndianSettlement
+                ? (IndianSettlement)u.getSettlement() : null;
+            if (is != null && is.getUnitCount() <= is.getRequiredDefenders()) continue;
+            braves.add(u);
+        }
+        braves.sort(Comparator.comparingInt(u -> u.getTile().getDistanceTo(at)));
+        int sent = 0;
+        for (Unit u : braves) {
+            if (sent >= n) break;
+            final AIUnit aiu = getAIUnit(u);
+            if (aiu == null) continue;
+            final Mission m = getSeekAndDestroyMission(aiu, target);
+            if (m == null) continue;
+            aiu.changeMission(m);
+            sent++;
+        }
+        return sent;
+    }
 
     // Serialization (mod)
 

@@ -66,6 +66,21 @@ public class AITribesTest extends FreeColTestCase {
         settlement(tupi, 5, 8, false);
         settlement(arawak, 7, 6, true);
         settlement(sioux, 17, 13, true);
+        for (int i = 0; i < 4; i++) {
+            final IndianSettlement si = sioux.getIndianSettlementList().get(0);
+            si.addOwnedUnit(new net.sf.freecol.server.model.ServerUnit(game, si,
+                sioux, spec().getDefaultUnitType(sioux)));
+        }
+    }
+
+    /** A Dutch dragoon at war with the Tupi, next to their capital. */
+    void threatenTupiCapital() {
+        dutch.setStance(tupi, Stance.WAR);
+        tupi.setStance(dutch, Stance.WAR);
+        new net.sf.freecol.server.model.ServerUnit(game,
+            game.getMap().getTile(4, 5), dutch,
+            spec().getUnitType("model.unit.veteranSoldier"),
+            spec().getRole("model.role.dragoon"));
     }
 
     IndianSettlement settlement(Player p, int x, int y, boolean capital) {
@@ -217,5 +232,97 @@ public class AITribesTest extends FreeColTestCase {
         assertEquals(ARAWAK, t2.getRival());
         assertNotNull(t2.getNearColonies());
         assertTrue(remembers(t2, Memory.Kind.MISSION, DUTCH));
+    }
+
+    public void testHelpScore() {
+        final net.sf.freecol.common.diplomacy.TribeCharacter w
+            = net.sf.freecol.common.diplomacy.TribeCharacter.WARLIKE;
+        // A neutral tribe nearby, not fond of the attacker: helps.
+        assertTrue(TribePlanner.helpScore(w, 0, 0, 0, 3) >= TribePlanner.HELP_LINE);
+        // Likes the attacker, fears it, far away, or a rival: does not.
+        assertTrue(TribePlanner.helpScore(w, 0, 100, 0, 3) < TribePlanner.HELP_LINE);
+        assertTrue(TribePlanner.helpScore(w, 0, 0, 30, 3) < TribePlanner.HELP_LINE);
+        assertTrue(TribePlanner.helpScore(w, 0, 0, 0, 20) < TribePlanner.HELP_LINE);
+        assertTrue(TribePlanner.helpScore(w, -40, 0, 0, 3) < TribePlanner.HELP_LINE);
+    }
+
+    public void testFriendsComeToHelp() {
+        setUpGame();
+        threatenTupiCapital();
+        assertEquals(1, TribePlanner.calls(game).size());
+        // The Sioux dislike the Dutch a little: they come.
+        sioux.getTension(dutch).setValue(600);
+        plan(sioux);
+        assertEquals(Stance.WAR, sioux.getStance(dutch));
+        assertTrue(remembers(ai(tupi), Memory.Kind.CAME_TO_HELP, SIOUX));
+        boolean party = false;
+        for (net.sf.freecol.common.model.Unit u : sioux.getUnitSet()) {
+            final AIUnit aiu = aiMain.getAIUnit(u);
+            party |= aiu != null && aiu.getMission()
+                instanceof net.sf.freecol.server.ai.mission.UnitSeekAndDestroyMission;
+        }
+        assertTrue("a war party is sent", party);
+        boolean news = false;
+        for (net.sf.freecol.server.model.TribeNews.News n
+                 : net.sf.freecol.server.model.TribeNews.recent(game)) {
+            news |= n.kind == net.sf.freecol.server.model.TribeNews.Kind.HELP
+                && SIOUX.equals(n.tribe) && TUPI.equals(n.other);
+        }
+        assertTrue(news);
+        // The rival Arawak do not help.
+        plan(arawak);
+        assertFalse(arawak.getStance(dutch) == Stance.WAR);
+    }
+
+    public void testTribesThatLikeTheAttackerStayHome() {
+        setUpGame();
+        threatenTupiCapital();
+        plan(sioux); // no tension with the Dutch: they like them
+        assertFalse(sioux.getStance(dutch) == Stance.WAR);
+    }
+
+    public void testRivalSidesWithTheAttacker() {
+        setUpGame();
+        threatenTupiCapital();
+        plan(arawak);
+        // Peaceful Arawak who loathe the Tupi but hold no grudge to
+        // fight them over: they side with the Dutch.
+        arawak.getTension(tupi).setValue(560);
+        ai(arawak).getCallsHeard().clear();
+        plan(arawak);
+        assertEquals(Stance.WAR, arawak.getStance(tupi));
+        assertFalse(arawak.getStance(dutch) == Stance.WAR);
+    }
+
+    public void testRefugeesFleeToTheirOwnTribe() {
+        setUpGame();
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        final IndianSettlement capital = tupi.getIndianSettlementList().get(0);
+        for (int i = 0; i < 2; i++) {
+            camp.addOwnedUnit(new net.sf.freecol.server.model.ServerUnit(game,
+                camp, tupi, spec().getDefaultUnitType(tupi)));
+        }
+        assertEquals(4, camp.getUnitCount());
+        final int before = capital.getUnitCount();
+        assertSame(capital, dutch.csRefugees(camp,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals(before + 2, capital.getUnitCount());
+        assertEquals(2, camp.getUnitCount());
+    }
+
+    public void testLastSettlementFleesToTheBestFriend() {
+        setUpGame();
+        final IndianSettlement camp = arawak.getIndianSettlementList().get(0);
+        arawak.getTension(tupi).setValue(500);
+        final IndianSettlement refuge = sioux.getIndianSettlementList().get(0);
+        final int before = refuge.getUnitCount();
+        assertSame(refuge, dutch.csRefugees(camp,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals("one of two, now Sioux", before + 1, refuge.getUnitCount());
+        // At war with everyone: nobody takes them in.
+        arawak.setStance(sioux, Stance.WAR);
+        arawak.setStance(tupi, Stance.WAR);
+        assertNull(dutch.csRefugees(camp,
+            new net.sf.freecol.common.networking.ChangeSet()));
     }
 }

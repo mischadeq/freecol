@@ -41,6 +41,7 @@ import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.Stance;
 import net.sf.freecol.common.model.Tension;
 import net.sf.freecol.common.model.Tile;
+import net.sf.freecol.common.model.Unit;
 import net.sf.freecol.common.util.LogBuilder;
 import net.sf.freecol.server.ai.NativeAIPlayer;
 
@@ -126,6 +127,7 @@ public final class TribePlanner {
         landTaken();
         rub();
         tribeStances(lb);
+        answerCalls(lb);
     }
 
 
@@ -341,6 +343,194 @@ public final class TribePlanner {
             }
         }
         return (since < 0) ? Integer.MAX_VALUE : now() - since;
+    }
+
+    // Calls for help (7b)
+
+    /** Turns before the same call is heard again. */
+    public static final int CALL_GAP = 10;
+    /** Kinship: what any tribe owes another, in opinion points. */
+    public static final double KIN = 30;
+    /** Help from this score up. */
+    public static final double HELP_LINE = 10;
+    /** A rival this low sides with the attacker... */
+    public static final double SIDE_LINE = -50;
+    /** ... if it likes the attacker this much. */
+    public static final double SIDE_LIKE = 20;
+    /** Braves sent to help. */
+    public static final int WAR_PARTY = 2;
+    /** Tiles from our settlements we watch enemy soldiers in. */
+    public static final int WATCH = 6;
+
+    /** A tribe calling for help against a European. */
+    public static final class Call {
+        public final Player caller, enemy;
+        public final Tile where;
+        public final String why;
+
+        Call(Player caller, Player enemy, Tile where, String why) {
+            this.caller = caller;
+            this.enemy = enemy;
+            this.where = where;
+            this.why = why;
+        }
+    }
+
+    /**
+     * The calls for help this turn: a tribe that lost a settlement to
+     * a European since last turn, or whose capital has enemy soldiers
+     * next to it.
+     *
+     * @param game The {@code Game}.
+     * @return The calls.
+     */
+    public static List<Call> calls(Game game) {
+        final List<Call> ret = new ArrayList<>();
+        final TurnRecord r = record(game);
+        for (Observed o : r.diff) {
+            if (o.what != Observed.What.DESTROY) continue;
+            final Player x = game.getPlayerByNationId(o.other);
+            final Player e = game.getPlayerByNationId(o.actor);
+            if (x == null || e == null || !x.isIndian() || !e.isEuropean()
+                || x.isDead()) continue;
+            final IndianSettlement near = x.getIndianSettlementList().isEmpty()
+                ? null : x.getIndianSettlementList().get(0);
+            ret.add(new Call(x, e, (near == null) ? null : near.getTile(),
+                             o.detail));
+        }
+        for (Player x : game.getLiveNativePlayerList()) {
+            for (IndianSettlement is : x.getIndianSettlementList()) {
+                if (!is.isCapital()) continue;
+                for (Tile t : is.getTile().getSurroundingTiles(1)) {
+                    final Unit u = t.getFirstUnit();
+                    if (u == null || !u.getOwner().isEuropean()
+                        || !u.isOffensiveUnit()
+                        || x.getStance(u.getOwner()) != Stance.WAR) continue;
+                    boolean dup = false;
+                    for (Call c : ret) dup |= c.caller == x && c.enemy == u.getOwner();
+                    if (!dup) ret.add(new Call(x, u.getOwner(), is.getTile(),
+                                               is.getName()));
+                    break;
+                }
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Should we help?  Friends help, kin a little; liking the attacker,
+     * fearing it and distance hold us back.
+     *
+     * @param ch Our character.
+     * @param ofCaller Our opinion of the caller.
+     * @param ofEnemy Our opinion of the attacker.
+     * @param fear How much we fear the attacker (0..30 or so).
+     * @param distance Tiles from the trouble to our nearest settlement.
+     * @return The score; help from {@link #HELP_LINE}.
+     */
+    public static double helpScore(TribeCharacter ch, double ofCaller,
+                                   double ofEnemy, double fear, int distance) {
+        return ch.help * (ofCaller + KIN) - 0.3 * Math.max(0, ofEnemy)
+            - fear - 2.0 * Math.max(0, distance - 5);
+    }
+
+    /** Fear of a European: its soldiers near our lands. */
+    private double fear(Player e) {
+        int n = 0;
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            for (Tile t : is.getTile().getSurroundingTiles(WATCH)) {
+                for (Unit u : t.getUnitList()) {
+                    if (u.getOwner() == e && u.isOffensiveUnit()) n++;
+                }
+            }
+        }
+        return 5.0 * Math.min(6, n);
+    }
+
+    private int distanceTo(Tile t) {
+        int d = Integer.MAX_VALUE;
+        if (t == null) return d;
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            d = Math.min(d, is.getTile().getDistanceTo(t));
+        }
+        return d;
+    }
+
+    /** Answer this turn's calls for help. */
+    private void answerCalls(LogBuilder lb) {
+        final Player me = me();
+        if (me.getIndianSettlementList().isEmpty()) return;
+        for (Call c : calls(game())) {
+            if (c.caller == me || me.getStance(c.enemy) == Stance.WAR) continue;
+            final String key = c.caller.getNationId() + "|" + c.enemy.getNationId();
+            final Integer heard = ai.getCallsHeard().get(key);
+            if (heard != null && now() - heard < CALL_GAP) continue;
+            ai.getCallsHeard().put(key, now());
+            final double ofCaller = opinion(ai, c.caller);
+            final double ofEnemy = opinion(ai, c.enemy);
+            final boolean rival = c.caller.getNationId().equals(ai.getRival());
+            if (rival && ofCaller <= SIDE_LINE && ofEnemy >= SIDE_LIKE
+                && me.getStance(c.caller) != Stance.WAR) {
+                changeStance(Stance.WAR, c.caller);
+                anger(me, c.caller);
+                news(net.sf.freecol.server.model.TribeNews.Kind.SIDED_WITH, c);
+                tell(c, "tribe.sidesWith");
+                lb.add("\n  Sides with ", c.enemy.getDebugName(),
+                       " against ", c.caller.getDebugName());
+                continue;
+            }
+            final double score = helpScore(ai.getCharacter(), ofCaller,
+                ofEnemy, fear(c.enemy), distanceTo(c.where));
+            final NativeAIPlayer callerAI = ai.getAIMain()
+                .getAIPlayer(c.caller) instanceof NativeAIPlayer
+                ? (NativeAIPlayer)ai.getAIMain().getAIPlayer(c.caller) : null;
+            if (score >= HELP_LINE) {
+                changeStance(Stance.WAR, c.enemy);
+                anger(me, c.enemy);
+                final int sent = ai.sendWarParty(c.enemy, c.where, WAR_PARTY);
+                if (callerAI != null) {
+                    callerAI.getMemories().add(new Memory(Memory.Kind.CAME_TO_HELP,
+                        me.getNationId(), now(), 1));
+                }
+                news(net.sf.freecol.server.model.TribeNews.Kind.HELP, c);
+                tell(c, "tribe.help");
+                lb.add("\n  Helps ", c.caller.getDebugName(), " against ",
+                       c.enemy.getDebugName(), " (", sent, " braves)");
+            } else if (ofCaller >= net.sf.freecol.common.diplomacy.Mood.FRIENDLY
+                       && callerAI != null) {
+                // A friend that stays home is remembered.
+                callerAI.getMemories().add(new Memory(Memory.Kind.LEFT_US_ALONE,
+                    me.getNationId(), now(), 1));
+                news(net.sf.freecol.server.model.TribeNews.Kind.STAYED_HOME, c);
+            }
+        }
+    }
+
+    /** Angry enough with someone for the braves to attack. */
+    static void anger(Player me, Player other) {
+        final int hate = Tension.Level.ANGRY.getLimit();
+        final Tension t = me.getTension(other);
+        if (t.getValue() < hate) t.setValue(hate);
+    }
+
+    private void news(net.sf.freecol.server.model.TribeNews.Kind k, Call c) {
+        net.sf.freecol.server.model.TribeNews.add(game(),
+            new net.sf.freecol.server.model.TribeNews.News(now(), k,
+                me().getNationId(), c.caller.getNationId(),
+                c.enemy.getNationId(), c.why));
+    }
+
+    /** The European hears of it in its turn report. */
+    private void tell(Call c, String key) {
+        if (c.enemy.isAI()) return;
+        final net.sf.freecol.common.networking.ChangeSet cs
+            = new net.sf.freecol.common.networking.ChangeSet();
+        cs.addMessage(c.enemy, new net.sf.freecol.common.model.ModelMessage(
+            net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+            key, me())
+            .addStringTemplate("%nation%", me().getNationLabel())
+            .addStringTemplate("%caller%", c.caller.getNationLabel()));
+        ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
     }
 
     private void changeStance(Stance stance, Player other) {

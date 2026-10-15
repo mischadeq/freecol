@@ -1292,6 +1292,39 @@ The nation a coalition stands against can pay a member to leave it.
   (they do not need its moves yet); Europeans paying a tribe to fight
   another (`INCITE` against a tribe) comes with the grievances.
 
+### Steps 7b and 7c built: calls for help, refugees (2026-10-15)
+- **Calls for help:** a tribe calls when a European destroyed one of
+  its settlements since last turn, or when enemy soldiers stand next to
+  its capital. Every other tribe weighs it on its own turn: kinship
+  (+30) plus its opinion of the caller, times its character (warlike
+  help most), minus a third of how much it likes the attacker, minus
+  fear (the attacker's soldiers near its own lands), minus distance
+  beyond 5 tiles. At 10 or more it declares war on the attacker and
+  sends up to 2 braves (not the last defenders) to seek and destroy the
+  attacker's nearest colony or soldier. The caller remembers who came
+  ("came to their aid", big plus and trust) and which friends stayed
+  home. The same call is heard once per 10 turns.
+- **King Philip's War:** an old rival that loathes the caller (-50 or
+  worse) and likes the attacker sides with the attacker: war on the
+  caller.
+- **Turn report:** "The Sioux come to the aid of the Tupi, and are at
+  war with you" / "The Arawak, old rivals of the Tupi, side with you".
+- **Refugees:** when a settlement is destroyed, half its people (at
+  least one) flee to the nearest settlement of their own tribe; the
+  last settlement's people go to the tribe they get on with best (not
+  at war with them) and become its people. Turn report: "Survivors of
+  X flee to Y".
+- **News for the companion page** (`TribeNews`, last 30 turns, not
+  saved): help, stayed home, sided with, refugees.
+- **Tested** (`AITribesTest`): the help score, a tribe coming to help
+  (war, war party, memory, news), the rival not helping, a tribe that
+  likes the attacker staying home, a rival siding with the attacker,
+  refugees to their own tribe and to the best friend, nobody taking
+  them in at war. All 633 tests green.
+- **Not done:** a dedicated war-party mission (the braves use the
+  existing seek-and-destroy mission); help by tribes for each other in
+  wars between tribes.
+
 ## Ideas, not started
 
 ### Unit groups, next steps
