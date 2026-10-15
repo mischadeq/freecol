@@ -1391,6 +1391,21 @@ The nation a coalition stands against can pay a member to leave it.
   raiding its breakaway settlement; the companion Offers list for tribe
   offers.
 
+### Step 5d built: the relations graph (2026-10-15)
+- **On the Diplomacy tab:** every nation and tribe you met as a dot in
+  its colour (Europeans on the upper arc with you in the middle, tribes
+  on the lower arc with a dashed edge). Lines: alliance blue, war red,
+  old rivals dashed orange, settlements allied to a European dotted
+  green with their number. Each coalition puts a dashed ring of its
+  colour around its members; the legend says against whom. Hover a
+  line or dot for words.
+- **Honest:** wars and alliances between the others are public (single
+  player: from the server; multiplayer: only yours); old rivals only
+  as the tribe cards show them (your mission, or at war).
+- **Tested:** `GraphTest` (unmet nations left out, public war shown,
+  rival hidden until at war, multiplayer only your own stances);
+  the drawing in headless Chromium with made-up data.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

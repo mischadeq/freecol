@@ -62,7 +62,7 @@ final class CompanionTribes {
      * @param p The client tribe.
      * @return The {@code NativeAIPlayer}, or null.
      */
-    private static NativeAIPlayer aiOf(FreeColClient fcc, Player p) {
+    static NativeAIPlayer aiOf(FreeColClient fcc, Player p) {
         if (fcc == null || !fcc.getSinglePlayer()) return null;
         final FreeColServer server = fcc.getFreeColServer();
         if (server == null || server.getGame() == null

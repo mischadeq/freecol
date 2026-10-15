@@ -2065,8 +2065,8 @@
         (m.price ? ' <span class="tag info" title="Their asking price to leave the coalition. Give at least this much gold in the game\'s diplomacy screen and they leave: their alliances in it end.">leaves for ' + m.price.toLocaleString() + " gold</span>" : "")).join(", ") + "</div>").join("")
       : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
 
+    renderGraph();
     $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Relations graph", "step 5d", "Every nation and tribe as a dot, lines for alliances and wars, a ring around each coalition: who stands with whom, at a glance.") +
       soon("Joint attack plans", "after step 5", "Coalition members pick the same target and time their landings, instead of each attacking alone.") +
       soon("Grievances and ultimatums", "step 6", "No war on you out of nowhere: first a complaint, then terms (\"withdraw or pay 500\"), then war if you ignore it. Shown here and on their card.") +
       soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
@@ -2113,6 +2113,81 @@
     return rows.join("");
   }
 
+  // The relations graph (step 5d): Europeans on the upper arc, tribes on
+  // the lower one, you on top.
+  const RING = ["#f2a93b", "#e0ac48", "#c58cff", "#6ad6c8"];
+  function renderGraph() {
+    const box = $("dipGraph");
+    if (!box) return;
+    const g = dipRel && dipRel.graph;
+    if (!g || !g.nodes || g.nodes.length < 2) {
+      box.innerHTML = '<p class="m">Meet other nations or tribes to see who stands with whom.</p>';
+      return;
+    }
+    const W = 680, H = 440, cx = W / 2, cy = H / 2 + 6, rx = 270, ry = 165;
+    const eu = g.nodes.filter((n) => !n.tribe), tr = g.nodes.filter((n) => n.tribe);
+    // The Europeans spread evenly over the upper arc, you in the middle.
+    const me = eu.find((n) => n.me), others = eu.filter((n) => !n.me);
+    const row = others.slice(0, Math.floor(others.length / 2)).concat(me ? [me] : [], others.slice(Math.floor(others.length / 2)));
+    const pos = {};
+    row.forEach((n, i) => {
+      const a = row.length === 1 ? Math.PI * 1.5 : Math.PI + 0.25 + ((Math.PI - 0.5) * i) / (row.length - 1);
+      pos[n.id] = [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
+    });
+    tr.forEach((n, i) => {
+      const a = tr.length === 1 ? Math.PI / 2 : 0.25 + ((Math.PI - 0.5) * i) / (tr.length - 1);
+      pos[n.id] = [cx - rx * Math.cos(a), cy + ry * Math.sin(a)];
+    });
+    const name = {}; for (const n of g.nodes) name[n.id] = n.name;
+    let svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Relations graph">';
+    // Lines first, dots on top.  Two lines between the same pair bend apart.
+    const seen = {};
+    for (const e of g.edges || []) {
+      const p = pos[e.a], q = pos[e.b];
+      if (!p || !q) continue;
+      const k = [e.a, e.b].sort().join("|"), i = seen[k] = (seen[k] || 0) + 1;
+      const bend = (i - 1) * 28, mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      const dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy) || 1;
+      const qx = mx - (dy / len) * bend, qy = my + (dx / len) * bend;
+      const st = e.kind === "war" ? 'stroke="var(--alarm)" stroke-width="2.5"'
+        : e.kind === "alliance" ? 'stroke="var(--info)" stroke-width="2.5"'
+        : e.kind === "rival" ? 'stroke="var(--warn)" stroke-width="1.8" stroke-dasharray="7 5"'
+        : 'stroke="var(--ok)" stroke-width="1.8" stroke-dasharray="2 4"';
+      const tip = e.kind === "war" ? name[e.a] + " and " + name[e.b] + " are at war"
+        : e.kind === "alliance" ? name[e.a] + " and " + name[e.b] + " are allied"
+        : e.kind === "rival" ? name[e.a] + ": old rivals of " + name[e.b]
+        : e.n + (e.n === 1 ? " settlement" : " settlements") + " of the " + name[e.a] + " allied to " + name[e.b];
+      svg += '<path d="M' + p[0].toFixed(1) + " " + p[1].toFixed(1) + " Q" + qx.toFixed(1) + " " + qy.toFixed(1) + " " + q[0].toFixed(1) + " " + q[1].toFixed(1) +
+        '" fill="none" ' + st + "><title>" + esc(tip) + "</title></path>";
+      if (e.kind === "settlement") {
+        svg += '<text x="' + ((mx + qx) / 2).toFixed(1) + '" y="' + ((my + qy) / 2 - 4).toFixed(1) + '" text-anchor="middle">' + e.n + "</text>";
+      }
+    }
+    // Coalition rings around each member, the target marked.
+    const rings = {};
+    (g.coalitions || []).forEach((c, k) => {
+      for (const m of c.members) (rings[m] = rings[m] || []).push([k, c.target]);
+    });
+    for (const n of g.nodes) {
+      const [x, y] = pos[n.id], r = n.me ? 14 : 11;
+      (rings[n.id] || []).forEach(([k, t], i) => {
+        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (r + 5 + 5 * i) + '" fill="none" stroke="' + RING[k % RING.length] +
+          '" stroke-width="2" stroke-dasharray="4 3"><title>' + esc(n.name + ": in the coalition against " + name[t]) + "</title></circle>";
+      });
+      svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + esc(n.color) + '" stroke="var(--bg)" stroke-width="2"' +
+        (n.tribe ? ' stroke-dasharray="3 2"' : "") + "><title>" + esc(n.name + (n.tribe ? " (tribe)" : "")) + "</title></circle>";
+      const below = y > cy;
+      svg += '<text x="' + x.toFixed(1) + '" y="' + (below ? y + r + 15 : y - r - 7).toFixed(1) + '" text-anchor="middle"' +
+        (n.me ? ' font-weight="bold"' : "") + ">" + esc(n.name) + "</text>";
+    }
+    svg += "</svg>";
+    const legend = ['<span><i style="border-color:var(--info)"></i>alliance</span>', '<span><i style="border-color:var(--alarm)"></i>war</span>',
+      '<span><i style="border-color:var(--warn);border-top-style:dashed"></i>old rivals</span>',
+      '<span><i style="border-color:var(--ok);border-top-style:dotted"></i>settlements allied to a European</span>']
+      .concat((g.coalitions || []).map((c, k) => '<span><i style="border-color:' + RING[k % RING.length] + ';border-top-style:dashed"></i>ring: coalition against ' + esc(name[c.target] || "?") + "</span>"));
+    box.innerHTML = svg + '<div class="gl">' + legend.join("") + "</div>";
+  }
+
   function renderTribes() {
     if (!$("tribes")) return;
     const T = (dipRel && dipRel.tribes) || [];
@@ -2130,7 +2205,6 @@
     }).join("") + (dipRel.unmet ? '<p class="m">' + dipRel.unmet + (dipRel.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>" : "")
       : '<p class="m">You have not met any tribe yet.</p>';
     $("tribesSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Tribes in the relations graph", "step 5d", "Every nation and tribe as a dot, lines for alliances and wars, old rivals and friends.") +
       soon("Taking back a breakaway settlement", "after step 7", "A tribe may raid a settlement that broke off to you; that is a call to arms for you.");
   }
 

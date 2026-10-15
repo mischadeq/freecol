@@ -61,6 +61,11 @@ Checked every place the page reads another nation's data.
   with the attacker, refugees, uprisings, settlements breaking off;
   not who stayed home (that is the caller's business). Allied
   settlements are public (saved on the settlement, sent to everyone).
+- **Relations graph (5d):** nations and tribes you met; wars and
+  alliances between the others come from the server (public, as in the
+  Foreign Affairs report), so in multiplayer only your own; old rivals
+  only as the tribe cards show them; allied settlements (public);
+  coalitions (public).
 - **Coalition buy-out price:** a member's asking price to leave is
   shown only on coalitions against you: the member lets the target
   know its price, nobody else.
@@ -71,11 +76,9 @@ Checked every place the page reads another nation's data.
 
 | Feature | Step | Where it will show |
 | --- | --- | --- |
-| Relations graph | 5d | Diplomacy |
 | Joint attack plans of a coalition | after 5 | Diplomacy |
 | Grievances and ultimatums | 6 | Diplomacy, nation cards |
 | Trade agreements | 4 | Diplomacy, Trade |
-| Tribes in the relations graph | 5d | Diplomacy |
 | A tribe taking back a breakaway settlement | after 7 | Tribes |
 
 Built in step 7 (2026-10-15), on the tribe cards of the Diplomacy tab:

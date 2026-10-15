@@ -249,6 +249,7 @@ final class CompanionRelations {
         }
         j.endArr();
         j.put("unmet", unmet);
+        CompanionGraph.put(j, fcc, game, me);
         return j.end().toString();
     }
 
