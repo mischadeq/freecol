@@ -110,4 +110,29 @@ public class CoalitionTest extends TestCase {
         assertFalse(Coalition.takes(NationCharacter.BALANCE_KEEPER.gold, p, 14.5));
         assertFalse(Coalition.takes(NationCharacter.TRADING_EMPIRE.gold, p / 2, 14.5));
     }
+
+    public void testJointPlan() {
+        assertEquals(100 + Coalition.MIN_MUSTER, Coalition.strikeTurn(100, new int[] { 0, 1 }));
+        assertEquals(106, Coalition.strikeTurn(100, new int[] { 6, 3 }));
+        assertEquals(100 + Coalition.MAX_MUSTER, Coalition.strikeTurn(100, new int[] { 40 }));
+        Coalition c = new Coalition(ENGLISH, 90);
+        c.members.add(FRENCH);
+        c.members.add(DUTCH);
+        assertFalse(c.hasPlan(100));
+        c.jointTarget = "colony:7";
+        c.jointName = "Jamestown|;~,";
+        c.strikeTurn = 106;
+        assertEquals(102, c.launchTurn(4));
+        assertTrue(c.hasPlan(100));
+        assertTrue(c.hasPlan(106 + Coalition.STRIKE_WINDOW));
+        assertFalse(c.hasPlan(107 + Coalition.STRIKE_WINDOW));
+        Coalition d = Coalition.parse(c.serialize());
+        assertEquals("colony:7", d.jointTarget);
+        assertEquals(106, d.strikeTurn);
+        assertEquals(2, d.members.size());
+        // An older save without a plan still reads.
+        assertNull(Coalition.parse("model.nation.english|90|-1|a,b").jointTarget);
+        c.clearPlan();
+        assertFalse(c.hasPlan(100));
+    }
 }

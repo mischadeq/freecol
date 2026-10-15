@@ -90,6 +90,9 @@ public final class Mood {
     /** Target to the gold we ask to leave that coalition (members who
         did not found it; the asking price is let known to the target). */
     public final Map<String, Integer> buyoutPrices = new LinkedHashMap<>();
+    /** Target to a copy of our coalition against it (its members and
+        joint plan: shown to the members only). */
+    public final Map<String, Coalition> coalitions = new LinkedHashMap<>();
 
 
     private Mood(String nation, int turn, NationCharacter character,

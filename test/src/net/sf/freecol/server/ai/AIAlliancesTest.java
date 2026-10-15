@@ -384,6 +384,15 @@ public class AIAlliancesTest extends FreeColTestCase {
                 && o.audience.contains(ENGLISH) && SPANISH.equals(o.against);
         }
         assertTrue(called);
+        // At war together: one colony, one strike turn, for the members.
+        if (dutch.getStance(spanish) == Stance.WAR) {
+            assertNotNull(c.jointTarget);
+            assertEquals(spanish, game.getFreeColGameObject(c.jointTarget,
+                net.sf.freecol.common.model.Colony.class).getOwner());
+            assertTrue(c.strikeTurn >= game.getTurn().getNumber()
+                       + net.sf.freecol.common.diplomacy.Coalition.MIN_MUSTER);
+            assertSame(c, AlliancePlanner.jointPlanFor(dai, SPANISH));
+        }
     }
 
     public void testCoalitionsAreSaved() throws Exception {
@@ -526,5 +535,33 @@ public class AIAlliancesTest extends FreeColTestCase {
         t.add(new net.sf.freecol.common.model.GoldTradeItem(game, from, to, gold));
         t.setStatus(net.sf.freecol.common.model.DiplomaticTrade.TradeStatus.ACCEPT_TRADE);
         return t;
+    }
+
+    /** At war together, the founder plans one strike for all. */
+    public void testCoalitionPlansAJointStrike() {
+        setUpGame();
+        english.setAI(false);
+        EuropeanAIPlayer fai = ai(french), dai = ai(dutch);
+        net.sf.freecol.common.diplomacy.Coalition c = coalition(fai, dutch, english);
+        army(spanish, 30);
+        for (Player p : new Player[] { french, dutch, english }) {
+            p.setStance(spanish, Stance.WAR);
+            spanish.setStance(p, Stance.WAR);
+        }
+        fai.rememberTurn();
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertNotNull(c.jointTarget);
+        assertEquals(spanish, game.getFreeColGameObject(c.jointTarget,
+            net.sf.freecol.common.model.Colony.class).getOwner());
+        assertTrue(c.strikeTurn >= game.getTurn().getNumber()
+                   + net.sf.freecol.common.diplomacy.Coalition.MIN_MUSTER);
+        assertSame(c, AlliancePlanner.jointPlanFor(dai, SPANISH));
+        assertNull("not against others", AlliancePlanner.jointPlanFor(dai, ENGLISH));
+        // The plan holds, and is saved with the coalition.
+        final int strike = c.strikeTurn;
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(strike, c.strikeTurn);
+        assertEquals(c.serialize(), net.sf.freecol.common.diplomacy.Coalition
+            .parse(c.serialize()).serialize());
     }
 }

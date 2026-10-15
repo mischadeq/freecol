@@ -107,6 +107,24 @@ public class MoodsTest extends FreeColTestCase {
         final String ks = k.end().toString();
         assertTrue(ks, ks.contains("{\"name\":\"you\",\"you\":true,\"price\":1500}"));
         assertFalse(ks, ks.contains("900"));
+        // A joint plan shows to members only.
+        net.sf.freecol.common.diplomacy.Coalition jc
+            = new net.sf.freecol.common.diplomacy.Coalition(SPANISH, 90);
+        jc.members.add(FRENCH);
+        jc.members.add(ENGLISH);
+        jc.jointTarget = "colony:1";
+        jc.jointName = "Havana";
+        jc.strikeTurn = game.getTurn().getNumber() + 3;
+        m.coalitionTargets.add(SPANISH);
+        m.coalitions.put(SPANISH, jc);
+        Json p = new Json().obj();
+        CompanionMoods.put(p, m, game, me);
+        assertFalse("not a member", p.end().toString().contains("Havana"));
+        jc.members.add(DUTCH);
+        p = new Json().obj();
+        CompanionMoods.put(p, m, game, me);
+        final String ps = p.end().toString();
+        assertTrue(ps, ps.contains("\"joint\":\"Havana\",\"strikeIn\":3"));
 
         // Nor does a missing mood (another human, a multiplayer game).
         Json n = new Json().obj();

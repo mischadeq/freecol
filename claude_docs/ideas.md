@@ -1406,6 +1406,33 @@ The nation a coalition stands against can pay a member to leave it.
   rival hidden until at war, multiplayer only your own stances);
   the drawing in headless Chromium with made-up data.
 
+### Coalition joint attacks (2026-10-15)
+- **One target, one landing:** once a coalition is at war with its
+  target and at least two members fight, the founder picks one colony
+  (the one its diplomat would attack, else the target's colony nearest
+  to it) and a strike turn: when the slowest member can be there (2 to
+  10 turns; by land a tile a turn, by sea four tiles a turn plus two to
+  load and land). The plan holds until 5 turns after the strike turn or
+  until the colony falls, then a new one is made. Saved with the
+  coalition.
+- **Members keep to it:** a computer member attacks the target only at
+  the planned colony, and sets off just in time to land on the strike
+  turn (the log says "waits for the joint strike"); the plan adds the
+  coalition bonus to the attack's score. Other enemies are attacked as
+  before.
+- **You as a member:** the turn report says "all members strike
+  Havana of Spain together, landing in 6 turns", and the Coalitions
+  box on the Diplomacy tab shows "Joint strike: Havana, in 6 turns".
+  The target never sees it.
+- **Tested:** `CoalitionTest.testJointPlan` (strike turn, launch turn,
+  how long a plan holds, saving, older saves);
+  `AIAlliancesTest.testCoalitionPlansAJointStrike`;
+  `InvasionPlannerTest.testJointStrikeIsTimed` (waits when too early,
+  sails to the planned colony when it is time); `MoodsTest` (members
+  only). All 650 tests green.
+- **Not done:** members bringing their armies to one muster point
+  first; the player's own armies are of course up to the player.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

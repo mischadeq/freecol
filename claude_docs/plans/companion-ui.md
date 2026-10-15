@@ -66,6 +66,8 @@ Checked every place the page reads another nation's data.
   Foreign Affairs report), so in multiplayer only your own; old rivals
   only as the tribe cards show them; allied settlements (public);
   coalitions (public).
+- **Joint strike:** a coalition's target colony and landing turn show
+  only to its members, never to the target.
 - **Coalition buy-out price:** a member's asking price to leave is
   shown only on coalitions against you: the member lets the target
   know its price, nobody else.
@@ -76,7 +78,6 @@ Checked every place the page reads another nation's data.
 
 | Feature | Step | Where it will show |
 | --- | --- | --- |
-| Joint attack plans of a coalition | after 5 | Diplomacy |
 | Grievances and ultimatums | 6 | Diplomacy, nation cards |
 | Trade agreements | 4 | Diplomacy, Trade |
 | A tribe taking back a breakaway settlement | after 7 | Tribes |

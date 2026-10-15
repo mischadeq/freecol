@@ -2057,17 +2057,19 @@
       for (const c of (n.mood && n.mood.coalitions) || []) {
         if (!coal.has(c.name)) coal.set(c.name, { you: c.you, members: [] });
         coal.get(c.name).members.push({ n: n, price: c.price });
+        if (c.joint) coal.get(c.name).joint = c;
       }
     }
     $("dipCoal").innerHTML = coal.size ? [...coal.entries()].map(([target, c]) =>
       '<div class="mline"><span class="tag ' + (c.you ? "alarm" : "warn") + '">Against ' + esc(target) + "</span> " +
       c.members.map((m) => '<i class="sw" style="background:' + esc(m.n.color) + '"></i> ' + esc(m.n.name) +
-        (m.price ? ' <span class="tag info" title="Their asking price to leave the coalition. Give at least this much gold in the game\'s diplomacy screen and they leave: their alliances in it end.">leaves for ' + m.price.toLocaleString() + " gold</span>" : "")).join(", ") + "</div>").join("")
+        (m.price ? ' <span class="tag info" title="Their asking price to leave the coalition. Give at least this much gold in the game\'s diplomacy screen and they leave: their alliances in it end.">leaves for ' + m.price.toLocaleString() + " gold</span>" : "")).join(", ") +
+      (c.joint ? ' <span class="tag warn" title="The members strike this colony together and time their landings; only the members know.">Joint strike: ' + esc(c.joint.joint) +
+        (c.joint.strikeIn ? ", in " + c.joint.strikeIn + (c.joint.strikeIn === 1 ? " turn" : " turns") : ", now") + "</span>" : "") + "</div>").join("")
       : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
 
     renderGraph();
     $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Joint attack plans", "after step 5", "Coalition members pick the same target and time their landings, instead of each attacking alone.") +
       soon("Grievances and ultimatums", "step 6", "No war on you out of nowhere: first a complaint, then terms (\"withdraw or pay 500\"), then war if you ignore it. Shown here and on their card.") +
       soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
     $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +

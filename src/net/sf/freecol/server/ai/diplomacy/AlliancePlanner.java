@@ -595,6 +595,7 @@ public final class AlliancePlanner {
                 if (q == null || q == me || q.getStance(t) == Stance.WAR) continue;
                 changed |= callMember(c, q, t, cs, lb);
             }
+            planJointStrike(c, t, outlook, cs, lb);
         }
         return changed;
     }
@@ -643,6 +644,107 @@ public final class AlliancePlanner {
         return true;
     }
 
+
+    // Joint attacks
+
+    /**
+     * The members strike the same colony together: the one our diplomat
+     * would attack (else the target's colony nearest to us), on the
+     * turn the slowest member can be there.  Human members are told.
+     */
+    private void planJointStrike(Coalition c, Player t, Outlook outlook,
+                                 ChangeSet cs, LogBuilder lb) {
+        final int now = now();
+        net.sf.freecol.common.model.Colony col = (c.jointTarget == null) ? null
+            : game().getFreeColGameObject(c.jointTarget,
+                net.sf.freecol.common.model.Colony.class);
+        if (c.hasPlan(now) && col != null && col.getOwner() == t) return;
+        c.clearPlan();
+        final net.sf.freecol.common.diplomacy.Situation.Attack at
+            = outlook.situation.attacks.get(c.target);
+        col = (at == null) ? null : game().getFreeColGameObject(at.place.id,
+            net.sf.freecol.common.model.Colony.class);
+        if (col == null || col.getOwner() != t) col = nearestColony(t, me());
+        if (col == null) return;
+        final List<Player> fighting = new java.util.ArrayList<>();
+        for (String m : c.members) {
+            final Player q = game().getPlayerByNationId(m);
+            if (q != null && q.getStance(t) == Stance.WAR) fighting.add(q);
+        }
+        if (fighting.size() < 2) return;
+        final int[] travel = new int[fighting.size()];
+        for (int i = 0; i < travel.length; i++) {
+            travel[i] = travelTurns(fighting.get(i), col.getTile());
+        }
+        c.jointTarget = col.getId();
+        c.jointName = col.getName();
+        c.strikeTurn = Coalition.strikeTurn(now, travel);
+        lb.add("\n  Joint strike on ", col.getName(), " in turn ", c.strikeTurn);
+        for (Player q : fighting) {
+            if (q.isAI()) continue;
+            cs.addMessage(q, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "coalition.jointStrike", me())
+                .addStringTemplate("%nation%", me().getNationLabel())
+                .addStringTemplate("%enemy%", t.getNationLabel())
+                .addName("%colony%", col.getName())
+                .addAmount("%turns%", c.strikeTurn - now));
+        }
+    }
+
+    /** A nation's colony nearest to another's colonies. */
+    private static net.sf.freecol.common.model.Colony nearestColony(Player p,
+                                                                     Player from) {
+        net.sf.freecol.common.model.Colony best = null;
+        int top = Integer.MAX_VALUE;
+        for (net.sf.freecol.common.model.Colony c : p.getColonyList()) {
+            for (net.sf.freecol.common.model.Colony f : from.getColonyList()) {
+                final int d = c.getTile().getDistanceTo(f.getTile());
+                if (d < top) {
+                    top = d;
+                    best = c;
+                }
+            }
+            if (best == null) best = c;
+        }
+        return best;
+    }
+
+    /**
+     * Turns a nation's army needs to reach a tile: by land a tile a
+     * turn, by sea four tiles a turn and two turns to load and land.
+     *
+     * @param p The nation.
+     * @param to The tile.
+     * @return The turns (99 if it has no colony).
+     */
+    public static int travelTurns(Player p, net.sf.freecol.common.model.Tile to) {
+        int best = 99;
+        for (net.sf.freecol.common.model.Colony c : p.getColonyList()) {
+            final int d = c.getTile().getDistanceTo(to);
+            final int t = (c.getTile().getContiguity() == to.getContiguity())
+                ? d : (d + 3) / 4 + 2;
+            best = Math.min(best, t);
+        }
+        return best;
+    }
+
+    /**
+     * The coalition with a joint plan against an enemy that a nation is
+     * in, if any.
+     *
+     * @param ai The nation's computer player.
+     * @param enemy The enemy nation id.
+     * @return The {@code Coalition}, or null.
+     */
+    public static Coalition jointPlanFor(EuropeanAIPlayer ai, String enemy) {
+        final int now = ai.getGame().getTurn().getNumber();
+        for (Coalition c : allCoalitions(ai)) {
+            if (c.target.equals(enemy) && c.hasPlan(now)
+                && c.members.contains(ai.getPlayer().getNationId())) return c;
+        }
+        return null;
+    }
 
     // Buy-outs
 

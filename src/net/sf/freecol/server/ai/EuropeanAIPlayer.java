@@ -2745,6 +2745,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                      : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.allCoalitions(this)) {
                 if (c.members.contains(player.getNationId()) && c.members.size() >= 2) {
                     m.coalitionTargets.add(c.target);
+                    m.coalitions.put(c.target,
+                        net.sf.freecol.common.diplomacy.Coalition.parse(c.serialize()));
                     if (c.members.indexOf(player.getNationId()) > 0) {
                         m.buyoutPrices.put(c.target, buyoutPrice(c));
                     }

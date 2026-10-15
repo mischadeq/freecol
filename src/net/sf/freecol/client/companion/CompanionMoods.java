@@ -118,6 +118,14 @@ final class CompanionMoods {
             // Their asking price to leave, known to the target only.
             final Integer price = m.buyoutPrices.get(t);
             if (q == me && price != null) j.put("price", price.intValue());
+            // The joint plan: only for the members.
+            final net.sf.freecol.common.diplomacy.Coalition c = m.coalitions.get(t);
+            if (c != null && c.members.contains(me.getNationId())
+                && c.jointTarget != null) {
+                j.put("joint", c.jointName)
+                    .put("strikeIn", Math.max(0, c.strikeTurn
+                        - game.getTurn().getNumber()));
+            }
             j.end();
         }
         j.endArr();

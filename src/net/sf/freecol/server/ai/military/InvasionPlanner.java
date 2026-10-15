@@ -167,14 +167,31 @@ public final class InvasionPlanner {
         final CombatModel cm = game.getCombatModel();
         for (ScoredAction sa : o.ranked) {
             if (sa.action.kind != Action.Kind.ATTACK_COLONY) continue;
-            if (sa.total < Diplomat.THRESHOLD) break;
-            final Situation.Attack at = s.attacks.get(sa.action.target);
-            if (at == null) continue;
-            final Settlement target = game.getFreeColGameObject(at.place.id,
+            // A coalition's joint strike (mod): the planned colony, timed
+            // to land with the others, and worth a little more.
+            final net.sf.freecol.common.diplomacy.Coalition joint
+                = net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+                    .jointPlanFor(aiPlayer, sa.action.target);
+            final double bonus = (joint == null) ? 0
+                : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.COALITION_BONUS;
+            if (sa.total + bonus < Diplomat.THRESHOLD) continue;
+            final Situation.Attack at0 = s.attacks.get(sa.action.target);
+            final net.sf.freecol.common.diplomacy.PlaceView pv = (joint == null)
+                ? ((at0 == null) ? null : at0.place)
+                : placeView(w, sa.action.target, joint.jointTarget, at0);
+            if (pv == null) continue;
+            final Settlement target = game.getFreeColGameObject(pv.id,
                                                                 Settlement.class);
             if (target == null || !player.atWarWith(target.getOwner())
                 || aiPlayer.getCommitments().inTruce(
                     target.getOwner().getNationId())) continue;
+            if (joint != null && game.getTurn().getNumber() < joint.launchTurn(
+                    net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+                        .travelTurns(player, target.getTile()))) {
+                lb.add("\n  Waits for the joint strike on ", target.getName(),
+                       " (turn ", joint.strikeTurn, ")");
+                continue;
+            }
 
             // Spare units, strongest against this target first.
             List<AIUnit> spare = new ArrayList<>();
@@ -195,7 +212,7 @@ public final class InvasionPlanner {
             for (int i = 0; i < attacks.length; i++) {
                 attacks[i] = cm.getOffencePower(spare.get(i).getUnit(), target);
             }
-            int n = forceFor(attacks, at.place, max,
+            int n = forceFor(attacks, pv, max,
                              31L * game.getTurn().getNumber() + target.getId().hashCode());
             if (n == 0) {
                 lb.add("\n  Invasion of ", target.getName(), " skipped: too few spare units (",
@@ -218,6 +235,18 @@ public final class InvasionPlanner {
             break;
         }
         return sent;
+    }
+
+    /** The planned colony as we see it, else our own best attack's. */
+    private static net.sf.freecol.common.diplomacy.PlaceView placeView(
+            WorldView w, String enemy, String id, Situation.Attack at) {
+        final net.sf.freecol.common.diplomacy.NationView v = w.others.get(enemy);
+        if (v != null) {
+            for (net.sf.freecol.common.diplomacy.PlaceView p : v.places) {
+                if (p.id.equals(id)) return p;
+            }
+        }
+        return (at == null) ? null : at.place;
     }
 
     /**

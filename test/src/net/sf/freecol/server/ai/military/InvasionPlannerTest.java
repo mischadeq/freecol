@@ -133,6 +133,67 @@ public class InvasionPlannerTest extends FreeColTestCase {
         assertFalse(InvasionPlanner.onInvasion(sent.get(0)));
     }
 
+    /** A coalition's joint strike: wait, then sail to land on time. */
+    public void testJointStrikeIsTimed() {
+        MapBuilder mb = new MapBuilder(getGame());
+        mb.setDimensions(20, 15).setBaseTileType(ocean);
+        mb.setExploredByAll(true);
+        for (int y = 2; y < 13; y++) {
+            for (int x = 1; x <= 5; x++) mb.setTileType(x, y, plains);
+            for (int x = 12; x <= 16; x++) mb.setTileType(x, y, plains);
+        }
+        mb.setTileType(19, 0, spec().getTileType("model.tile.highSeas"));
+        Game game = ServerTestHelper.startServerGame(mb.build());
+        Map map = game.getMap();
+        AIMain aiMain = ServerTestHelper.getServer().getAIMain();
+        ServerPlayer dutch = getServerPlayer(game, "model.nation.dutch");
+        ServerPlayer french = getServerPlayer(game, "model.nation.french");
+        ServerPlayer english = getServerPlayer(game, "model.nation.english");
+        Colony target = FreeColTestUtils.getColonyBuilder().player(french)
+            .colonyTile(map.getTile(5, 7)).initialColonists(2).build();
+        Colony home = FreeColTestUtils.getColonyBuilder().player(dutch)
+            .colonyTile(map.getTile(12, 7)).initialColonists(4).build();
+        final Role dragoon = spec().getRole("model.role.dragoon");
+        List<AIUnit> army = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            Unit u = new ServerUnit(game, home.getTile(), dutch, veteran, dragoon);
+            army.add(aiMain.getAIUnit(u));
+        }
+        new ServerUnit(game, home.getTile(), dutch, galleon);
+        dutch.setStance(french, Stance.WAR);
+        french.setStance(dutch, Stance.WAR);
+        dutch.getTension(french).setValue(Tension.TENSION_MAX);
+        dutch.exploreMap(true);
+
+        EuropeanAIPlayer eai = (EuropeanAIPlayer)aiMain.getAIPlayer(english);
+        net.sf.freecol.common.diplomacy.Coalition c
+            = new net.sf.freecol.common.diplomacy.Coalition(
+                "model.nation.french", game.getTurn().getNumber());
+        c.members.add("model.nation.english");
+        c.members.add("model.nation.dutch");
+        c.jointTarget = target.getId();
+        c.jointName = target.getName();
+        final int now = game.getTurn().getNumber();
+        c.strikeTurn = now + 10;
+        eai.getCoalitions().add(c);
+        final int travel = net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+            .travelTurns(dutch, target.getTile());
+        assertTrue("by sea: " + travel, travel >= 2 && travel < 10);
+
+        InvasionPlanner planner = new InvasionPlanner(
+            (EuropeanAIPlayer)aiMain.getAIPlayer(dutch));
+        LogBuilder lb = new LogBuilder(64);
+        assertTrue("too early: waits",
+            planner.plan(new ArrayList<>(army), new HashSet<>(), new HashSet<>(), lb).isEmpty());
+        assertTrue(lb.toString(), lb.toString().contains("joint strike"));
+        // Time to set off to land on the strike turn.
+        c.strikeTurn = now + travel;
+        List<AIUnit> sent = planner.plan(new ArrayList<>(army), new HashSet<>(),
+                                         new HashSet<>(), new LogBuilder(64));
+        assertFalse(sent.isEmpty());
+        assertEquals(target, sent.get(0).getMission().getTarget());
+    }
+
     /** A whole AI turn: the army boards the galleon. */
     public void testTheArmyBoards() {
         MapBuilder mb = new MapBuilder(getGame());
