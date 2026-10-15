@@ -277,7 +277,7 @@ public final class MapViewer extends FreeColClientHolder {
             final BufferedImage backBufferImage = thePainter.getBackBufferImage();
             if (backBufferImage == null) {
                 rpm.markAsDirty();
-                return paintMap(g2d, size, mapViewerBounds, true);
+                return paintMap(g2d, size, mapViewerBounds, true, null);
             }
             
             g2d.setColor(Color.BLACK);
@@ -299,7 +299,7 @@ public final class MapViewer extends FreeColClientHolder {
             return false;
         }
 
-        return paintMap(g2d, size, mapViewerBounds, true);
+        return paintMap(g2d, size, mapViewerBounds, true, null);
     }
     
     /**
@@ -316,10 +316,26 @@ public final class MapViewer extends FreeColClientHolder {
     @SuppressFBWarnings(value="NP_LOAD_OF_KNOWN_NULL_VALUE",
                         justification="lazy load of extra tiles")
     public boolean paintMap(Graphics2D g2d, Dimension size, MapViewerBounds mapViewerBounds) {
-        return paintMap(g2d, size, mapViewerBounds, false);
+        return paintMap(g2d, size, mapViewerBounds, false, null);
+    }
+
+    /**
+     * Displays the Map into an image (the scrolling painter): the image
+     * also gets the parchment fade (mod).
+     *
+     * @param g2d The {@code Graphics2D} of the image.
+     * @param size The size of the map.
+     * @param mapViewerBounds The bounds to draw with.
+     * @param target The image {@code g2d} draws into.
+     * @return {@code true} if the entire map has been repainted.
+     */
+    public boolean paintMap(Graphics2D g2d, Dimension size,
+                            MapViewerBounds mapViewerBounds, BufferedImage target) {
+        return paintMap(g2d, size, mapViewerBounds, false, target);
     }
     
-    private boolean paintMap(Graphics2D g2d, Dimension size, MapViewerBounds mapViewerBounds, boolean useBuffers) {
+    private boolean paintMap(Graphics2D g2d, Dimension size, MapViewerBounds mapViewerBounds, boolean useBuffers,
+                             BufferedImage directTarget) {
         final long startMs = now();
         
         final Rectangle clipBounds = (useBuffers) ? g2d.getClipBounds() : new Rectangle(0, 0, size.width, size.height);
@@ -394,8 +410,10 @@ public final class MapViewer extends FreeColClientHolder {
         // Display everything else:
         final long animatedBaseMs = now();
         if (!dirtyClipBounds.isEmpty()) {
-            this.fadeTarget = nonAnimationBufferImage;
-            displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, useBuffers);
+            // The parchment fade goes into the image drawn into: the
+            // buffer, or the scrolling painter's own image (mod).
+            displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, useBuffers,
+                (useBuffers) ? nonAnimationBufferImage : directTarget);
         }
         
         if (useBuffers) {
@@ -537,8 +555,8 @@ public final class MapViewer extends FreeColClientHolder {
         final BufferedImage nonAnimationBufferImage = rpm.getNonAnimationBufferImage();
         final Map map = getMap();
         final Graphics2D nonAnimationG2d = nonAnimationBufferImage.createGraphics();
-        this.fadeTarget = nonAnimationBufferImage;
-        displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, true);
+        displayToNonAnimationBufferImage(mapViewerBounds, dirtyClipBounds, nonAnimationG2d, map, true,
+                                         nonAnimationBufferImage);
         nonAnimationG2d.dispose();
         if (FreeColDebugger.debugRendering()) {
             fullyRepaintedAreas.add(dirtyClipBounds);
@@ -546,19 +564,25 @@ public final class MapViewer extends FreeColClientHolder {
         rpm.markAsClean();
     }
 
-    /** The image the map is drawn into, for the frontier fade (null if
-        drawing straight to the screen). */
-    private BufferedImage fadeTarget = null;
-
-    private void displayToNonAnimationBufferImage(MapViewerBounds mapViewerBounds, Rectangle dirtyClipBounds, Graphics2D nonAnimationG2d, Map map, boolean useBuffers) {
+    /**
+     * Draw the non-animated parts.
+     *
+     * @param fadeTarget The image the map is drawn into, for the
+     *     parchment fade (mod), or null for none (drawing straight to
+     *     the screen).  A parameter, not a field: the scrolling painter
+     *     draws on its own thread at the same time as the screen.
+     */
+    private void displayToNonAnimationBufferImage(MapViewerBounds mapViewerBounds, Rectangle dirtyClipBounds, Graphics2D nonAnimationG2d, Map map, boolean useBuffers,
+                                                  BufferedImage fadeTarget) {
         final TileClippingBounds tcb = new TileClippingBounds(mapViewerBounds, map, dirtyClipBounds);
-        displayNonAnimationImages(nonAnimationG2d, dirtyClipBounds, tcb, useBuffers);
+        displayNonAnimationImages(nonAnimationG2d, dirtyClipBounds, tcb, useBuffers, fadeTarget);
     }
 
     private void displayNonAnimationImages(Graphics2D nonAnimationG2d,
             Rectangle clipBounds,
             TileClippingBounds tcb,
-            boolean useBuffers) {
+            boolean useBuffers,
+            BufferedImage fadeTarget) {
         
         long startMs = now();
         final Player player = getMyPlayer(); // Check, can be null in map editor
@@ -657,8 +681,8 @@ public final class MapViewer extends FreeColClientHolder {
 
         // Old-chart look: the edge of the explored map fades into a sepia
         // sketch and then into the paper of the unexplored part.
-        if (this.fadeTarget != null && this.tv.useParchment()) {
-            final BufferedImage target = this.fadeTarget;
+        if (fadeTarget != null && this.tv.useParchment()) {
+            final BufferedImage target = fadeTarget;
             final int w = tileBounds.getWidth(), h = tileBounds.getHeight();
             paintEachTile(nonAnimationG2d, tcb, (tileG2d, tile) -> {
                 final java.awt.geom.AffineTransform at = tileG2d.getTransform();

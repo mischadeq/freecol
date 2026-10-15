@@ -1770,6 +1770,15 @@ public class SwingGUI extends GUI {
      * {@inheritDoc}
      */
     @Override
+    public boolean isTurnReportShowing() {
+        return this.canvas != null && this.canvas.getExistingFreeColPanel(
+            net.sf.freecol.client.gui.panel.report.ReportTurnPanel.class) != null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void refresh() {
         if (this.mapViewer != null) {
             this.mapViewer.getMapViewerRepaintManager().markAsDirty();

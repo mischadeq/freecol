@@ -1135,6 +1135,12 @@ public final class InGameController extends FreeColClientHolder {
      *     reached their destination and are free to move again.
      */
     private boolean doExecuteGotoOrders() {
+        // Not while the turn report is open: the trade routes and other
+        // orders wait until the player has read it and pressed OK (mod).
+        if (getGUI().isTurnReportShowing()) {
+            gotoOrdersAfterReport();
+            return false;
+        }
         final Player player = getMyPlayer();
         Unit active = getGUI().getActiveUnit();
         boolean ret = true;
@@ -3668,6 +3674,24 @@ public final class InGameController extends FreeColClientHolder {
         if (currentPlayerIsMyPlayer()) showOffers();
     }
 
+    /** Runs the orders once the turn report is closed (mod). */
+    private javax.swing.Timer gotoTimer = null;
+
+    /** Run the goto orders when the turn report closes (mod). */
+    private void gotoOrdersAfterReport() {
+        invokeLater(() -> {
+                if (this.gotoTimer == null) {
+                    this.gotoTimer = new javax.swing.Timer(300, e -> {
+                            if (getGUI().isTurnReportShowing()) return;
+                            this.gotoTimer.stop();
+                            if (!currentPlayerIsMyPlayer()) return;
+                            updateGUI(null, false);
+                        });
+                }
+                if (!this.gotoTimer.isRunning()) this.gotoTimer.start();
+            });
+    }
+
     /** Shows the waiting offers when the screen is free (mod). */
     private javax.swing.Timer offerTimer = null;
 
@@ -3722,6 +3746,9 @@ public final class InGameController extends FreeColClientHolder {
                     "offer.accept", "offer.decline");
                 askServer().answerOffer(o.id, yes);
             }
+            // The answer's news ("agreement accepted") now, not after
+            // the next move.
+            displayModelMessages(false, false);
         } finally {
             this.offerTimer.restart();
         }

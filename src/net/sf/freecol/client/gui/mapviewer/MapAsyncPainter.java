@@ -335,7 +335,8 @@ public final class MapAsyncPainter {
                 }
                 
                 internalRenderMapViewerBounds.setFocusMapPoint(nextMapFocusPointBackBuffer);
-                mapViewer.paintMap(g2d, size, internalRenderMapViewerBounds);
+                mapViewer.paintMap(g2d, size, internalRenderMapViewerBounds,
+                                   nextBackBufferImage);
             } finally {
                 g2d.dispose();
             }

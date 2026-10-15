@@ -472,7 +472,8 @@ public abstract class ServerAPI {
      * @return True if the message was sent.
      */
     public boolean answerOffer(String offerId, boolean accept) {
-        return send(new OfferMessage(offerId, accept));
+        // Wait for the reply, so its messages can be shown at once.
+        return ask(new OfferMessage(offerId, accept));
     }
 
     /**
@@ -484,7 +485,7 @@ public abstract class ServerAPI {
      * @return True if the message was sent.
      */
     public boolean answerOffer(String offerId, int amount) {
-        return send(new OfferMessage(offerId, amount > 0, amount));
+        return ask(new OfferMessage(offerId, amount > 0, amount));
     }
 
     /**

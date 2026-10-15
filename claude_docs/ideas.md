@@ -1558,6 +1558,24 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Tested:** all 674 unit tests green (no unit test for Swing timing;
   Mischa to check in the game).
 
+### Fixes from Mischa's first game with steps 4-7 (2026-10-15)
+- **Trade routes wait for the turn report:** units with orders (trade
+  routes, goto) used to start moving while the turn report was still
+  open. They now wait until it is closed (pressing End Turn with the
+  report open does nothing until it is closed).
+- **Offer answers show at once:** the news of an answer ("agreement
+  accepted", "they bought 80 coats") appeared only after the next unit
+  move; the client now waits for the server's reply and shows it.
+- **Parchment map while scrolling:** scrolling with the mouse at the
+  screen edge draws the map on a separate painter thread into its own
+  image, which never got the mist fade (so it vanished while moving);
+  and both painters shared one "fade into this image" field, so a fade
+  could land in the wrong image (patches and odd rounded shapes left
+  in place). The image is now passed along each drawing, the scrolling
+  painter gets the fade too.
+- **Tested:** all 674 unit tests green; the drawing and the turn order
+  need Mischa's eye in the game.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

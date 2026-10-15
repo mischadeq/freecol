@@ -1821,6 +1821,15 @@ public class GUI extends FreeColClientHolder {
     }
 
     /**
+     * Is the turn report showing (mod)?
+     *
+     * @return True if it is.
+     */
+    public boolean isTurnReportShowing() {
+        return false;
+    }
+
+    /**
      * Refresh the whole GUI.
      * 
      * This is done by invalidating any cached rendering and then repainting the
