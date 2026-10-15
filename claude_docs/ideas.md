@@ -1361,6 +1361,36 @@ The nation a coalition stands against can pay a member to leave it.
   back; the companion Offers list does not show tribe offers yet (they
   come as dialogs and in the turn report).
 
+### Steps 7f and 7g built: uprisings, tribe cards (2026-10-15)
+- **Unrest, never out of nowhere:** a tribe hates a European when its
+  opinion is -40 or lower and it has a real grievance (a settlement
+  destroyed, land taken, or high tension). When it and at least one
+  other tribe (not its old rival) hate the same European, unrest
+  begins: "The tribes speak of war against you" in the turn report
+  (once a turn). It calms when the hatred goes (gifts, giving back
+  land).
+- **Uprising:** after 5 turns of unrest (7 very easy, 6 easy, 4 hard, 3
+  very hard) the tribe declares war and sends 3 braves at the nearest
+  colony: "The Sioux rise against you!". A tribe whose old rival rose
+  against the same European stays out.
+- **Pontiac's rule:** when a tribe's European friend (allied, or liked)
+  loses a colony within 6 tiles of the tribe to another European, the
+  tribe turns on the winner.
+- **Tribe cards** on the Diplomacy tab (replacing the greyed boxes):
+  character, mood and trust meters, an unrest meter with the turns
+  left, what they remember of you, old rival and friends (only with
+  your mission; the rival also when they are at war), allied
+  settlements, the latest news. Honesty notes in
+  `claude_docs/plans/companion-ui.md`.
+- **Tested:** `AITribesTest` (unrest turns by difficulty, unrest before
+  the uprising, one tribe alone or with only its rival does not rise,
+  unrest calms, a tribe stays out when its rival rose, Pontiac, unrest
+  saved); `MoodsTest.testTribeCardIsHonest`; the cards in headless
+  Chromium with made-up data. All 646 tests green.
+- **Not done:** tribes in the relations graph (5d, next); a tribe
+  raiding its breakaway settlement; the companion Offers list for tribe
+  offers.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

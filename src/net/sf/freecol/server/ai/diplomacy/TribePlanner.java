@@ -138,7 +138,10 @@ public final class TribePlanner {
         tribeAlliances(cs, lb);
         allyWars(lb);
         callAllies(cs, lb);
+        pontiac(lb);
+        unrest(cs, lb);
         tellOffers(cs);
+        ai.setMood(mood());
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
     }
 
@@ -951,6 +954,228 @@ public final class TribePlanner {
         default:
             return false;
         }
+    }
+
+    // Uprisings (7f)
+
+    /** Opinion at or under which a tribe hates a European. */
+    public static final double HATE_LINE = -40;
+    /** Tribes that must hate the same European for unrest. */
+    public static final int UPRISING_TRIBES = 2;
+    /** Braves each risen tribe sends. */
+    public static final int UPRISING_PARTY = 3;
+    /** Tiles from our settlements within which a friend's loss counts. */
+    public static final int PONTIAC_RADIUS = 6;
+
+    /**
+     * Turns of unrest before an uprising: 5 on medium, shorter on the
+     * harder levels.
+     *
+     * @param difficulty The difficulty level id, may be null.
+     * @return The turns.
+     */
+    public static int unrestTurns(String difficulty) {
+        if (difficulty == null) return 5;
+        switch (difficulty) {
+        case "model.difficulty.veryEasy": return 7;
+        case "model.difficulty.easy": return 6;
+        case "model.difficulty.hard": return 4;
+        case "model.difficulty.veryHard": return 3;
+        default: return 5;
+        }
+    }
+
+    private int unrestTurns() {
+        final net.sf.freecol.common.option.OptionGroup dl
+            = game().getSpecification().getDifficultyOptionGroup();
+        return unrestTurns((dl == null) ? null : dl.getId());
+    }
+
+    /**
+     * Does a tribe hate a European enough to rise: a low opinion and a
+     * real grievance (a settlement destroyed, land taken, or high
+     * tension)?
+     *
+     * @param tribe The tribe's AI player.
+     * @param e The European.
+     * @return True if so.
+     */
+    public static boolean hates(NativeAIPlayer tribe, Player e) {
+        if (!e.isEuropean() || e.isREF()) return false;
+        if (opinion(tribe, e) > HATE_LINE) return false;
+        final Player me = tribe.getPlayer();
+        if (me.getTension(e).getValue() >= Tension.Level.DISPLEASED.getLimit()) {
+            return true;
+        }
+        for (Memory m : tribe.getMemories().list()) {
+            if (e.getNationId().equals(m.about)
+                && (m.kind == Memory.Kind.SETTLEMENT_DESTROYED
+                    || m.kind == Memory.Kind.LAND_TAKEN)) return true;
+        }
+        return false;
+    }
+
+    /** Other tribes (not our old rival) that hate the same European. */
+    private int alsoHate(Player e) {
+        int n = 0;
+        for (Player q : game().getLiveNativePlayerList()) {
+            if (q == me() || q.getNationId().equals(ai.getRival())) continue;
+            final net.sf.freecol.server.ai.AIPlayer qa = ai.getAIMain().getAIPlayer(q);
+            if (qa instanceof NativeAIPlayer && hates((NativeAIPlayer)qa, e)) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Unrest first, the uprising after: when we and at least one more
+     * tribe (not our old rival) hate the same European, the tribes
+     * speak of war; if it lasts, we rise.  An old rival that already
+     * rose keeps us out.
+     */
+    private void unrest(net.sf.freecol.common.networking.ChangeSet cs,
+                        LogBuilder lb) {
+        final Player me = me();
+        final java.util.Map<String, Integer> u = ai.getUnrest();
+        for (Player e : game().getLiveEuropeanPlayerList()) {
+            final String id = e.getNationId();
+            final boolean angry = hates(ai, e)
+                && alsoHate(e) + 1 >= UPRISING_TRIBES;
+            if (!angry || me.getStance(e) == Stance.WAR) {
+                if (u.remove(id) != null && !angry) {
+                    lb.add("\n  Unrest against ", e.getDebugName(), " calms");
+                }
+                continue;
+            }
+            final Integer since = u.get(id);
+            if (since == null) {
+                u.put(id, now());
+                lb.add("\n  Unrest against ", e.getDebugName());
+                warn(e, cs);
+                continue;
+            }
+            if (now() - since < unrestTurns()) continue;
+            if (rivalRose(e)) {
+                lb.add("\n  Stays out: our old rival rose against ",
+                       e.getDebugName());
+                continue;
+            }
+            u.remove(id);
+            changeStance(Stance.WAR, e);
+            anger(me, e);
+            final Colony c = nearestColony(e);
+            ai.sendWarParty(e, (c == null) ? null : c.getTile(), UPRISING_PARTY);
+            net.sf.freecol.server.model.TribeNews.add(game(),
+                new net.sf.freecol.server.model.TribeNews.News(now(),
+                    net.sf.freecol.server.model.TribeNews.Kind.UPRISING,
+                    me.getNationId(), null, id, (c == null) ? "" : c.getName()));
+            if (!e.isAI()) {
+                cs.addMessage(e, new net.sf.freecol.common.model.ModelMessage(
+                    net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                    "tribe.uprising", me)
+                    .addStringTemplate("%nation%", me.getNationLabel()));
+            }
+            lb.add("\n  Rises against ", e.getDebugName());
+        }
+    }
+
+    /** Did our old rival rise against this European lately? */
+    private boolean rivalRose(Player e) {
+        final String r = ai.getRival();
+        if (r == null) return false;
+        for (net.sf.freecol.server.model.TribeNews.News n
+                 : net.sf.freecol.server.model.TribeNews.recent(game())) {
+            if (n.kind == net.sf.freecol.server.model.TribeNews.Kind.UPRISING
+                && r.equals(n.tribe) && e.getNationId().equals(n.european)
+                && now() - n.turn <= unrestTurns()) return true;
+        }
+        return false;
+    }
+
+    /** One warning a turn per European, whichever tribe speaks first. */
+    private void warn(Player e, net.sf.freecol.common.networking.ChangeSet cs) {
+        boolean told = false;
+        for (net.sf.freecol.server.model.TribeNews.News n
+                 : net.sf.freecol.server.model.TribeNews.recent(game())) {
+            told |= n.kind == net.sf.freecol.server.model.TribeNews.Kind.UNREST
+                && n.turn == now() && e.getNationId().equals(n.european);
+        }
+        net.sf.freecol.server.model.TribeNews.add(game(),
+            new net.sf.freecol.server.model.TribeNews.News(now(),
+                net.sf.freecol.server.model.TribeNews.Kind.UNREST,
+                me().getNationId(), null, e.getNationId(), ""));
+        if (told || e.isAI()) return;
+        cs.addMessage(e, new net.sf.freecol.common.model.ModelMessage(
+            net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+            "tribe.unrest", me())
+            .addAmount("%turns%", unrestTurns()));
+    }
+
+    private Colony nearestColony(Player e) {
+        Colony best = null;
+        int top = Integer.MAX_VALUE;
+        for (Colony c : e.getColonyList()) {
+            final int d = distanceTo(c.getTile());
+            if (d < top) {
+                top = d;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Pontiac's rule: when our European friend loses a colony near us
+     * to another European, we turn on the winner.
+     */
+    private void pontiac(LogBuilder lb) {
+        final Player me = me();
+        final TurnRecord r = record(game());
+        for (Observed o : r.diff) {
+            if (o.what != Observed.What.CAPTURE) continue;
+            final Player winner = game().getPlayerByNationId(o.actor);
+            final Player friend = game().getPlayerByNationId(o.other);
+            if (winner == null || friend == null || !winner.isEuropean()
+                || !friend.isEuropean() || winner == friend
+                || me.getStance(winner) == Stance.WAR) continue;
+            final boolean friendly = me.getStance(friend) == Stance.ALLIANCE
+                || opinion(ai, friend) >= net.sf.freecol.common.diplomacy.Mood.FRIENDLY;
+            if (!friendly) continue;
+            boolean near = false;
+            for (Colony c : winner.getColonyList()) {
+                if (c.getName().equals(o.detail)
+                    && distanceTo(c.getTile()) <= PONTIAC_RADIUS) near = true;
+            }
+            if (!near) continue;
+            changeStance(Stance.WAR, winner);
+            anger(me, winner);
+            ai.getMemories().add(new Memory(Memory.Kind.WAR,
+                                            winner.getNationId(), now(), 1));
+            lb.add("\n  Turns on ", winner.getDebugName(), " for taking ",
+                   o.detail, " from our friend ", friend.getDebugName());
+        }
+    }
+
+
+    // The mood, for the companion page (7g)
+
+    private net.sf.freecol.common.diplomacy.TribeMood mood() {
+        final net.sf.freecol.common.diplomacy.TribeMood m
+            = new net.sf.freecol.common.diplomacy.TribeMood(me().getNationId(),
+                now(), ai.getCharacter(), ai.getRival(), unrestTurns());
+        for (Player p : game().getLivePlayerList(me())) {
+            if (p.isREF() || p.isUnknownEnemy() || p.isUndead()) continue;
+            m.opinions.put(p.getNationId(), opinion(ai, p));
+            if (me().getStance(p) == Stance.WAR) m.atWar.add(p.getNationId());
+            if (p.isEuropean()) {
+                m.trust.put(p.getNationId(), Relations.trust(
+                    ai.getMemories().list(), p.getNationId(), now()));
+            }
+        }
+        for (java.util.Map.Entry<String, Integer> e : ai.getUnrest().entrySet()) {
+            m.unrest.put(e.getKey(), now() - e.getValue());
+        }
+        m.memories.addAll(ai.getMemories().list());
+        return m;
     }
 
     private void changeStance(Stance stance, Player other) {

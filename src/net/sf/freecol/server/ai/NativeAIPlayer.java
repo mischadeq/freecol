@@ -113,6 +113,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private List<net.sf.freecol.common.diplomacy.Offer> offers;
     /** Settlement id to "nation:turn" of its current mission.  Saved. */
     private java.util.Map<String, String> missionSince;
+    /** European to the turn our unrest against it began.  Saved. */
+    private java.util.Map<String, Integer> unrest;
+    /** How we feel, as of our last turn (not saved). */
+    private volatile net.sf.freecol.common.diplomacy.TribeMood mood;
     /** Calls for help heard: "caller|enemy" to turn (not saved). */
     private final java.util.Map<String, Integer> callsHeard = new HashMap<>();
 
@@ -1080,6 +1084,21 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         return offers;
     }
 
+    /** European to the turn our unrest against it began. */
+    public java.util.Map<String, Integer> getUnrest() {
+        if (unrest == null) unrest = new HashMap<>();
+        return unrest;
+    }
+
+    /** How we feel, as of our last turn, or null. */
+    public net.sf.freecol.common.diplomacy.TribeMood getMood() {
+        return mood;
+    }
+
+    public void setMood(net.sf.freecol.common.diplomacy.TribeMood mood) {
+        this.mood = mood;
+    }
+
     /** Settlement id to "nation:turn" of its current mission. */
     public java.util.Map<String, String> getMissionSince() {
         if (missionSince == null) missionSince = new HashMap<>();
@@ -1150,6 +1169,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private static final String NEAR_COLONIES_TAG = "nearColonies";
     private static final String OFFERS_TAG = "offers";
     private static final String MISSION_SINCE_TAG = "missionSince";
+    private static final String UNREST_TAG = "unrest";
 
     /**
      * {@inheritDoc}
@@ -1180,6 +1200,14 @@ public final class NativeAIPlayer extends MissionAIPlayer {
                 sb.append(e.getKey()).append('=').append(e.getValue());
             }
             xw.writeAttribute(MISSION_SINCE_TAG, sb.toString());
+        }
+        if (!getUnrest().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, Integer> e : getUnrest().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(UNREST_TAG, sb.toString());
         }
     }
 
@@ -1215,6 +1243,18 @@ public final class NativeAIPlayer extends MissionAIPlayer {
             for (String rec : ms.split(";")) {
                 final int i = rec.indexOf('=');
                 if (i > 0) missionSince.put(rec.substring(0, i), rec.substring(i + 1));
+            }
+        }
+        unrest = new HashMap<>();
+        final String us = xr.getAttribute(UNREST_TAG, (String)null);
+        if (us != null && !us.isEmpty()) {
+            for (String rec : us.split(";")) {
+                final int i = rec.indexOf('=');
+                if (i <= 0) continue;
+                try {
+                    unrest.put(rec.substring(0, i),
+                               Integer.parseInt(rec.substring(i + 1)));
+                } catch (NumberFormatException nfe) {} // skip
             }
         }
     }

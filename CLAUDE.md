@@ -10,8 +10,8 @@ Read these first, in this order:
 2. `claude_docs/plans/ai-diplomacy-and-natives.md`: the full design.
 3. `claude_docs/plans/step2-step3.md`: steps 2 and 3 (built).
 4. `claude_docs/plans/step5-step7.md`: the next two steps, in detail
-   (alliances, then native tribes; grievances after, trade agreements
-   last).
+   (alliances, then native tribes; both built; grievances next, trade
+   agreements last).
 5. `claude_docs/plans/companion-ui.md`: what each companion tab shows,
    where it comes from, the honesty check, and the "not yet
    implemented" boxes to replace as steps are built.
@@ -75,6 +75,17 @@ Read these first, in this order:
   `mission/TradeVoyageMission`), deliveries and deadlines, answers
   (`OfferMessage`), offers the player posts. War and peace between
   computer nations: `EuropeanAIPlayer.determineStances`.
+- `server/ai/diplomacy/TribePlanner` (step 7): the tribes' diplomacy,
+  run first in `NativeAIPlayer.startWorking`: they know each other,
+  old rivals, memories (one shared `TurnRecord` a turn), wars between
+  tribes, calls for help, allied settlements (`IndianSettlement.
+  alliedPlayer`), tribe alliances, unrest and uprisings, Pontiac's
+  rule, their own offer book (answered via `InGameController.
+  answerOffer`). Pure rules in `common/diplomacy/TribeCharacter`,
+  `TribeRelations`; `TribeMood` for the page; public news in
+  `server/model/TribeNews`; refugees in `ServerPlayer.csRefugees`.
+  Coalition buy-outs: `AlliancePlanner.buyOut`, priced by
+  `Coalition.synergy`.
 - `tools/replay/`: replays a series of saves, compares the diplomat with
   what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from

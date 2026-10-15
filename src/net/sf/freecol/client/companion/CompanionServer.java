@@ -233,7 +233,7 @@ public final class CompanionServer {
                 try {
                     json = onEdt(() -> (this.fcc.getGame() == null
                             || this.fcc.getMyPlayer() == null) ? "{}"
-                        : CompanionRelations.build(this.fcc.getGame(),
+                        : CompanionRelations.build(this.fcc, this.fcc.getGame(),
                                                    this.fcc.getMyPlayer()));
                 } catch (Exception e) {
                     json = "{}";

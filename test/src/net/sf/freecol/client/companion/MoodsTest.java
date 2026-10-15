@@ -155,4 +155,50 @@ public class MoodsTest extends FreeColTestCase {
             net.sf.freecol.server.ServerTestHelper.stopServerGame();
         }
     }
+
+    /** A tribe's card: its friends and rival only with your mission. */
+    public void testTribeCardIsHonest() {
+        Game game = getGame();
+        Player me = game.getPlayerByNationId(DUTCH);
+        Player tupi = game.getPlayerByNationId("model.nation.tupi");
+        Player arawak = game.getPlayerByNationId("model.nation.arawak");
+        Player sioux = game.getPlayerByNationId("model.nation.sioux");
+        net.sf.freecol.common.diplomacy.TribeMood m
+            = new net.sf.freecol.common.diplomacy.TribeMood(tupi.getNationId(),
+                100, net.sf.freecol.common.diplomacy.TribeCharacter.TRADERS,
+                arawak.getNationId(), 5);
+        m.opinions.put(DUTCH, -60.0);
+        m.opinions.put(sioux.getNationId(), 50.0);
+        m.opinions.put(arawak.getNationId(), -40.0);
+        m.unrest.put(DUTCH, 2);
+        m.memories.add(new Memory(Memory.Kind.LAND_TAKEN, DUTCH, 99, 1));
+        java.util.List<net.sf.freecol.server.model.TribeNews.News> news
+            = new java.util.ArrayList<>();
+        news.add(new net.sf.freecol.server.model.TribeNews.News(99,
+            net.sf.freecol.server.model.TribeNews.Kind.HELP, tupi.getNationId(),
+            sioux.getNationId(), DUTCH, ""));
+        news.add(new net.sf.freecol.server.model.TribeNews.News(99,
+            net.sf.freecol.server.model.TribeNews.Kind.STAYED_HOME,
+            tupi.getNationId(), sioux.getNationId(), DUTCH, ""));
+        Json j = new Json().obj();
+        CompanionTribes.put(j, m, news, game, me, tupi);
+        String s = j.end().toString();
+        assertTrue(s, s.contains("\"character\":\"traders\""));
+        assertTrue(s, s.contains("\"unrest\":2,\"unrestOf\":5"));
+        assertTrue(s, s.contains("you built a colony on their land"));
+        assertTrue(s, s.contains("came to the aid of the Sioux against you"));
+        assertFalse("who stayed home is not told", s.contains("stayed"));
+        // No mission, no war with the rival: friends and rival unknown.
+        assertTrue(s, s.contains("\"told\":false"));
+        assertFalse(s, s.contains("rival"));
+        assertTrue(s, s.contains("\"friends\":[]"));
+        // A war with the rival is public.
+        m.atWar.add(arawak.getNationId());
+        Json k = new Json().obj();
+        CompanionTribes.put(k, m, news, game, me, tupi);
+        s = k.end().toString();
+        assertTrue(s, s.contains("\"rival\":{"));
+        assertTrue(s, s.contains("\"war\":true"));
+        assertTrue(s, s.contains("\"friends\":[]"));
+    }
 }

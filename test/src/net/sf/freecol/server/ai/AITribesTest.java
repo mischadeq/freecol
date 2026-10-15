@@ -472,4 +472,118 @@ public class AITribesTest extends FreeColTestCase {
         assertNotNull(offer(t2, net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
         assertTrue(t2.getMissionSince().get(camp.getId()).startsWith(DUTCH + ":"));
     }
+
+    /** Two tribes that hate the Dutch: at peace with them, angry. */
+    void hateTheDutch(ServerPlayer... tribes) {
+        for (ServerPlayer t : tribes) {
+            t.setStance(dutch, Stance.PEACE);
+            dutch.setStance(t, Stance.PEACE);
+            t.getTension(dutch).setValue(1000);
+        }
+    }
+
+    boolean news(net.sf.freecol.server.model.TribeNews.Kind k, String tribe) {
+        for (net.sf.freecol.server.model.TribeNews.News n
+                 : net.sf.freecol.server.model.TribeNews.recent(game)) {
+            if (n.kind == k && tribe.equals(n.tribe)) return true;
+        }
+        return false;
+    }
+
+    public void testUnrestTurnsByDifficulty() {
+        assertEquals(5, TribePlanner.unrestTurns("model.difficulty.medium"));
+        assertEquals(3, TribePlanner.unrestTurns("model.difficulty.veryHard"));
+        assertEquals(7, TribePlanner.unrestTurns("model.difficulty.veryEasy"));
+    }
+
+    public void testUnrestBeforeTheUprising() {
+        setUpGame();
+        dutch.setAI(false);
+        hateTheDutch(tupi, sioux);
+        plan(sioux);
+        plan(tupi);
+        assertTrue(ai(tupi).getUnrest().containsKey(DUTCH));
+        assertTrue(news(net.sf.freecol.server.model.TribeNews.Kind.UNREST, TUPI));
+        assertFalse("a warning first", tupi.getStance(dutch) == Stance.WAR);
+        final int turns = TribePlanner.unrestTurns(null);
+        for (int i = 1; i < turns; i++) {
+            nextTurn();
+            plan(tupi);
+            assertFalse(tupi.getStance(dutch) == Stance.WAR);
+        }
+        nextTurn();
+        plan(tupi);
+        assertEquals(Stance.WAR, tupi.getStance(dutch));
+        assertTrue(news(net.sf.freecol.server.model.TribeNews.Kind.UPRISING, TUPI));
+        assertNotNull("the mood shows it", ai(tupi).getMood());
+    }
+
+    public void testOneTribeAloneDoesNotRise() {
+        setUpGame();
+        hateTheDutch(tupi);
+        plan(tupi);
+        assertFalse(ai(tupi).getUnrest().containsKey(DUTCH));
+        // Nor with only its old rival.
+        hateTheDutch(arawak);
+        plan(tupi);
+        assertFalse(ai(tupi).getUnrest().containsKey(DUTCH));
+    }
+
+    public void testUnrestCalms() {
+        setUpGame();
+        hateTheDutch(tupi, sioux);
+        plan(tupi);
+        assertTrue(ai(tupi).getUnrest().containsKey(DUTCH));
+        tupi.getTension(dutch).setValue(100); // gifts
+        nextTurn();
+        plan(tupi);
+        assertFalse(ai(tupi).getUnrest().containsKey(DUTCH));
+    }
+
+    public void testRivalRoseSoWeStayOut() {
+        setUpGame();
+        hateTheDutch(tupi, sioux);
+        plan(tupi);
+        net.sf.freecol.server.model.TribeNews.add(game,
+            new net.sf.freecol.server.model.TribeNews.News(
+                game.getTurn().getNumber(),
+                net.sf.freecol.server.model.TribeNews.Kind.UPRISING,
+                ARAWAK, null, DUTCH, ""));
+        for (int i = 0; i < TribePlanner.unrestTurns(null); i++) nextTurn();
+        plan(tupi);
+        assertFalse(tupi.getStance(dutch) == Stance.WAR);
+    }
+
+    public void testPontiacTurnsOnTheWinner() {
+        setUpGame();
+        tupi.setStance(dutch, Stance.PEACE);
+        dutch.setStance(tupi, Stance.PEACE);
+        tupi.setStance(french, Stance.PEACE);
+        french.setStance(tupi, Stance.PEACE);
+        net.sf.freecol.common.model.Colony fort = FreeColTestUtils
+            .getColonyBuilder().player(french)
+            .colonyTile(game.getMap().getTile(3, 6)).initialColonists(1).build();
+        plan(tupi);
+        nextTurn();
+        ((net.sf.freecol.server.model.ServerColony)fort).csChangeOwner(dutch,
+            false, null, new net.sf.freecol.common.networking.ChangeSet());
+        plan(tupi);
+        assertEquals("our friend the French lost a colony near us",
+                     Stance.WAR, tupi.getStance(dutch));
+        assertEquals(Stance.PEACE, tupi.getStance(french));
+    }
+
+    public void testUnrestIsSaved() throws Exception {
+        setUpGame();
+        hateTheDutch(tupi, sioux);
+        plan(tupi);
+        java.io.File file = java.io.File.createTempFile("unrest", ".fsg");
+        file.deleteOnExit();
+        ServerTestHelper.getServer().saveGame(file, null, null);
+        net.sf.freecol.server.FreeColServer loaded
+            = ServerTestHelper.startServer(file, false, true);
+        NativeAIPlayer t2 = (NativeAIPlayer)loaded.getAIMain()
+            .getAIPlayer(loaded.getGame().getPlayerByNationId(TUPI));
+        assertEquals(ai(tupi).getUnrest(), t2.getUnrest());
+    }
 }

@@ -53,6 +53,17 @@ Checked every place the page reads another nation's data.
   step 2): the game shows tension with the tribes the same way. Only
   in single-player games, where the computer nations run in the same
   program.
+- **Tribes (step 7):** their mood, trust, unrest against you and what
+  they remember of you are shown like the European moods. Their
+  friends among the tribes show only when you have a mission with them
+  (your missionaries tell you); their old rival also when the two are
+  at war (wars are public). News: who came to whose aid, who sided
+  with the attacker, refugees, uprisings, settlements breaking off;
+  not who stayed home (that is the caller's business). Allied
+  settlements are public (saved on the settlement, sent to everyone).
+- **Coalition buy-out price:** a member's asking price to leave is
+  shown only on coalitions against you: the member lets the target
+  know its price, nobody else.
 - **Removed:** a developer file name ("claude_docs/tribes.md") in the
   Relations drawer.
 
@@ -64,10 +75,16 @@ Checked every place the page reads another nation's data.
 | Joint attack plans of a coalition | after 5 | Diplomacy |
 | Grievances and ultimatums | 6 | Diplomacy, nation cards |
 | Trade agreements | 4 | Diplomacy, Trade |
-| Friends and rivals among the tribes | 7 | Tribes |
-| Unrest meter, uprisings | 7 | Tribes, turn report |
-| Calls for help and refugees | 7 | Tribes, turn report |
-| Allied settlements | 7 | Tribes, Relations |
+| Tribes in the relations graph | 5d | Diplomacy |
+| A tribe taking back a breakaway settlement | after 7 | Tribes |
+
+Built in step 7 (2026-10-15), on the tribe cards of the Diplomacy tab:
+character, mood and trust meters, unrest meter (turns before they may
+rise), what they remember of you, old rival and friends, allied
+settlements, recent news (help, siding with the attacker, refugees,
+uprisings, settlements breaking off). Also built: each coalition
+member's asking price to leave a coalition against you ("leaves for
+2,200 gold", step 5 buy-out).
 
 When a feature is built, replace its `soon(...)` box in
 `data/companion/companion.js` (`renderDiplomacy`, `renderTribes`) with

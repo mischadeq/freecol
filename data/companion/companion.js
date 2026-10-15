@@ -2076,6 +2076,43 @@
     renderTribes();
   }
 
+  function tribeThink(t) {
+    const k = t.think, rows = [];
+    if (k) {
+      const a = MOOD_LV[k.word] || MOOD_LV.neutral, tr = TRUST_LV[k.trust] || TRUST_LV.careful;
+      rows.push('<div class="nverd nmood">' +
+        '<span class="tag ' + a[1] + '" title="What the tribe thinks of you: tension and what it remembers.">' + meter(a[0], 4, a[1]) + " " + a[2] + "</span>" +
+        '<span class="tag ' + tr[1] + '" title="Kept word, gifts and help raise trust; broken word cuts it.">' + meter(tr[0], 3, tr[1]) + " " + tr[2] + "</span>" +
+        '<span class="tag info" title="Their character: warlike tribes fight sooner and help their friends most; peaceful ones bring more gifts.">' + esc(cap(k.character)) + "</span></div>");
+      if (k.unrest != null) {
+        const of = k.unrestOf || 5, left = Math.max(0, of - k.unrest);
+        rows.push('<div class="mline" title="The tribes speak of war against you. When the meter fills, the tribes that hate you rise together. Gifts and giving back land calm them.">' +
+          '<span class="tag alarm">Unrest</span> ' + meter(Math.min(of, k.unrest), of, "alarm") +
+          ' <span class="m">' + (left ? left + (left === 1 ? " turn" : " turns") + " before they may rise" : "they may rise now") + "</span></div>");
+      }
+      if (k.remembers && k.remembers.length) {
+        rows.push('<div class="mline"><span class="m">Remembers:</span> ' + k.remembers.map((r) =>
+          '<span class="tag ' + (r.good ? "ok" : "alarm") + '">' + esc(r.text) + "</span>").join(" ") + "</div>");
+      }
+      const rel = [];
+      if (k.rival) rel.push('<span class="tag ' + (k.rival.war ? "alarm" : "warn") + '" title="Their old rival: the nearest tribe. Grudges between them grow over time.">' +
+        swatch(k.rival.color) + " Old rival: " + esc(k.rival.name) + (k.rival.war ? " (at war)" : "") + "</span>");
+      for (const f of k.friends || []) rel.push('<span class="tag ok" title="A tribe they like: it may come when they call for help.">' + swatch(f.color) + " Friend: " + esc(f.name) + "</span>");
+      if (rel.length) rows.push('<div class="mline">' + rel.join(" ") + "</div>");
+      else if (!k.told) rows.push('<p class="m">Friends and rivals: a mission with them would tell you.</p>');
+    }
+    if (t.allied && t.allied.length) {
+      rows.push('<div class="mline">' + t.allied.map((a) => '<span class="tag ' + (a.you ? "ok" : "info") +
+        '" title="Broke off from the tribe and lives under a European\'s protection: free land and fair trade for the ally; its braves fight the ally\'s enemies.">' +
+        esc(a.name) + " allied to " + esc(a.ally) + "</span>").join(" ") + "</div>");
+    }
+    if (t.news && t.news.length) {
+      rows.push('<div class="mline"><span class="m">Lately:</span> ' + t.news.slice(-4).map((n) =>
+        '<span class="tag ' + (n.bad ? "alarm" : "info") + '">' + esc(n.year) + " " + esc(n.text) + "</span>").join(" ") + "</div>");
+    }
+    return rows.join("");
+  }
+
   function renderTribes() {
     if (!$("tribes")) return;
     const T = (dipRel && dipRel.tribes) || [];
@@ -2088,14 +2125,13 @@
         (t.worst ? '<span class="tag ' + (MOOD[t.worst] || "m") + '" title="The angriest of their settlements you know">mood: ' + esc(t.worst) + "</span>" : "") + "</div>" +
         "<div>" + sets.length + (sets.length === 1 ? " settlement" : " settlements") + ' known <span class="m">\u00b7 ' + visited + " visited \u00b7 " +
         (missions === 0 ? "none" : missions) + " with your mission</span></div>" +
+        tribeThink(t) +
         '<div class="m">' + esc(cap(t.aggression || "")) + " aggression</div></div>";
     }).join("") + (dipRel.unmet ? '<p class="m">' + dipRel.unmet + (dipRel.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>" : "")
       : '<p class="m">You have not met any tribe yet.</p>';
     $("tribesSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Friends and rivals among the tribes", "step 7", "Tribes know each other from the start; each has an old rival and friends. Seen here when public, or when your missionaries tell you.") +
-      soon("Unrest meter", "step 7", "Before an uprising the tribes speak of war for a few turns: a meter per tribe, and a warning in the turn report.") +
-      soon("Calls for help and refugees", "step 7", "A tribe under attack calls its friends; survivors of a burned settlement move to a friendly one.") +
-      soon("Allied settlements", "step 7", "A settlement with a long, happy mission may join you: it stays native, you use its land and trade cheaply.");
+      soon("Tribes in the relations graph", "step 5d", "Every nation and tribe as a dot, lines for alliances and wars, old rivals and friends.") +
+      soon("Taking back a breakaway settlement", "after step 7", "A tribe may raid a settlement that broke off to you; that is a call to arms for you.");
   }
 
   // ---------------------------------------------------------------- offers
