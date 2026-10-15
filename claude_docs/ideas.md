@@ -1580,6 +1580,10 @@ top, so the (modal) dialog was hidden but blocked every click.
   paper at the mist line. Now, near the unknown, the sea becomes a flat
   chart blue (no waves, no high-seas edges) fading into the paper, the
   same on both painters.
+- **Third round:** the flat chart sea dropped the fog of war (the
+  game's dark rounded diamonds on tiles out of sight), so the fog
+  stopped at the fade line and left lone rounded patches. The chart sea
+  now keeps the fog, fading with the paper.
 - **Tested:** all 674 unit tests green; the drawing and the turn order
   need Mischa's eye in the game.
 
