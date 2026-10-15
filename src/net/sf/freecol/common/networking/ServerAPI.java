@@ -476,6 +476,18 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Answer a sale under a price agreement with how many goods to sell
+     * (mod).
+     *
+     * @param offerId The offer id.
+     * @param amount The goods to sell, 0 for none.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, int amount) {
+        return send(new OfferMessage(offerId, amount > 0, amount));
+    }
+
+    /**
      * Post an offer on the notice board (mod).
      *
      * @param offer The {@code Offer}.

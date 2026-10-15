@@ -3326,6 +3326,17 @@ outer:  for (Effect effect : effects) {
         final boolean capital = is.isCapital();
         final int plunder = is.getPlunder(attacker, random);
 
+        // Half its people flee (mod, step 7c).
+        final IndianSettlement refuge = csRefugees(is, cs);
+        if (refuge != null) {
+            cs.addMessage(attackerPlayer,
+                new ModelMessage(ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                                 "tribe.refugees", attacker)
+                    .addName("%settlement%", settlementName)
+                    .addName("%refuge%", refuge.getName())
+                    .addStringTemplate("%nation%", refuge.getOwner().getNationLabel()));
+        }
+
         // Remaining units lose their home.
         for (Unit u : is.getOwnedUnitList()) {
             u.changeHomeIndianSettlement(null);
@@ -3380,6 +3391,80 @@ outer:  for (Effect effect : effects) {
         }
         cs.addAttribute(See.only(attackerPlayer), "sound",
             "sound.event.destroySettlement");
+    }
+
+    /**
+     * Refugees (mod, step 7c): half of a falling settlement's people (at
+     * least one) flee to the nearest settlement of their own tribe, or,
+     * if none is left, to the nearest settlement of the tribe they get
+     * on with best (not at war with them), whose people they become.
+     *
+     * @param is The {@code IndianSettlement} that falls.
+     * @param cs A {@code ChangeSet} to update.
+     * @return The settlement they fled to, or null if none.
+     */
+    public IndianSettlement csRefugees(IndianSettlement is, ChangeSet cs) {
+        final Game game = getGame();
+        final Player owner = is.getOwner();
+        final Tile from = is.getTile();
+        IndianSettlement dest = nearestSettlement(owner, from, is);
+        Player to = owner;
+        if (dest == null) {
+            Player best = null;
+            for (Player p : game.getLiveNativePlayerList()) {
+                if (p == owner || p.getIndianSettlementList().isEmpty()
+                    || owner.getStance(p) == Stance.WAR) continue;
+                if (best == null || owner.getTension(p).getValue()
+                    < owner.getTension(best).getValue()) best = p;
+            }
+            if (best == null) return null;
+            to = best;
+            dest = nearestSettlement(best, from, null);
+        }
+        if (dest == null) return null;
+        final List<Unit> people = new ArrayList<>();
+        for (Unit u : is.getAllUnitsList()) {
+            if (u.getOwner() == owner && !u.isNaval()) people.add(u);
+        }
+        final int n = Math.max(1, people.size() / 2);
+        final UnitType brave = game.getSpecification().getDefaultUnitType(to);
+        int moved = 0;
+        for (Unit u : people) {
+            if (moved >= n) break;
+            if (to == owner) {
+                u.setLocation(dest);//-vis: inside a settlement
+                u.changeHomeIndianSettlement(dest);
+                cs.add(See.only(owner), u);
+            } else {
+                Unit r = new ServerUnit(game, dest, to, u.getType());
+                dest.addOwnedUnit(r);
+            }
+            moved++;
+        }
+        for (; moved < n && brave != null; moved++) {
+            Unit r = new ServerUnit(game, dest, to, brave);
+            dest.addOwnedUnit(r);
+        }
+        TribeNews.add(game, new TribeNews.News(game.getTurn().getNumber(),
+            TribeNews.Kind.REFUGEES, to.getNationId(),
+            (to == owner) ? null : owner.getNationId(), null, is.getName()
+            + " > " + dest.getName()));
+        return dest;
+    }
+
+    private static IndianSettlement nearestSettlement(Player p, Tile from,
+                                                      IndianSettlement not) {
+        IndianSettlement best = null;
+        int top = Integer.MAX_VALUE;
+        for (IndianSettlement x : p.getIndianSettlementList()) {
+            if (x == not) continue;
+            final int d = x.getTile().getDistanceTo(from);
+            if (d < top) {
+                top = d;
+                best = x;
+            }
+        }
+        return best;
     }
 
     /**

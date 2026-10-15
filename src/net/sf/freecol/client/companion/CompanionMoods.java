@@ -93,6 +93,18 @@ final class CompanionMoods {
             .put("trust", f.trustWord())
             .put("ambition", ambition(m))
             .put("truce", Mood.TRUCE.equals(f.why));
+        // Their grievance against you (addressed to you; step 6).
+        final net.sf.freecol.common.diplomacy.Grievance gr
+            = m.grievances.get(me.getNationId());
+        if (gr != null && (gr.stage == net.sf.freecol.common.diplomacy.Grievance.Stage.COMPLAINT
+                || gr.stage == net.sf.freecol.common.diplomacy.Grievance.Stage.ULTIMATUM)) {
+            final int now = game.getTurn().getNumber();
+            j.key("grievance").obj()
+                .put("stage", gr.stage.name().toLowerCase())
+                .put("cause", gr.cause.words)
+                .put("demand", gr.demand)
+                .put("turns", gr.turnsLeft(now)).end();
+        }
         j.key("goals").arr();
         for (Goal g : m.goals) {
             final String s = goal(g, game, me, m);
@@ -114,7 +126,19 @@ final class CompanionMoods {
             if (q == null) continue;
             j.obj().put("name", (q == me) ? "you"
                     : Messages.message(q.getNationLabel()))
-                .put("you", q == me).end();
+                .put("you", q == me);
+            // Their asking price to leave, known to the target only.
+            final Integer price = m.buyoutPrices.get(t);
+            if (q == me && price != null) j.put("price", price.intValue());
+            // The joint plan: only for the members.
+            final net.sf.freecol.common.diplomacy.Coalition c = m.coalitions.get(t);
+            if (c != null && c.members.contains(me.getNationId())
+                && c.jointTarget != null) {
+                j.put("joint", c.jointName)
+                    .put("strikeIn", Math.max(0, c.strikeTurn
+                        - game.getTurn().getNumber()));
+            }
+            j.end();
         }
         j.endArr();
         // Their feelings about others: only wars and alliances are public.
@@ -153,33 +177,21 @@ final class CompanionMoods {
 
     /**
      * A goal in words, or null when the player could not know it.
+     * Only what a nation makes known: the goods it wants to sell or
+     * buy (it posts them on the notice board anyway) and that it wants
+     * peace with the player.  War plans (taking a colony, revenge,
+     * containing a leader, defending) stay secret: they show as
+     * grievances and ultimatums (step 6) or a public coalition.
      */
     static String goal(Goal g, Game game, Player me, Mood m) {
         switch (g.type) {
         case SELL_SURPLUS: return "sell " + goods(game, g.target);
         case GET_GOODS: return "get " + goods(game, g.target);
-        default: break;
-        }
-        final boolean you = me.getNationId().equals(g.target);
-        String who;
-        if (you) {
-            who = "you";
-        } else {
-            // Goals about others: only about their (public) wars.
-            final Mood.Feeling f = m.about(g.target);
-            final Player q = game.getPlayerByNationId(g.target);
-            if (f == null || f.stance != Stance.WAR || q == null
-                || !met(me, q)) return null;
-            who = Messages.message(q.getNationLabel());
-        }
-        switch (g.type) {
-        case TAKE_COLONY: return "take a colony from " + who;
-        case DEFEND: return "defend against " + who;
-        case MAKE_PEACE: return "make peace with " + who;
-        case REVENGE: return "revenge on " + who;
-        case CONTAIN_LEADER: return you ? "keep you from growing too strong"
-            : null;
-        default: return null;
+        case MAKE_PEACE:
+            return (me.getNationId().equals(g.target)) ? "make peace with you"
+                : null;
+        default:
+            return null;
         }
     }
 
@@ -208,6 +220,11 @@ final class CompanionMoods {
         case TRADE: return "trade with you";
         case HELPED_IN_WAR: return "you fought their enemy";
         case REFUSED_OFFER: return "you turned down their offer";
+        case LAND_TAKEN: return "you built a colony on their land";
+        case MISSION: return "you sent them a mission";
+        case ARMED_RIVAL: return "you armed their old rival";
+        case CAME_TO_HELP: return "you came to their aid";
+        case LEFT_US_ALONE: return "you left them alone in their need";
         default: return m.kind.name().toLowerCase();
         }
     }

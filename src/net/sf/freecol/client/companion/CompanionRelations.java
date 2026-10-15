@@ -144,6 +144,19 @@ final class CompanionRelations {
      * @return The relations as JSON.
      */
     static String build(Game game, Player me) {
+        return build(null, game, me);
+    }
+
+    /**
+     * Build the relations, with what the tribes think (single player).
+     *
+     * @param fcc The {@code FreeColClient}, may be null.
+     * @param game The {@code Game}.
+     * @param me The client {@code Player}.
+     * @return The relations as JSON.
+     */
+    static String build(net.sf.freecol.client.FreeColClient fcc, Game game,
+                        Player me) {
         Json j = new Json().obj();
         homefront(j, game, me);
 
@@ -231,10 +244,12 @@ final class CompanionRelations {
                 j.endArr().end();
             }
             j.endArr();
+            CompanionTribes.put(j, fcc, game, me, p);
             j.put("worst", worst).end();
         }
         j.endArr();
         j.put("unmet", unmet);
+        CompanionGraph.put(j, fcc, game, me);
         return j.end().toString();
     }
 

@@ -3258,6 +3258,11 @@ public class Player extends FreeColGameObject implements Nameable {
                 return 0; // Claim abandoned or only by tile improvement
             }
         } // Else, native ownership
+        if (tile.getOwningSettlement() instanceof IndianSettlement
+            && ((IndianSettlement)tile.getOwningSettlement())
+                .getAlliedPlayer() == this) {
+            return 0; // An allied settlement's land is ours to use (mod)
+        }
         int price = spec.getInteger(GameOptions.LAND_PRICE_FACTOR)
             // Only consider specific food types, not the aggregation.
             * sum(spec.getGoodsTypeList(),

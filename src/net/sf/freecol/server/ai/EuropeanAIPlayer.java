@@ -507,7 +507,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
      */
     public void cheatGold(int amount, LogBuilder lb) {
         final Player player = getPlayer();
-        int gold = player.getGold();
+        // What it may spend: the treasury stays (mod).
+        int gold = spendable();
         if (gold < amount) {
             amount -= gold;
             player.modifyGold(amount);
@@ -1568,6 +1569,9 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         final int now = getGame().getTurn().getNumber();
         boolean changed = false;
         lb.mark();
+        final net.sf.freecol.server.ai.diplomacy.GrievancePlanner grievancePlanner
+            = new net.sf.freecol.server.ai.diplomacy.GrievancePlanner(this);
+        grievancePlanner.tidy();
 
         for (Player p : getGame().getLivePlayerList(player)) {
             ScoredAction why = null;
@@ -1593,6 +1597,10 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             if (newStance != player.getStance(p)) {
                 if (newStance == Stance.WAR && peaceHolds(p)) {
                     ; // Peace treaty holds for now
+                } else if (newStance == Stance.WAR && p.isEuropean()
+                    && !p.isREF() && !player.isREF()
+                    && !grievancePlanner.mayDeclareWar(p, lb)) {
+                    ; // Complaint and terms first (mod, step 6)
                 } else {
                     getAIMain().getFreeColServer().getInGameController()
                         .changeStance(player, newStance, p, true);
@@ -2448,6 +2456,90 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return coalitionTries;
     }
 
+    // The treasury (mod): gold kept back from shopping for deals.
+
+    /**
+     * Gold we have promised in open deals: notices we posted, peace and
+     * joint-war gold we offered, a couple of loads for each running
+     * price agreement.
+     *
+     * @return The gold.
+     */
+    public int promisedGold() {
+        int g = 0;
+        final String me = getPlayer().getNationId();
+        for (Offer o : getOffers()) {
+            if (!me.equals(o.from)) continue;
+            if (o.state == Offer.State.OPEN
+                && (o.kind == Offer.Kind.WANT || o.kind == Offer.Kind.PEACE
+                    || o.kind == Offer.Kind.JOINT_WAR
+                    || o.kind == Offer.Kind.SHIP_BUY)) {
+                g += o.gold;
+            } else if (o.state == Offer.State.TAKEN && o.kind == Offer.Kind.WANT) {
+                g += Math.max(0, o.gold - o.paid);
+            } else if ((o.state == Offer.State.TAKEN || o.state == Offer.State.OPEN)
+                       && o.kind == Offer.Kind.AGREEMENT) {
+                g += net.sf.freecol.common.diplomacy.Treasury.forAgreement(o.gold);
+            }
+        }
+        return g;
+    }
+
+    /** Turns back we look for a lost war. */
+    public static final int LOSING_TURNS = 10;
+
+    /**
+     * Are we losing a war: at war, and a colony taken or several units
+     * lost lately?
+     *
+     * @return True if so.
+     */
+    public boolean losingWar() {
+        final Player player = getPlayer();
+        if (!player.isAtWar()) return false;
+        final int now = getGame().getTurn().getNumber();
+        int lost = 0;
+        for (Memory m : getMemories().list()) {
+            if (now - m.turn > LOSING_TURNS) continue;
+            if (m.kind == Memory.Kind.COLONY_TAKEN) return true;
+            if (m.kind == Memory.Kind.UNIT_LOST) lost += m.count;
+        }
+        return lost >= 3;
+    }
+
+    /**
+     * The gold we keep back from shopping in Europe.
+     *
+     * @return The reserve.
+     */
+    public int reserve() {
+        if (getPlayer().isREF()) return 0;
+        final net.sf.freecol.common.diplomacy.NationCharacter ch
+            = net.sf.freecol.common.diplomacy.NationCharacter.forNationType(
+                (getPlayer().getNationType() == null) ? null
+                    : getPlayer().getNationType().getId(), true);
+        return net.sf.freecol.common.diplomacy.Treasury.reserve(
+            getPlayer().getColonyList().size(), ch, promisedGold(), losingWar());
+    }
+
+    /**
+     * Gold free for shopping: what is above the reserve.
+     *
+     * @return The gold.
+     */
+    public int spendable() {
+        return net.sf.freecol.common.diplomacy.Treasury.spendable(
+            getPlayer().getGold(), reserve());
+    }
+
+    /** Our grievances by nation id (mod, step 6).  Saved; no initializer. */
+    private java.util.Map<String, net.sf.freecol.common.diplomacy.Grievance> grievances;
+
+    public java.util.Map<String, net.sf.freecol.common.diplomacy.Grievance> getGrievances() {
+        if (grievances == null) grievances = new java.util.LinkedHashMap<>();
+        return grievances;
+    }
+
     public List<net.sf.freecol.common.diplomacy.Coalition> getCoalitions() {
         if (coalitions == null) coalitions = new ArrayList<>();
         return coalitions;
@@ -2591,6 +2683,40 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (k == null || other == null) return;
         getMemories().add(new Memory(k, other.getNationId(),
                                      getGame().getTurn().getNumber(), 1));
+        if (k == Memory.Kind.GIFT) boughtOut(other, agreement);
+    }
+
+    /**
+     * A gift from the target of a coalition we are in (not founded):
+     * at our asking price or more, it buys us out.
+     *
+     * @param other The giver.
+     * @param agreement The {@code DiplomaticTrade}.
+     */
+    private void boughtOut(Player other, DiplomaticTrade agreement) {
+        final net.sf.freecol.common.diplomacy.Coalition c
+            = net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+                .coalitionOf(this, other.getNationId(), getPlayer().getNationId());
+        if (c == null || c.members.indexOf(getPlayer().getNationId()) == 0) return;
+        int gold = 0;
+        for (TradeItem ti : agreement.getItemsGivenBy(other)) gold += ti.getGold();
+        if (gold <= 0 || gold < buyoutPrice(c)) return;
+        final net.sf.freecol.common.networking.ChangeSet cs
+            = new net.sf.freecol.common.networking.ChangeSet();
+        net.sf.freecol.server.ai.diplomacy.AlliancePlanner.of(this, c)
+            .leave(c, getPlayer(), cs);
+        ((net.sf.freecol.server.model.ServerGame)getGame()).sendToAll(cs);
+    }
+
+    /**
+     * What we ask to leave a coalition.
+     *
+     * @param c The {@code Coalition}.
+     * @return The price in gold.
+     */
+    public int buyoutPrice(net.sf.freecol.common.diplomacy.Coalition c) {
+        return net.sf.freecol.server.ai.diplomacy.AlliancePlanner
+            .buyoutPrice(this, c, getPlayer());
     }
 
     /** Turns colonists armed by the diplomat stay armed after danger. */
@@ -2707,10 +2833,19 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (stances && !player.isREF()) outlook = makeOutlook();
         if (!player.isREF()) {
             final Mood m = Mood.of(outlook, getCommitments());
+            for (net.sf.freecol.common.diplomacy.Grievance g : getGrievances().values()) {
+                m.grievances.put(g.against, net.sf.freecol.common.diplomacy
+                    .Grievance.parse(g.serialize()));
+            }
             for (net.sf.freecol.common.diplomacy.Coalition c
                      : net.sf.freecol.server.ai.diplomacy.AlliancePlanner.allCoalitions(this)) {
                 if (c.members.contains(player.getNationId()) && c.members.size() >= 2) {
                     m.coalitionTargets.add(c.target);
+                    m.coalitions.put(c.target,
+                        net.sf.freecol.common.diplomacy.Coalition.parse(c.serialize()));
+                    if (c.members.indexOf(player.getNationId()) > 0) {
+                        m.buyoutPrices.put(c.target, buyoutPrice(c));
+                    }
                 }
             }
             mood = m;
@@ -2776,7 +2911,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         outlook = null;
     }
 
-    private void buyUnitsInEurope(LogBuilder lb) {
+    void buyUnitsInEurope(LogBuilder lb) {
         /*
          * It seems that training/recruiting units, in other cases than cheating,
          * was removed from the code in 2012. This prevents the AI from actually
@@ -2850,7 +2985,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 continue;
             }
             
-            if (unitPrice > player.getGold()) {
+            if (unitPrice > spendable()) { // keep the treasury (mod)
                 return;
             }
             
@@ -2892,7 +3027,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return false;
         }
-        if (purchasePrice > getPlayer().getGold()) {
+        if (purchasePrice > spendable()) { // keep the treasury (mod)
             return false;
         }
         
@@ -2946,7 +3081,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return null;
         }
-        if (purchasePrice > getPlayer().getGold()) {
+        if (purchasePrice > spendable()) { // keep the treasury (mod)
             return null;
         }
         
@@ -2978,7 +3113,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         
         final int unitPrice = europe.getUnitPrice(cheapestArtilleryUnitType);
-        if (unitPrice > player.getGold()) {
+        if (unitPrice > spendable()) { // keep the treasury (mod)
             return null;
         }
         
@@ -3469,6 +3604,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String OFFERS_TAG = "offers";
     /** Our war and peace choices (mod), see {@link Commitments}. */
     private static final String STANCE_CHOICES_TAG = "stanceChoices";
+    /** Our grievances (mod), see {@code Grievance.serialize}, ';' separated. */
+    private static final String GRIEVANCES_TAG = "grievances";
 
     /**
      * {@inheritDoc}
@@ -3502,6 +3639,14 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
             xw.writeAttribute(COALITIONS_TAG, sb.toString());
         }
+        if (!getGrievances().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Grievance g : getGrievances().values()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(g.serialize());
+            }
+            xw.writeAttribute(GRIEVANCES_TAG, sb.toString());
+        }
         if (!getOffers().isEmpty()) {
             StringBuilder sb = new StringBuilder();
             for (Offer o : getOffers()) {
@@ -3529,6 +3674,15 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 final net.sf.freecol.common.diplomacy.Coalition c
                     = net.sf.freecol.common.diplomacy.Coalition.parse(rec);
                 if (c != null) coalitions.add(c);
+            }
+        }
+        grievances = new java.util.LinkedHashMap<>();
+        final String gs = xr.getAttribute(GRIEVANCES_TAG, (String)null);
+        if (gs != null && !gs.isEmpty()) {
+            for (String rec : gs.split(";")) {
+                final net.sf.freecol.common.diplomacy.Grievance g
+                    = net.sf.freecol.common.diplomacy.Grievance.parse(rec);
+                if (g != null) grievances.put(g.against, g);
             }
         }
         offers = new ArrayList<>();

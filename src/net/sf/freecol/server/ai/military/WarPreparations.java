@@ -178,7 +178,8 @@ public final class WarPreparations {
      */
     boolean buyShip(Action a, LogBuilder lb) {
         final Player player = aiPlayer.getPlayer();
-        if (player.getEurope() == null || player.getGold() < a.price) return false;
+        // Shopping: only gold above the treasury (mod).
+        if (player.getEurope() == null || aiPlayer.spendable() < a.price) return false;
         for (UnitType ut : player.getSpecification().getUnitTypeList()) {
             if (!ut.isNaval() || ut.getSpace() != a.amount || !ut.hasPrice()
                 || !ut.isAvailableTo(player)) continue;

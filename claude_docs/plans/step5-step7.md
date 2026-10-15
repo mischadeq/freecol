@@ -311,7 +311,21 @@ is short.
 - **The target buying a member out** (asked what it means): the nation
   a coalition stands against offers one member gold, or a colony, to
   leave the coalition and stay out of the war (the Cherokee changing
-  sides in the Yamasee War). Waiting for Mischa's answer.
+  sides in the Yamasee War). **Mischa (2026-10-15): yes, the price
+  depends on the member's synergy with the coalition.** Built, see
+  ideas.md.
+
+## Step 7 built (2026-10-15)
+
+All of 7a-7g, see the entries in ideas.md. Where it lives:
+`server/ai/diplomacy/TribePlanner` (runs at the start of every tribe's
+turn: knowing each other, rival, memories, land taken, rubbing, wars
+between tribes, calls for help, allied settlements, tribe alliances,
+uprisings, Pontiac's rule, the tribe's offers and mood),
+`common/diplomacy/TribeCharacter`, `TribeRelations`, `TribeMood`,
+`server/model/TribeNews`, refugees in `ServerPlayer.csRefugees`, the
+allied flag on `IndianSettlement`, the card in
+`client/companion/CompanionTribes`.
 
 ## Not in these steps
 

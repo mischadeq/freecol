@@ -319,7 +319,7 @@ final class CompanionNations {
      * fights, treasury and bells per turn, and output.  Ours are exact;
      * theirs are honest estimates (see {@link NationEstimate}).
      */
-    private static void estimates(Json j, Game game, Player me, Player p,
+    static void estimates(Json j, Game game, Player me, Player p,
                                   int[] v) {
         final net.sf.freecol.common.model.Specification spec
             = game.getSpecification();
@@ -330,13 +330,23 @@ final class CompanionNations {
             .put("frigates", Math.round(10 * NationEstimate.equivalent(v[mi("naval")],
                     NationEstimate.frigatePower(spec))));
 
-        // Units: all of ours; theirs as seen on the map now.
+        // Units: all of ours; theirs only on the tiles we see now (the
+        // client may still hold units that went out of sight).
         Map<String, Integer> kinds = new TreeMap<>();
-        for (Unit u : p.getUnitSet()) {
-            if (u.isDisposed()) continue;
-            if (!mine && u.getTile() == null) continue;
-            if (u.isInColony()) continue;
-            kinds.merge(unitKind(u), 1, Integer::sum);
+        if (mine) {
+            for (Unit u : p.getUnitSet()) {
+                if (u.isDisposed() || u.isInColony()) continue;
+                kinds.merge(unitKind(u), 1, Integer::sum);
+            }
+        } else if (game.getMap() != null) {
+            for (Tile t : game.getMap().getTileList(me::canSee)) {
+                if (t.hasSettlement()) continue;
+                for (Unit u : t.getUnitList()) {
+                    if (u.getOwner() == p && !u.isDisposed()) {
+                        kinds.merge(unitKind(u), 1, Integer::sum);
+                    }
+                }
+            }
         }
         j.key("units").obj();
         for (Map.Entry<String, Integer> e : kinds.entrySet()) j.put(e.getKey(), e.getValue());

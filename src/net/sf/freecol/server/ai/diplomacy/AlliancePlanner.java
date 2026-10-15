@@ -98,6 +98,8 @@ public final class AlliancePlanner {
         changed |= followJointWars(cs, lb);
         changed |= inviteToJointWar(outlook, cs, lb);
         changed |= runCoalitions(outlook, cs, lb);
+        changed |= buyOut(outlook, cs, lb);
+        inciteTribes(lb);
         changed |= startCoalition(outlook, cs, lb);
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
         return changed;
@@ -594,6 +596,7 @@ public final class AlliancePlanner {
                 if (q == null || q == me || q.getStance(t) == Stance.WAR) continue;
                 changed |= callMember(c, q, t, cs, lb);
             }
+            planJointStrike(c, t, outlook, cs, lb);
         }
         return changed;
     }
@@ -640,6 +643,393 @@ public final class AlliancePlanner {
             lb.add("\n  ", q.getDebugName(), " leaves the coalition");
         }
         return true;
+    }
+
+
+    // Joint attacks
+
+    /**
+     * The members strike the same colony together: the one our diplomat
+     * would attack (else the target's colony nearest to us), on the
+     * turn the slowest member can be there.  Human members are told.
+     */
+    private void planJointStrike(Coalition c, Player t, Outlook outlook,
+                                 ChangeSet cs, LogBuilder lb) {
+        final int now = now();
+        net.sf.freecol.common.model.Colony col = (c.jointTarget == null) ? null
+            : game().getFreeColGameObject(c.jointTarget,
+                net.sf.freecol.common.model.Colony.class);
+        if (c.hasPlan(now) && col != null && col.getOwner() == t) return;
+        c.clearPlan();
+        final net.sf.freecol.common.diplomacy.Situation.Attack at
+            = outlook.situation.attacks.get(c.target);
+        col = (at == null) ? null : game().getFreeColGameObject(at.place.id,
+            net.sf.freecol.common.model.Colony.class);
+        if (col == null || col.getOwner() != t) col = nearestColony(t, me());
+        if (col == null) return;
+        final List<Player> fighting = new java.util.ArrayList<>();
+        for (String m : c.members) {
+            final Player q = game().getPlayerByNationId(m);
+            if (q != null && q.getStance(t) == Stance.WAR) fighting.add(q);
+        }
+        if (fighting.size() < 2) return;
+        final int[] travel = new int[fighting.size()];
+        for (int i = 0; i < travel.length; i++) {
+            travel[i] = travelTurns(fighting.get(i), col.getTile());
+        }
+        c.jointTarget = col.getId();
+        c.jointName = col.getName();
+        c.strikeTurn = Coalition.strikeTurn(now, travel);
+        lb.add("\n  Joint strike on ", col.getName(), " in turn ", c.strikeTurn);
+        for (Player q : fighting) {
+            if (q.isAI()) continue;
+            cs.addMessage(q, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "coalition.jointStrike", me())
+                .addStringTemplate("%nation%", me().getNationLabel())
+                .addStringTemplate("%enemy%", t.getNationLabel())
+                .addName("%colony%", col.getName())
+                .addAmount("%turns%", c.strikeTurn - now));
+        }
+    }
+
+    /** A nation's colony nearest to another's colonies. */
+    private static net.sf.freecol.common.model.Colony nearestColony(Player p,
+                                                                     Player from) {
+        net.sf.freecol.common.model.Colony best = null;
+        int top = Integer.MAX_VALUE;
+        for (net.sf.freecol.common.model.Colony c : p.getColonyList()) {
+            for (net.sf.freecol.common.model.Colony f : from.getColonyList()) {
+                final int d = c.getTile().getDistanceTo(f.getTile());
+                if (d < top) {
+                    top = d;
+                    best = c;
+                }
+            }
+            if (best == null) best = c;
+        }
+        return best;
+    }
+
+    /**
+     * Turns a nation's army needs to reach a tile: by land a tile a
+     * turn, by sea four tiles a turn and two turns to load and land.
+     *
+     * @param p The nation.
+     * @param to The tile.
+     * @return The turns (99 if it has no colony).
+     */
+    public static int travelTurns(Player p, net.sf.freecol.common.model.Tile to) {
+        int best = 99;
+        for (net.sf.freecol.common.model.Colony c : p.getColonyList()) {
+            final int d = c.getTile().getDistanceTo(to);
+            final int t = (c.getTile().getContiguity() == to.getContiguity())
+                ? d : (d + 3) / 4 + 2;
+            best = Math.min(best, t);
+        }
+        return best;
+    }
+
+    /**
+     * The coalition with a joint plan against an enemy that a nation is
+     * in, if any.
+     *
+     * @param ai The nation's computer player.
+     * @param enemy The enemy nation id.
+     * @return The {@code Coalition}, or null.
+     */
+    public static Coalition jointPlanFor(EuropeanAIPlayer ai, String enemy) {
+        final int now = ai.getGame().getTurn().getNumber();
+        for (Coalition c : allCoalitions(ai)) {
+            if (c.target.equals(enemy) && c.hasPlan(now)
+                && c.members.contains(ai.getPlayer().getNationId())) return c;
+        }
+        return null;
+    }
+
+    // Paying a tribe to fight a tribe (step 6)
+
+    /** Share of our gold we spend on inciting a tribe at most. */
+    public static final double INCITE_SHARE = 1.0 / 3;
+    /** Turns between tries against the same tribe. */
+    public static final int INCITE_GAP = 10;
+
+    /**
+     * At war with a tribe: pay another tribe (the cheapest: its old
+     * rival first) to go to war with it.  Secret: only the tribes know.
+     *
+     * @param lb A {@code LogBuilder} to log to.
+     * @return The tribe paid, or null.
+     */
+    public Player inciteTribes(LogBuilder lb) {
+        final Player me = me();
+        final net.sf.freecol.server.control.InGameController igc
+            = ai.getAIMain().getFreeColServer().getInGameController();
+        for (Player r : game().getLiveNativePlayerList()) {
+            if (me.getStance(r) != Stance.WAR) continue;
+            final String key = "incite:" + r.getNationId();
+            final Integer tried = ai.getCoalitionTries().get(key);
+            if (tried != null && now() - tried < INCITE_GAP) continue;
+            ai.getCoalitionTries().put(key, now());
+            Player best = null;
+            int bestPrice = Integer.MAX_VALUE;
+            for (Player t : game().getLiveNativePlayerList()) {
+                if (t == r || t.getStance(r) == Stance.WAR
+                    || me.getStance(t) == Stance.WAR
+                    || me.getStance(t) == Stance.UNCONTACTED) continue;
+                final int price = igc.tribeIncitePrice(t, r,
+                    t.getTension(me).getValue());
+                if (price < bestPrice) {
+                    best = t;
+                    bestPrice = price;
+                }
+            }
+            if (best == null || bestPrice > INCITE_SHARE * me.getGold()) continue;
+            me.modifyGold(-bestPrice);
+            best.modifyGold(bestPrice);
+            best.getTension(r).modify(net.sf.freecol.common.model.Tension.WAR_MODIFIER);
+            r.getTension(me).modify(
+                net.sf.freecol.common.model.Tension.TENSION_ADD_WAR_INCITER);
+            lb.add("\n  Pays ", best.getDebugName(), " ", bestPrice,
+                   " to fight ", r.getDebugName());
+            return best;
+        }
+        return null;
+    }
+
+    // Buy-outs
+
+    /** Share of our gold we spend on one buy-out at most. */
+    public static final double BUYOUT_SHARE = 0.5;
+
+    /**
+     * A member's synergy with its coalition, as it sees it itself.
+     *
+     * @param member The member's computer player.
+     * @param c The {@code Coalition}.
+     * @return The synergy in points.
+     */
+    public static double synergy(EuropeanAIPlayer member, Coalition c) {
+        final Outlook o = member.getOutlook();
+        final String me = member.getPlayer().getNationId();
+        double opinion = 0, trust = 0;
+        int n = 0;
+        for (String m : c.members) {
+            if (m.equals(me)) continue;
+            final NationView v = o.view.others.get(m);
+            if (v == null) continue;
+            opinion += v.opinion;
+            trust += v.trust;
+            n++;
+        }
+        if (n > 0) {
+            opinion /= n;
+            trust /= n;
+        } else {
+            trust = Relations.DEFAULT_TRUST;
+        }
+        final double threat = Threat.all(o.view).getOrDefault(c.target, 0.0);
+        return Coalition.synergy(opinion, trust, threat,
+            member.getGame().getTurn().getNumber() - c.since,
+            sharedEnemies(member.getGame(), c, member.getPlayer()));
+    }
+
+    /**
+     * A human member's synergy: nobody reads its mind, so it counts as
+     * neutral, with the public part (the target's threat, how long,
+     * shared wars).
+     *
+     * @param game The {@code Game}.
+     * @param c The {@code Coalition}.
+     * @param member The member.
+     * @param threat The target's threat (as the target sees itself).
+     * @return The synergy in points.
+     */
+    public static double publicSynergy(Game game, Coalition c, Player member,
+                                       double threat) {
+        return Coalition.synergy(0, Relations.DEFAULT_TRUST, threat,
+            game.getTurn().getNumber() - c.since,
+            sharedEnemies(game, c, member));
+    }
+
+    /** Nations (not the target) a member fights with another member. */
+    private static int sharedEnemies(Game game, Coalition c, Player member) {
+        int n = 0;
+        for (Player e : game.getLiveEuropeanPlayerList()) {
+            if (e == member || c.target.equals(e.getNationId())
+                || member.getStance(e) != Stance.WAR) continue;
+            for (String m : c.members) {
+                final Player q = game.getPlayerByNationId(m);
+                if (q != null && q != member && q.getStance(e) == Stance.WAR) {
+                    n++;
+                    break;
+                }
+            }
+        }
+        return n;
+    }
+
+    /**
+     * The gold a member asks to leave a coalition: its own synergy for
+     * a computer nation, the public part for a human.
+     *
+     * @param ai Any computer player (to reach the others).
+     * @param c The {@code Coalition}.
+     * @param member The member.
+     * @return The price in gold.
+     */
+    public static int buyoutPrice(EuropeanAIPlayer ai, Coalition c,
+                                  Player member) {
+        final AIPlayer ma = (member.isAI())
+            ? ai.getAIMain().getAIPlayer(member) : null;
+        if (ma instanceof EuropeanAIPlayer) {
+            return Coalition.price(synergy((EuropeanAIPlayer)ma, c));
+        }
+        final Player t = ai.getGame().getPlayerByNationId(c.target);
+        final AIPlayer ta = (t == null || !t.isAI()) ? null
+            : ai.getAIMain().getAIPlayer(t);
+        final double threat = (ta instanceof EuropeanAIPlayer)
+            ? Threat.all(((EuropeanAIPlayer)ta).getOutlook().view)
+                .getOrDefault(c.target, 0.0)
+            : Threat.COALITION_LINE;
+        return Coalition.price(publicSynergy(ai.getGame(), c, member, threat));
+    }
+
+    /**
+     * We are the target of a coalition: pay a member to leave, the
+     * cheapest we can afford (not the founder), once every few turns.
+     * A computer member takes the gold if it outweighs its synergy; a
+     * human member gets the offer.
+     */
+    private boolean buyOut(Outlook outlook, ChangeSet cs, LogBuilder lb) {
+        final Player me = me();
+        final int now = now();
+        for (Offer o : ai.getOffers()) {
+            if (o.kind == Offer.Kind.BUYOUT && me.getNationId().equals(o.from)
+                && now - o.posted < OfferPlanner.GAP) return false;
+        }
+        for (Coalition c : allCoalitions(ai)) {
+            if (!me.getNationId().equals(c.target) || c.members.size() < 2) {
+                continue;
+            }
+            Player best = null;
+            int bestPrice = Integer.MAX_VALUE;
+            for (String m : c.members.subList(1, c.members.size())) {
+                final Player q = game().getPlayerByNationId(m);
+                if (q == null || q.isREF()) continue;
+                final int price = buyoutPrice(ai, c, q);
+                if (price < bestPrice) {
+                    best = q;
+                    bestPrice = price;
+                }
+            }
+            if (best == null || bestPrice > BUYOUT_SHARE * me.getGold()) continue;
+            final Offer o = new Offer("buyout:" + me.getNationId() + ":"
+                + best.getNationId() + ":" + now, Offer.Kind.BUYOUT,
+                me.getNationId(), null, 0, bestPrice, null, "", now, 0);
+            o.against = c.members.get(0);
+            o.audience.add(best.getNationId());
+            ai.getOffers().add(o);
+            lb.add("\n  Offers ", best.getDebugName(), " ", bestPrice,
+                   " gold to leave the coalition");
+            if (!best.isAI()) return false; // the player answers
+            final AIPlayer ba = ai.getAIMain().getAIPlayer(best);
+            if (!(ba instanceof EuropeanAIPlayer)) return false;
+            final EuropeanAIPlayer bai = (EuropeanAIPlayer)ba;
+            if (Coalition.takes(bai.getOutlook().view.character.gold,
+                                bestPrice, synergy(bai, c))) {
+                o.state = Offer.State.DONE;
+                o.takenBy = best.getNationId();
+                o.takenTurn = now;
+                o.paid = Math.min(bestPrice, Math.max(0, me.getGold()));
+                me.modifyGold(-o.paid);
+                best.modifyGold(o.paid);
+                remember(best, Memory.Kind.GIFT, me);
+                leave(c, best, cs);
+                lb.add(": taken");
+                return true;
+            }
+            o.state = Offer.State.DECLINED;
+            ai.getMemories().add(new Memory(Memory.Kind.REFUSED_OFFER,
+                                            best.getNationId(), now, 1));
+            lb.add(": refused");
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * A member leaves a coalition, bought out: its alliances with the
+     * members end, its war on the target too, and the members remember
+     * that it broke its word.
+     *
+     * @param c The {@code Coalition}.
+     * @param p The leaving {@code Player}.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    public void leave(Coalition c, Player p, ChangeSet cs) {
+        if (!c.members.remove(p.getNationId())) return;
+        final net.sf.freecol.server.model.ServerPlayer sp
+            = (net.sf.freecol.server.model.ServerPlayer)p;
+        final Player t = game().getPlayerByNationId(c.target);
+        for (String m : c.members) {
+            final Player q = game().getPlayerByNationId(m);
+            if (q == null) continue;
+            if (p.getStance(q) == Stance.ALLIANCE) {
+                sp.csChangeStance(Stance.PEACE, q, true, cs);
+            }
+            remember(q, Memory.Kind.DEAL_BROKEN, p);
+            if (!q.isAI()) {
+                cs.addMessage(q, new ModelMessage(
+                    ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                    "coalition.boughtOut", p)
+                    .addStringTemplate("%nation%", p.getNationLabel())
+                    .addStringTemplate("%enemy%", (t == null)
+                        ? p.getNationLabel() : t.getNationLabel()));
+            }
+        }
+        if (t != null && p.getStance(t) == Stance.WAR) {
+            sp.csChangeStance(Stance.PEACE, t, true, cs);
+        }
+        if (t != null && !t.isAI()) {
+            cs.addMessage(t, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "coalition.youBoughtOut", p)
+                .addStringTemplate("%nation%", p.getNationLabel()));
+        }
+    }
+
+    /**
+     * Find the coalition against a target that a nation is in.
+     *
+     * @param ai Any computer player.
+     * @param target The target nation id.
+     * @param member The member nation id.
+     * @return The {@code Coalition}, or null.
+     */
+    public static Coalition coalitionOf(EuropeanAIPlayer ai, String target,
+                                        String member) {
+        for (Coalition c : allCoalitions(ai)) {
+            if (c.target.equals(target) && c.members.contains(member)) return c;
+        }
+        return null;
+    }
+
+    /**
+     * The founder's planner, which owns the coalition (its offers and
+     * memories go to the founder).
+     *
+     * @param ai Any computer player.
+     * @param c The {@code Coalition}.
+     * @return The founder's planner, or one for {@code ai}.
+     */
+    public static AlliancePlanner of(EuropeanAIPlayer ai, Coalition c) {
+        final Player f = (c.members.isEmpty()) ? null
+            : ai.getGame().getPlayerByNationId(c.members.get(0));
+        final AIPlayer fa = (f == null || !f.isAI()) ? null
+            : ai.getAIMain().getAIPlayer(f);
+        return new AlliancePlanner((fa instanceof EuropeanAIPlayer)
+            ? (EuropeanAIPlayer)fa : ai);
     }
 
 

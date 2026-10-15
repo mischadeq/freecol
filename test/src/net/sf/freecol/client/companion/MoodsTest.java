@@ -81,15 +81,50 @@ public class MoodsTest extends FreeColTestCase {
         assertFalse(s, s.contains(Messages.message(spanish.getNationLabel())));
         assertFalse(s, s.contains("model.nation"));
 
-        // Goals about third nations only in public wars.
-        assertEquals("revenge on you", CompanionMoods.goal(
+        // Only goals a nation makes known: trade wishes and peace with
+        // you.  War plans stay secret, also against you.
+        assertNull(CompanionMoods.goal(
             new Goal(Goal.Type.REVENGE, DUTCH), game, me, m));
         assertNull(CompanionMoods.goal(
-            new Goal(Goal.Type.REVENGE, SPANISH), game, me, m));
-        assertNotNull(CompanionMoods.goal(
+            new Goal(Goal.Type.TAKE_COLONY, DUTCH), game, me, m));
+        assertNull(CompanionMoods.goal(
             new Goal(Goal.Type.TAKE_COLONY, ENGLISH), game, me, m));
+        assertNull(CompanionMoods.goal(
+            new Goal(Goal.Type.MAKE_PEACE, ENGLISH), game, me, m));
+        assertEquals("make peace with you", CompanionMoods.goal(
+            new Goal(Goal.Type.MAKE_PEACE, DUTCH), game, me, m));
         assertEquals("sell furs", CompanionMoods.goal(
             new Goal(Goal.Type.SELL_SURPLUS, "model.goods.furs"), game, me, m));
+
+        // A coalition against us, with their asking price to leave;
+        // one against another nation shows no price.
+        m.coalitionTargets.add(DUTCH);
+        m.buyoutPrices.put(DUTCH, 1500);
+        m.coalitionTargets.add(ENGLISH);
+        m.buyoutPrices.put(ENGLISH, 900);
+        Json k = new Json().obj();
+        CompanionMoods.put(k, m, game, me);
+        final String ks = k.end().toString();
+        assertTrue(ks, ks.contains("{\"name\":\"you\",\"you\":true,\"price\":1500}"));
+        assertFalse(ks, ks.contains("900"));
+        // A joint plan shows to members only.
+        net.sf.freecol.common.diplomacy.Coalition jc
+            = new net.sf.freecol.common.diplomacy.Coalition(SPANISH, 90);
+        jc.members.add(FRENCH);
+        jc.members.add(ENGLISH);
+        jc.jointTarget = "colony:1";
+        jc.jointName = "Havana";
+        jc.strikeTurn = game.getTurn().getNumber() + 3;
+        m.coalitionTargets.add(SPANISH);
+        m.coalitions.put(SPANISH, jc);
+        Json p = new Json().obj();
+        CompanionMoods.put(p, m, game, me);
+        assertFalse("not a member", p.end().toString().contains("Havana"));
+        jc.members.add(DUTCH);
+        p = new Json().obj();
+        CompanionMoods.put(p, m, game, me);
+        final String ps = p.end().toString();
+        assertTrue(ps, ps.contains("\"joint\":\"Havana\",\"strikeIn\":3"));
 
         // Nor does a missing mood (another human, a multiplayer game).
         Json n = new Json().obj();
@@ -105,5 +140,83 @@ public class MoodsTest extends FreeColTestCase {
         v.opinion = Relations.opinion(tension, w.memories, id, w.turn);
         v.trust = Relations.trust(w.memories, id, w.turn);
         w.others.put(id, v);
+    }
+
+    /** Their units count only on the tiles we see now. */
+    public void testUnitsSeenOnlyInSight() {
+        net.sf.freecol.common.model.Game game
+            = net.sf.freecol.server.ServerTestHelper.startServerGame(getTestMap(false));
+        try {
+            net.sf.freecol.server.model.ServerPlayer dutch = getServerPlayer(game, DUTCH);
+            net.sf.freecol.server.model.ServerPlayer french = getServerPlayer(game, FRENCH);
+            net.sf.freecol.common.model.Colony home = net.sf.freecol.util.test
+                .FreeColTestUtils.getColonyBuilder().player(dutch)
+                .colonyTile(game.getMap().getTile(5, 5)).initialColonists(1).build();
+            dutch.exploreForSettlement(home);
+            final net.sf.freecol.common.model.UnitType soldier
+                = spec().getUnitType("model.unit.veteranSoldier");
+            new net.sf.freecol.server.model.ServerUnit(game,
+                game.getMap().getTile(6, 5), french, soldier);   // next door
+            new net.sf.freecol.server.model.ServerUnit(game,
+                game.getMap().getTile(15, 15), french, soldier); // far away
+            dutch.invalidateCanSeeTiles();
+            assertTrue(dutch.canSee(game.getMap().getTile(6, 5)));
+            assertFalse(dutch.canSee(game.getMap().getTile(15, 15)));
+            int[] v = new int[CompanionNations.MEASURES.length];
+            java.util.Arrays.fill(v, -1);
+            Json j = new Json().obj();
+            CompanionNations.estimates(j, game, dutch, french, v);
+            String s = j.end().toString();
+            // One soldier next door; the one far away is out of sight.
+            assertTrue(s, s.contains("\"units\":{\"soldier\":1}"));
+        } finally {
+            net.sf.freecol.server.ServerTestHelper.stopServerGame();
+        }
+    }
+
+    /** A tribe's card: its friends and rival only with your mission. */
+    public void testTribeCardIsHonest() {
+        Game game = getGame();
+        Player me = game.getPlayerByNationId(DUTCH);
+        Player tupi = game.getPlayerByNationId("model.nation.tupi");
+        Player arawak = game.getPlayerByNationId("model.nation.arawak");
+        Player sioux = game.getPlayerByNationId("model.nation.sioux");
+        net.sf.freecol.common.diplomacy.TribeMood m
+            = new net.sf.freecol.common.diplomacy.TribeMood(tupi.getNationId(),
+                100, net.sf.freecol.common.diplomacy.TribeCharacter.TRADERS,
+                arawak.getNationId(), 5);
+        m.opinions.put(DUTCH, -60.0);
+        m.opinions.put(sioux.getNationId(), 50.0);
+        m.opinions.put(arawak.getNationId(), -40.0);
+        m.unrest.put(DUTCH, 2);
+        m.memories.add(new Memory(Memory.Kind.LAND_TAKEN, DUTCH, 99, 1));
+        java.util.List<net.sf.freecol.server.model.TribeNews.News> news
+            = new java.util.ArrayList<>();
+        news.add(new net.sf.freecol.server.model.TribeNews.News(99,
+            net.sf.freecol.server.model.TribeNews.Kind.HELP, tupi.getNationId(),
+            sioux.getNationId(), DUTCH, ""));
+        news.add(new net.sf.freecol.server.model.TribeNews.News(99,
+            net.sf.freecol.server.model.TribeNews.Kind.STAYED_HOME,
+            tupi.getNationId(), sioux.getNationId(), DUTCH, ""));
+        Json j = new Json().obj();
+        CompanionTribes.put(j, m, news, game, me, tupi);
+        String s = j.end().toString();
+        assertTrue(s, s.contains("\"character\":\"traders\""));
+        assertTrue(s, s.contains("\"unrest\":2,\"unrestOf\":5"));
+        assertTrue(s, s.contains("you built a colony on their land"));
+        assertTrue(s, s.contains("came to the aid of the Sioux against you"));
+        assertFalse("who stayed home is not told", s.contains("stayed"));
+        // No mission, no war with the rival: friends and rival unknown.
+        assertTrue(s, s.contains("\"told\":false"));
+        assertFalse(s, s.contains("rival"));
+        assertTrue(s, s.contains("\"friends\":[]"));
+        // A war with the rival is public.
+        m.atWar.add(arawak.getNationId());
+        Json k = new Json().obj();
+        CompanionTribes.put(k, m, news, game, me, tupi);
+        s = k.end().toString();
+        assertTrue(s, s.contains("\"rival\":{"));
+        assertTrue(s, s.contains("\"war\":true"));
+        assertTrue(s, s.contains("\"friends\":[]"));
     }
 }

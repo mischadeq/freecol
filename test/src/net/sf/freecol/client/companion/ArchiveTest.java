@@ -81,6 +81,17 @@ public class ArchiveTest extends FreeColTestCase {
         String json = b.json(game);
         assertTrue(json, json.contains("\"frames\":[{\"turn\":" + f.turn));
         assertTrue(json, json.contains("\"model.nation.french\":1"));
+        // Only the turns after one, for a page that has the rest.
+        CompanionArchive.Frame later = a.frame(game, dutch, true, null);
+        game.setTurn(new net.sf.freecol.common.model.Turn(f.turn + 1));
+        later = a.frame(game, dutch, true, null);
+        a.put(later);
+        String part = a.json(game, f.turn);
+        assertTrue(part, part.contains("\"count\":2"));
+        assertTrue(part, part.contains("\"frames\":[{\"turn\":" + (f.turn + 1)));
+        assertFalse(part, part.contains("\"turn\":" + f.turn + ","));
+        // Same land as before: no changes to send.
+        assertTrue(part, part.contains("\"d\":[]"));
     }
 
     public void testReadsOldSaves() throws Exception {

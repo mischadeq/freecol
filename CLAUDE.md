@@ -10,8 +10,11 @@ Read these first, in this order:
 2. `claude_docs/plans/ai-diplomacy-and-natives.md`: the full design.
 3. `claude_docs/plans/step2-step3.md`: steps 2 and 3 (built).
 4. `claude_docs/plans/step5-step7.md`: the next two steps, in detail
-   (alliances, then native tribes; grievances after, trade agreements
-   last).
+   (alliances, then native tribes; both built). Then
+   `step6-grievances.md` and `step4-price-agreements.md` (built).
+5. `claude_docs/plans/companion-ui.md`: what each companion tab shows,
+   where it comes from, the honesty check, and the "not yet
+   implemented" boxes to replace as steps are built.
 
 ## Working rules
 
@@ -38,7 +41,7 @@ Read these first, in this order:
 - Build: `ant -q` (makes `FreeCol.jar`).
 - One test suite: `ant -lib test/lib/junit.jar test -Dtest=common.diplomacy.AllTests`
   (also `tools.replay.AllTests`, `server.ai.AllTests`).
-- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 534
+- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 674
   tests at the last count). Results land in `build/TEST-*.txt`; delete
   those and `build/dependencies.txt` afterwards (they are untracked).
 - Replay of a saved game (step 0 measuring tool; needs Mischa's
@@ -72,6 +75,32 @@ Read these first, in this order:
   `mission/TradeVoyageMission`), deliveries and deadlines, answers
   (`OfferMessage`), offers the player posts. War and peace between
   computer nations: `EuropeanAIPlayer.determineStances`.
+- `server/ai/diplomacy/TribePlanner` (step 7): the tribes' diplomacy,
+  run first in `NativeAIPlayer.startWorking`: they know each other,
+  old rivals, memories (one shared `TurnRecord` a turn), wars between
+  tribes, calls for help, allied settlements (`IndianSettlement.
+  alliedPlayer`), tribe alliances, unrest and uprisings, Pontiac's
+  rule, their own offer book (answered via `InGameController.
+  answerOffer`). Pure rules in `common/diplomacy/TribeCharacter`,
+  `TribeRelations`; `TribeMood` for the page; public news in
+  `server/model/TribeNews`; refugees in `ServerPlayer.csRefugees`.
+  Coalition buy-outs: `AlliancePlanner.buyOut`, priced by
+  `Coalition.synergy`; joint strikes: `Coalition.jointTarget` /
+  `strikeTurn`, kept by `InvasionPlanner`.
+- `server/ai/diplomacy/GrievancePlanner` (step 6): every war a
+  computer nation declares by its own choice (`determineStances`)
+  goes complaint, ultimatum (`Offer.Kind.ULTIMATUM`), war; saved as
+  `Grievance` in `EuropeanAIPlayer.getGrievances()`. Paying tribes to
+  fight tribes: `AlliancePlanner.inciteTribes`,
+  `InGameController.tribeIncitePrice`.
+- Price agreements (step 4): `common/diplomacy/PriceAgreement` (the
+  rules), `Offer.Kind.AGREEMENT` (running, in the buyer's offer book)
+  and `SALE` (the "how many" dialog when a ship visits, answered with
+  an amount via `OfferMessage`), handled in `OfferPlanner`
+  (`considerAgreement`, `followAgreement`, `sell`).
+- Treasury: `common/diplomacy/Treasury`, `EuropeanAIPlayer.reserve()` /
+  `spendable()`: shopping in Europe only spends gold above the reserve
+  (deals may spend it).
 - `tools/replay/`: replays a series of saves, compares the diplomat with
   what nations really did (uses `common/diplomacy/Snapshot`, `TurnDiff`).
 - `client/companion/`: the companion web page (JSON from

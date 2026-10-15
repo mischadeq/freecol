@@ -64,10 +64,17 @@ final class CompanionOffers {
         final String id = me.getNationId();
         final java.util.Set<String> seen = new java.util.HashSet<>();
         try {
-            for (Player p : server.getGame().getLiveEuropeanPlayerList()) {
+            for (Player p : server.getGame().getLivePlayerList()) {
                 final AIPlayer ai = server.getAIMain().getAIPlayer(p);
-                if (!(ai instanceof EuropeanAIPlayer)) continue;
-                for (Offer o : new ArrayList<>(((EuropeanAIPlayer)ai).getOffers())) {
+                // The Europeans' offers, and the tribes' (mod, step 7).
+                final List<Offer> book = (ai instanceof EuropeanAIPlayer)
+                    ? ((EuropeanAIPlayer)ai).getOffers()
+                    : (ai instanceof net.sf.freecol.server.ai.NativeAIPlayer)
+                    ? ((net.sf.freecol.server.ai.NativeAIPlayer)ai).getOffers()
+                    : null;
+                if (book == null) continue;
+                for (Offer o : new ArrayList<>(book)) {
+                    if (o.kind == Offer.Kind.SALE) continue; // a dialog only
                     if ((o.told.contains(id) || id.equals(o.takenBy)
                          || id.equals(o.from)) && seen.add(o.id)) {
                         final Offer c = Offer.parse(o.serialize());
@@ -129,6 +136,8 @@ final class CompanionOffers {
                 j.put("left", o.turnsLeft(now)).put("priceNow", o.priceAt(now));
             }
             if (o.paid > 0) j.put("paid", o.paid);
+            if (o.delivered > 0) j.put("delivered", o.delivered);
+            j.put("tribe", from != null && from.isIndian());
             j.end();
         }
         j.endArr();

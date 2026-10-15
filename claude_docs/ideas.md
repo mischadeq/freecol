@@ -1166,6 +1166,386 @@ In the base game an alliance meant almost nothing. Now:
   after step 7; a coalition planning its attacks together. Open: the
   target buying a member out (Yamasee War).
 
+### Companion page: lighter on the game and the computer (2026-10-14)
+Mischa felt the page could be optimised. What was found and done:
+- **The map drew 60 times a second, always**, even on tabs where it is
+  hidden and when nothing moved. Now it draws only when it is on
+  screen and something changed (the view, the game state, the mouse),
+  at full speed while a unit moves or a colony pulses, and 20 times a
+  second for the marching route lines. Measured in a browser: 3 draws
+  in 3 idle seconds instead of about 180; none on other tabs.
+- **Polling.** The page asked for the whole state every second, and
+  the game builds it on its own screen thread. Now: every second while
+  the page is on screen, every 5 seconds in a background tab (and at
+  once when it comes back), and never faster than three times what the
+  game took to answer, so a busy game is not slowed by the page.
+- **History tab.** It downloaded the whole archive again every turn
+  (it grows all game); now only the new turns (`/api/expansion?since=`),
+  with a full reload while old saves are still being read in. The land
+  backdrop is drawn once and reused, the canvas is no longer resized on
+  every frame, and the land chart only moves its cursor while playing.
+  Checked in a browser: the turns loaded one by one give the same
+  picture as a full load.
+- Sliders and checkboxes in the page's gold.
+- **Tested:** `ArchiveTest` (only the turns after one are sent, with
+  the count); the page in headless Chromium with made-up data (no
+  script errors). All tests green.
+- **Not looked at:** the game-side build of the state itself (it
+  already caches paths and route turns per turn).
+
+### Companion: honesty check, Diplomacy tab, page guide (2026-10-14)
+Mischa asked for a look at what each page shows, what it means, that
+nothing peeks at hidden data, and room for the coming steps.
+- **Page guide:** `claude_docs/plans/companion-ui.md`: every tab, what
+  it is for, where each figure comes from, whether it is honest, and
+  what is coming.
+- **Honesty fixes:** a nation's units "seen now" were counted from the
+  units the game last heard of; now only the tiles in sight (same for
+  the coloured dots on the map). A computer nation's war plans ("take
+  a colony from you", "revenge on you") were shown as its goals; now
+  only what it makes known: goods it wants to trade and that it wants
+  peace with you. A developer file name was removed from the Relations
+  drawer. Everything else checked and fine (list in the guide).
+- **New Diplomacy tab (key 5;** Military, Independence and History
+  move to 6, 7, 8): a table of you and each nation (stance, mood and
+  trust meters, local truce, coalitions, their strongest memory of
+  you), the wars and alliances between the others with their reasons,
+  the coalitions and their members, the offers, and a Tribes summary
+  (stance, mood, settlements known and visited, your missions).
+- **Not yet implemented, shown greyed with their step:** relations
+  graph (5d), joint attack plans, grievances and ultimatums (6), trade
+  agreements (4); for the tribes: friends and rivals, unrest meter,
+  calls for help and refugees, allied settlements (7). Also an
+  Overview widget for Diplomacy and Tribes; an Alerts subtitle.
+- **Tested:** `MoodsTest` (only public goals; a far-away unit out of
+  sight is not counted, the one next door is); the tab in headless
+  Chromium with made-up data. All 609 tests green.
+
+### Coalition buy-outs, priced by synergy (2026-10-15)
+The nation a coalition stands against can pay a member to leave it.
+- **Synergy:** how tightly a member is bound to its coalition, in
+  points: a base of 5, its opinion of the other members (-10..+10),
+  its trust in them (-5..+5), its fear of the target (threat x 20),
+  how long the coalition has lasted (up to +5 after 20 turns), and +3
+  for each other war it fights side by side with a member. The asking
+  price is 150 gold a point (at least 300), so a fresh, lukewarm
+  member asks about 2,000 gold, an old comrade in arms much more.
+- **The computer as target:** every 5 turns it offers the cheapest
+  member (never the founder) its price, if that is at most half its
+  gold. A computer member takes it when the gold, as its character
+  values gold, outweighs its synergy: traders and settlers take the
+  asking price, balance keepers and conquerors hold out (the target
+  remembers the refusal).
+- **You as a member:** a dialog "Spain offers you 2,200 gold to leave
+  the coalition". Accepting: the gold, your alliances in the coalition
+  end, your war on the target too, and the members remember you broke
+  your word.
+- **You as the target:** the Diplomacy tab shows each member's asking
+  price ("leaves for 2,200 gold"; a member lets its price be known to
+  the target, nobody else sees it). Give at least that much gold in the
+  game's diplomacy screen and it leaves. Less is kept as a plain gift.
+- **Turn report:** "France took gold from Spain and left your
+  coalition" (to the members), "France took your gold and left the
+  coalition against you" (to the target).
+- **Tested:** `CoalitionTest.testSynergyPrice`; in `AIAlliancesTest` a
+  trader bought out (gold, peace, memories), too poor to try, the price
+  rising with friendship, a balance keeper refusing, the player
+  accepting an offer, the player buying a member out with a gift (and
+  the founder not for sale); `MoodsTest` (the price only on coalitions
+  against you).
+- **Not done:** buying out the founder (the coalition would need a new
+  keeper); counter-offers by the other members.
+
+### Step 7a built: tribes know each other, and remember (2026-10-15)
+- **They know each other from the start:** every pair of tribes is at
+  peace from turn one, also in an older save (set on the first native
+  turn). No first contact between tribes.
+- **Characters:** warlike Apache, Sioux, Aztec and Inca; peaceful
+  Arawak; trading Tupi; Cherokee and Iroquois in the middle. Peaceful
+  tribes bring gifts half again as often, warlike ones less; warlike
+  tribes go to war sooner.
+- **Old rival:** each tribe picks the tribe whose settlements come
+  nearest, once (saved). Settlements of two tribes within 4 tiles share
+  a border.
+- **Opinions between tribes:** start at 0; tension makes them worse,
+  the old rival is -30, each border -3 (up to 5), each European both
+  hate or fight +15, and memories count.
+- **Neighbours rub:** each turn the tension towards the old rival grows
+  by the borders (more for warlike tribes), so an old grudge builds up
+  over a long game.
+- **Wars between tribes stay rare:** only on the old rival, only with a
+  grudge (high tension or a bad memory), only when the opinion is down
+  to the character's line (warlike -39, middling -55, traders -69,
+  peaceful -92). The braves are made angry enough to really attack.
+  Peace after 15 turns or so (longer for warlike tribes), unless the
+  hatred is complete.
+- **Memories for tribes** (saved): a settlement destroyed, land taken
+  (a colony within 2 tiles of a settlement), a mission set up, arms
+  sold to them (trade) or to their rival, plus the usual (units lost,
+  peace, help). What happened is worked out once a turn for all tribes.
+- **Tested:** `TribeRelationsTest` (characters, opinions, rare wars,
+  memories); `AITribesTest` (everyone knows everyone, nearest rival,
+  shared enemy, war only on the rival with a grudge and peace later,
+  rubbing, land taken once, the turn record, save and load).
+  All 627 tests green.
+- **Not done yet:** the tribes do not use the full European diplomat
+  (they do not need its moves yet); Europeans paying a tribe to fight
+  another (`INCITE` against a tribe) comes with the grievances.
+
+### Steps 7b and 7c built: calls for help, refugees (2026-10-15)
+- **Calls for help:** a tribe calls when a European destroyed one of
+  its settlements since last turn, or when enemy soldiers stand next to
+  its capital. Every other tribe weighs it on its own turn: kinship
+  (+30) plus its opinion of the caller, times its character (warlike
+  help most), minus a third of how much it likes the attacker, minus
+  fear (the attacker's soldiers near its own lands), minus distance
+  beyond 5 tiles. At 10 or more it declares war on the attacker and
+  sends up to 2 braves (not the last defenders) to seek and destroy the
+  attacker's nearest colony or soldier. The caller remembers who came
+  ("came to their aid", big plus and trust) and which friends stayed
+  home. The same call is heard once per 10 turns.
+- **King Philip's War:** an old rival that loathes the caller (-50 or
+  worse) and likes the attacker sides with the attacker: war on the
+  caller.
+- **Turn report:** "The Sioux come to the aid of the Tupi, and are at
+  war with you" / "The Arawak, old rivals of the Tupi, side with you".
+- **Refugees:** when a settlement is destroyed, half its people (at
+  least one) flee to the nearest settlement of their own tribe; the
+  last settlement's people go to the tribe they get on with best (not
+  at war with them) and become its people. Turn report: "Survivors of
+  X flee to Y".
+- **News for the companion page** (`TribeNews`, last 30 turns, not
+  saved): help, stayed home, sided with, refugees.
+- **Tested** (`AITribesTest`): the help score, a tribe coming to help
+  (war, war party, memory, news), the rival not helping, a tribe that
+  likes the attacker staying home, a rival siding with the attacker,
+  refugees to their own tribe and to the best friend, nobody taking
+  them in at war. All 633 tests green.
+- **Not done:** a dedicated war-party mission (the braves use the
+  existing seek-and-destroy mission); help by tribes for each other in
+  wars between tribes.
+
+### Steps 7d and 7e built: allied settlements, tribes as allies (2026-10-15)
+- **A settlement breaks off and joins you** when your mission has been
+  there 20 turns or more, the settlement is happy with you (alarm at
+  the lowest level), and its tribe is weak or angry with you (at war
+  with you, lost a settlement to you, lost its capital, or down to two
+  settlements). It asks in a dialog; a computer nation always accepts.
+- **An allied settlement** stays native, flagged as yours (saved,
+  public):
+  - you use its land for free;
+  - it trades with you without anger on its prices;
+  - its braves never attack you, even when their tribe is at war with
+    you or angry;
+  - its braves attack your enemies within 4 tiles of it (they never
+    stand in your colonies);
+  - its tribe resents you (tension up at once, and a little each turn),
+    and so do tribes next to it.
+- **A whole tribe joins you** when two thirds of its settlements have
+  your happy mission and it likes you (or, as the Tlaxcala, when you
+  are both at war with its old rival). Its chiefs offer an alliance (a
+  dialog). Then:
+  - your wars are its wars (it declares war on your enemies);
+  - when it calls for help you get a call to arms; refusing ends the
+    alliance and is remembered. A computer ally decides with its
+    diplomat.
+  - its braves never attack you.
+- **Offers from tribes:** the tribes keep their own offer book (saved);
+  the answer goes through the same dialog as the European offers.
+- **Tested** (`AITribesTest`): a young mission does not break off, an
+  old happy one asks and becomes an ally (still native, free land for
+  you only, braves will not attack you, the tribe resents you); a whole
+  tribe joins and takes up your war; an ally who refuses a call loses
+  the alliance; Tlaxcala; all saved. All 638 tests green.
+- **Not done:** the tribe raiding its breakaway settlement to take it
+  back; the companion Offers list does not show tribe offers yet (they
+  come as dialogs and in the turn report).
+
+### Steps 7f and 7g built: uprisings, tribe cards (2026-10-15)
+- **Unrest, never out of nowhere:** a tribe hates a European when its
+  opinion is -40 or lower and it has a real grievance (a settlement
+  destroyed, land taken, or high tension). When it and at least one
+  other tribe (not its old rival) hate the same European, unrest
+  begins: "The tribes speak of war against you" in the turn report
+  (once a turn). It calms when the hatred goes (gifts, giving back
+  land).
+- **Uprising:** after 5 turns of unrest (7 very easy, 6 easy, 4 hard, 3
+  very hard) the tribe declares war and sends 3 braves at the nearest
+  colony: "The Sioux rise against you!". A tribe whose old rival rose
+  against the same European stays out.
+- **Pontiac's rule:** when a tribe's European friend (allied, or liked)
+  loses a colony within 6 tiles of the tribe to another European, the
+  tribe turns on the winner.
+- **Tribe cards** on the Diplomacy tab (replacing the greyed boxes):
+  character, mood and trust meters, an unrest meter with the turns
+  left, what they remember of you, old rival and friends (only with
+  your mission; the rival also when they are at war), allied
+  settlements, the latest news. Honesty notes in
+  `claude_docs/plans/companion-ui.md`.
+- **Tested:** `AITribesTest` (unrest turns by difficulty, unrest before
+  the uprising, one tribe alone or with only its rival does not rise,
+  unrest calms, a tribe stays out when its rival rose, Pontiac, unrest
+  saved); `MoodsTest.testTribeCardIsHonest`; the cards in headless
+  Chromium with made-up data. All 646 tests green.
+- **Not done:** tribes in the relations graph (5d, next); a tribe
+  raiding its breakaway settlement; the companion Offers list for tribe
+  offers.
+
+### Step 5d built: the relations graph (2026-10-15)
+- **On the Diplomacy tab:** every nation and tribe you met as a dot in
+  its colour (Europeans on the upper arc with you in the middle, tribes
+  on the lower arc with a dashed edge). Lines: alliance blue, war red,
+  old rivals dashed orange, settlements allied to a European dotted
+  green with their number. Each coalition puts a dashed ring of its
+  colour around its members; the legend says against whom. Hover a
+  line or dot for words.
+- **Honest:** wars and alliances between the others are public (single
+  player: from the server; multiplayer: only yours); old rivals only
+  as the tribe cards show them (your mission, or at war).
+- **Tested:** `GraphTest` (unmet nations left out, public war shown,
+  rival hidden until at war, multiplayer only your own stances);
+  the drawing in headless Chromium with made-up data.
+
+### Coalition joint attacks (2026-10-15)
+- **One target, one landing:** once a coalition is at war with its
+  target and at least two members fight, the founder picks one colony
+  (the one its diplomat would attack, else the target's colony nearest
+  to it) and a strike turn: when the slowest member can be there (2 to
+  10 turns; by land a tile a turn, by sea four tiles a turn plus two to
+  load and land). The plan holds until 5 turns after the strike turn or
+  until the colony falls, then a new one is made. Saved with the
+  coalition.
+- **Members keep to it:** a computer member attacks the target only at
+  the planned colony, and sets off just in time to land on the strike
+  turn (the log says "waits for the joint strike"); the plan adds the
+  coalition bonus to the attack's score. Other enemies are attacked as
+  before.
+- **You as a member:** the turn report says "all members strike
+  Havana of Spain together, landing in 6 turns", and the Coalitions
+  box on the Diplomacy tab shows "Joint strike: Havana, in 6 turns".
+  The target never sees it.
+- **Tested:** `CoalitionTest.testJointPlan` (strike turn, launch turn,
+  how long a plan holds, saving, older saves);
+  `AIAlliancesTest.testCoalitionPlansAJointStrike`;
+  `InvasionPlannerTest.testJointStrikeIsTimed` (waits when too early,
+  sails to the planned colony when it is time); `MoodsTest` (members
+  only). All 650 tests green.
+- **Not done:** members bringing their armies to one muster point
+  first; the player's own armies are of course up to the player.
+
+### Step 6 built: grievances and ultimatums (2026-10-15)
+Plan: `claude_docs/plans/step6-grievances.md`.
+- **No war out of nowhere:** when a computer nation wants a war of its
+  own choice (against you by the old anger rule, against a computer
+  nation by its diplomat), it first **complains** (turn report:
+  "France complains: your soldiers stand near our colonies"), after 3
+  turns sets **terms** (a dialog: "pay 450 gold, or war"), and declares
+  **war** only when you refuse or let 3 more turns pass. Paying settles
+  it: no new grievance against you for 15 turns, and they remember you
+  kept your word. An open grievance is forgotten after 12 turns if the
+  reason for war goes away.
+- **The cause, from what they see:** your soldiers within 2 tiles of
+  their colonies; harm they remember; your colonies within 4 tiles of
+  theirs; else "you stand in the way of our plans".
+- **The demand:** a quarter of your gold (public in the Foreign
+  Affairs report), between 200 and 2,000.
+- **Between computer nations:** the other side pays when it can and
+  is not stronger, else refuses and the war comes.
+- **Not through grievances:** calls to arms, joint wars, coalition wars
+  (they have a public reason), the King's wars, the tribes.
+- **Paying a tribe to fight a tribe:** your missionary's "incite" now
+  also lists the other tribes you met; cheaper against the tribe's old
+  rival. A computer nation at war with a tribe pays the cheapest other
+  tribe (up to a third of its gold, every 10 turns). A tribe whose
+  hatred of another tribe is at the top goes to war with it.
+- **Companion page:** "Complaint: your soldiers stand near our
+  colonies (terms in 2 turns)" or "Ultimatum: 450 gold or war, 2 turns
+  left" on the nation card and in the Diplomacy table. The Offers list
+  shows ultimatums, buy-outs and the tribes' offers (step 7 leftover).
+- **Tested:** `GrievanceTest`; `AIGrievancesTest` (complaint, terms,
+  war when ignored; paying settles it; refusing means war; the cause;
+  a computer nation pays or fights; saved); `AITribesTest` (a European
+  pays a tribe, the rival is cheaper, the paid tribe goes to war);
+  older stance tests now expect the complaint first. All 660 tests
+  green.
+- **Not done:** the King's random wars needing real tension (an option
+  in the plan; you liked the King's wars as they are, so left alone);
+  terms other than gold ("withdraw your soldiers").
+
+### Step 7 leftovers: taking back a settlement, tribe offers listed (2026-10-15)
+- **A tribe takes back its breakaway settlement:** when its anger with
+  you (the ally) reaches 800 tension (it grows each turn the
+  settlement serves you), it marches on the settlement. You get a
+  dialog: defend it (war with the tribe; it stays yours) or let it go
+  back to its tribe. Ignoring it for 5 turns lets it go back too. A
+  computer ally defends it when its army is not weaker than the
+  tribe's. Turn report: "Ypiranga is under the Tupi again".
+- **The tribes' offers in the companion Offers list** (settlement
+  joins, alliance, call for help, take-back), with ultimatums and
+  buy-outs. The "turns to deliver" line now shows only on goods deals.
+- **Tested:** `AITribesTest` (not before the anger; let go, defended
+  with war, ignored until it runs out). All 662 tests green.
+
+### Step 4 built: price agreements by ship (2026-10-15)
+Plan: `claude_docs/plans/step4-price-agreements.md` (Mischa's redesign:
+not per-turn deliveries, but a price for a period).
+- **What:** a computer nation buys a good from you at a fixed price per
+  unit for 5 to 30 turns, as many as you bring by ship to any of its
+  coastal colonies, as often as you like. Handy when your goods are
+  boycotted: they sell them in Europe themselves.
+- **The dialog:** on their turn, a ship of yours next to their colony
+  with the good gets "they take up to 100 coats at 9 each: how many do
+  you sell?". Each colony takes what its warehouse has room for (at
+  most 200 a visit) and what they can pay; full says so. Every sale is
+  a trade memory: trust grows.
+- **The price:** they agree up to 85% of their own Europe price after
+  tax; asked more, they answer with 75% (accept or not); they refuse
+  when boycotted themselves, when the good sells for nothing, when they
+  do not like you or are at war with you, or when an agreement for that
+  good is already running.
+- **Who proposes:** you, from Reports, "Post an offer", "A price
+  agreement with one nation" (nation, goods with your own Europe price
+  or "boycott", price per unit, turns); the computer, at most every 20
+  turns, for a good it keeps needing, at 85% of its Europe cost.
+- **Ends** when the turns run out, or with a war.
+- **Fixed amounts in parts:** a notice board "wanted" deal can now be
+  delivered in parts (40 now, 60 later), paid pro rata.
+- **Companion page:** the Offers list shows running agreements
+  (goods, price, delivered and gold earned, turns left bar, "running").
+  The per-visit questions stay dialogs only.
+- **Tested:** `PriceAgreementTest` (prices, counter, room, turns,
+  saving); `AIAgreementsTest` (accept, counter, one per good,
+  boycotted, not at war, a ship sells what you say and trust grows, not
+  asked twice at once, full warehouse, ends with time and with war,
+  delivery in parts, saved). All 672 tests green.
+- **Not done:** the computer selling to you under an agreement (only
+  buying for now); an agreement making war less likely.
+
+### The computer keeps a treasury (2026-10-15)
+Mischa noticed the computer nations never keep spare gold: every turn
+they bought units in Europe until the next one cost more than they had
+(`buyUnitsInEurope`). So they could not pay for deals: price agreements
+took 0 goods, no notices, no buy-outs, no paid tribes, ultimatums
+refused.
+- **A reserve shopping cannot touch:** 300 gold plus 50 a colony (at
+  most 2,000), times the character (traders 1.5, independence 1.2,
+  conquerors 0.7), plus what it has promised in open deals: its
+  notices, peace and joint-war gold, unpaid "wanted" deals, and two
+  loads (2 x 100 goods) for each price agreement.
+- **Shopping in Europe** (colonists, ships, artillery, dragoons, the
+  diplomat's war ship) only spends gold above the reserve. The cheats
+  top up without eating it.
+- **Deals spend it:** price agreements, notices, peace, buy-outs,
+  paying tribes, paying ultimatums.
+- **Losing a war** (a colony taken, or 3 units lost in the last 10
+  turns): only the promises are kept; the rest buys soldiers.
+- **Not on the companion page:** the reserve is the nation's own
+  business; their gold is in the Foreign Affairs report.
+- **Tested:** `TreasuryTest`; `AIAgreementsTest.testTreasury` (reserve,
+  promises, shopping leaves it, losing a war). All 674 tests green.
+- **To tune in step 8:** the sizes (a slower military build-up is the
+  price).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

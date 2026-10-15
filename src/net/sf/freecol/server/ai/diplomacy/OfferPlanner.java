@@ -121,6 +121,7 @@ public final class OfferPlanner {
         final Player me = me();
         if (me.isREF() || !me.isEuropean() || humans().isEmpty()) return;
         final ChangeSet cs = new ChangeSet();
+        visits.clear();
         final int now = now();
         final List<Offer> book = ai.getOffers();
         for (Iterator<Offer> it = book.iterator(); it.hasNext();) {
@@ -130,12 +131,16 @@ public final class OfferPlanner {
         for (Offer o : book) {
             if (!me.getNationId().equals(o.from)) {
                 if (o.stale(now)) o.state = Offer.State.EXPIRED;
+            } else if (o.state == Offer.State.TAKEN
+                       && o.kind == Offer.Kind.AGREEMENT) {
+                followAgreement(o, cs, lb);
             } else if (o.state == Offer.State.TAKEN) {
                 followUp(o, cs);
             } else if (o.stale(now)) {
                 o.state = Offer.State.EXPIRED;
             }
         }
+        book.addAll(visits);
         considerPosted(outlook, cs, lb);
         final Offer made = post(outlook);
         if (made != null) {
@@ -159,14 +164,14 @@ public final class OfferPlanner {
         }
         final int price = o.priceAt(now);
         if (price >= 0 && deliver(o, taker, colony, price, cs)) {
-            o.paid = price;
+            if (o.kind != Offer.Kind.WANT) o.paid = price;
             final boolean late = price < o.gold;
             o.state = (late) ? Offer.State.LATE : Offer.State.DONE;
             remember(late ? Memory.Kind.DEAL_LATE : Memory.Kind.DEAL_KEPT, taker);
             remember(Memory.Kind.TRADE, taker);
             message(cs, taker, (o.kind == Offer.Kind.WANT)
                 ? ((late) ? "offer.deliveredLate" : "offer.delivered")
-                : "offer.fetched", o, price);
+                : "offer.fetched", o, (o.kind == Offer.Kind.WANT) ? o.paid : price);
             return;
         }
         if (price < 0) {
@@ -200,12 +205,24 @@ public final class OfferPlanner {
                 if (u.getOwner() != taker || !u.isNaval()
                     || !u.canCarryGoods()) continue;
                 if (o.kind == Offer.Kind.WANT) {
-                    if (u.getGoodsCount(gt) < o.amount) continue;
-                    final int pay = Math.min(price, Math.max(0, me.getGold()));
-                    u.removeGoods(gt, o.amount);
-                    colony.addGoods(gt, o.amount);
+                    // In parts (step 4): what the ship has, paid pro rata.
+                    final int n = Math.min(u.getGoodsCount(gt),
+                                           o.amount - o.delivered);
+                    if (n <= 0) continue;
+                    final int part = (int)((long)price * n / o.amount);
+                    final int pay = Math.min(part, Math.max(0, me.getGold()));
+                    u.removeGoods(gt, n);
+                    colony.addGoods(gt, n);
                     gold(me, -pay, cs);
                     gold(taker, pay, cs);
+                    o.delivered += n;
+                    o.paid += pay;
+                    cs.add(See.only(taker), u);
+                    if (o.delivered < o.amount) {
+                        message(cs, taker, "offer.deliveredPart", o, pay);
+                        return false;
+                    }
+                    return true;
                 } else {
                     if (u.getSpaceLeft() * 100 < o.amount
                         || taker.getGold() < price) continue;
@@ -270,6 +287,10 @@ public final class OfferPlanner {
         case ALLIANCE: return "offer.postedAlliance";
         case JOINT_WAR: return "offer.postedJointWar";
         case COALITION: return "offer.postedCoalition";
+        case BUYOUT: return "offer.postedBuyout";
+        case ULTIMATUM: return "offer.postedUltimatum";
+        case AGREEMENT: return "offer.postedAgreement";
+        case SALE: return "offer.postedSale";
         default: return "offer.postedSell";
         }
     }
@@ -313,6 +334,7 @@ public final class OfferPlanner {
         Offer o = peaceTerms(outlook);
         if (o == null) o = allianceInvite(outlook);
         if (o == null) o = voyage(outlook);
+        if (o == null) o = agreementProposal(outlook);
         return (o != null) ? o : notice(outlook);
     }
 
@@ -627,6 +649,239 @@ public final class OfferPlanner {
     }
 
 
+    // Price agreements (step 4)
+
+    /** Turns between agreements we propose. */
+    public static final int AGREEMENT_GAP = 20;
+
+    /** Sale questions made this turn (added to the book after the loop). */
+    private final List<Offer> visits = new ArrayList<>();
+
+    /** What we get for one unit in Europe, after tax. */
+    private int net(GoodsType gt) {
+        final net.sf.freecol.common.model.Market m = me().getMarket();
+        return (m == null) ? 0 : net.sf.freecol.common.diplomacy.PriceAgreement
+            .net(m.getPaidForSale(gt), me().getTax());
+    }
+
+    /** A running or proposed agreement with a player for a good. */
+    private Offer agreementWith(String player, String goods) {
+        for (Offer o : ai.getOffers()) {
+            if (o.kind == Offer.Kind.AGREEMENT && goods.equals(o.goods)
+                && (o.state == Offer.State.OPEN || o.state == Offer.State.TAKEN)
+                && (player.equals(o.takenBy) || o.audience.contains(player))) {
+                return o;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The player proposes a price agreement: we take it if we still
+     * make a profit selling the good in Europe, answer with our own
+     * price if asked too much, and refuse when we are boycotted, the
+     * good is worth nothing to us, or we do not like the player.
+     *
+     * @param human The player.
+     * @param p The proposal (goods, price per unit, turns).
+     * @param cs A {@code ChangeSet} to update.
+     * @return The running agreement or our counter offer, or null.
+     */
+    public Offer considerAgreement(ServerPlayer human, Offer p, ChangeSet cs) {
+        final GoodsType gt = (p.goods == null) ? null
+            : game().getSpecification().getGoodsType(p.goods);
+        if (gt == null) return null;
+        final int now = now();
+        final int turns = net.sf.freecol.common.diplomacy.PriceAgreement
+            .turns(p.deadline);
+        final NationView v = ai.getOutlook().view.others.get(human.getNationId());
+        final Offer probe = new Offer("probe", Offer.Kind.AGREEMENT,
+            me().getNationId(), gt.getId(), 0, p.gold, null, "", now, turns);
+        String why = null;
+        if (v == null || v.atWar() || v.opinion <= Mood.NEUTRAL) {
+            why = "agreement.refusedFriends";
+        } else if (agreementWith(human.getNationId(), gt.getId()) != null) {
+            why = "agreement.refusedRunning";
+        } else if (!me().canTrade(gt)) {
+            why = "agreement.refusedBoycott";
+        }
+        final int netPrice = net(gt);
+        final int counter = net.sf.freecol.common.diplomacy.PriceAgreement.counter(netPrice);
+        if (why == null && counter < 1) why = "agreement.refusedWorthless";
+        if (why != null) {
+            message(cs, human, why, probe, p.gold);
+            return null;
+        }
+        final boolean yes = net.sf.freecol.common.diplomacy.PriceAgreement
+            .accepts(p.gold, netPrice);
+        final Offer a = new Offer("agree:" + me().getNationId() + ":"
+            + human.getNationId() + ":" + Action.shortId(gt.getId()) + ":" + now,
+            Offer.Kind.AGREEMENT, me().getNationId(), gt.getId(), 0,
+            (yes) ? p.gold : counter, null, "", now, turns);
+        a.audience.add(human.getNationId());
+        ai.getOffers().add(a);
+        if (yes) {
+            a.state = Offer.State.TAKEN;
+            a.takenBy = human.getNationId();
+            a.takenTurn = now;
+            a.told.add(human.getNationId());
+            message(cs, human, "agreement.accepted", a, a.gold);
+        } else {
+            // Our price: a dialog now.
+            a.told.add(human.getNationId());
+            cs.add(See.only(human), new OfferMessage(a));
+            message(cs, human, "agreement.counter", a, a.gold);
+        }
+        return a;
+    }
+
+    /**
+     * We propose an agreement for a good we keep needing, to the player
+     * we like most, at a little under what it costs us in Europe.
+     */
+    private Offer agreementProposal(Outlook outlook) {
+        final int now = now();
+        for (Offer o : ai.getOffers()) {
+            if (o.kind == Offer.Kind.AGREEMENT && me().getNationId().equals(o.from)
+                && now - o.posted < AGREEMENT_GAP) return null;
+        }
+        final net.sf.freecol.common.model.Market m = me().getMarket();
+        if (m == null) return null;
+        String to = null;
+        for (String a : audience(outlook)) {
+            final Player p = game().getPlayerByNationId(a);
+            if (p != null && !p.isAI()) {
+                to = a;
+                break;
+            }
+        }
+        if (to == null) return null;
+        for (ScoredAction sa : outlook.ranked) {
+            if (sa.action.kind != Action.Kind.BUY_GOODS
+                || sa.total < Diplomat.SMALL_THRESHOLD) continue;
+            final GoodsType gt = game().getSpecification()
+                .getGoodsType(sa.action.goods);
+            if (gt == null || agreementWith(to, gt.getId()) != null) continue;
+            final int price = (int)Math.round(net.sf.freecol.common.diplomacy
+                .PriceAgreement.NEED_SHARE * m.getCostToBuy(gt));
+            if (price < 1) continue;
+            final Offer o = new Offer("agree:" + me().getNationId() + ":" + to
+                + ":" + Action.shortId(gt.getId()) + ":" + now,
+                Offer.Kind.AGREEMENT, me().getNationId(), gt.getId(), 0,
+                price, null, "", now, net.sf.freecol.common.diplomacy
+                    .PriceAgreement.TURNS);
+            o.audience.add(to);
+            return o;
+        }
+        return null;
+    }
+
+    /**
+     * A running agreement: over when its time is up or at war; a ship
+     * of the player next to one of our coastal colonies with the good
+     * is asked how many to sell.
+     */
+    private void followAgreement(Offer a, ChangeSet cs, LogBuilder lb) {
+        final Player human = game().getPlayerByNationId(a.takenBy);
+        final GoodsType gt = game().getSpecification().getGoodsType(a.goods);
+        if (human == null || gt == null) {
+            a.state = Offer.State.CANCELLED;
+            return;
+        }
+        if (me().getStance(human) == Stance.WAR) {
+            a.state = Offer.State.CANCELLED;
+            message(cs, human, "agreement.war", a, a.gold);
+            return;
+        }
+        final int now = now();
+        if (a.turnsLeft(now) <= 0) {
+            a.state = Offer.State.DONE;
+            message(cs, human, "agreement.over", a, a.paid);
+            return;
+        }
+        for (Colony c : me().getColonyList()) {
+            if (!c.isConnectedPort()) continue;
+            for (Tile t : c.getTile().getSurroundingTiles(1)) {
+                for (Unit u : t.getUnitList()) {
+                    if (u.getOwner() != human || !u.isNaval()
+                        || u.getGoodsCount(gt) <= 0 || askedLately(a, u)) continue;
+                    final int room = net.sf.freecol.common.diplomacy
+                        .PriceAgreement.room(c.getWarehouseCapacity(),
+                            c.getGoodsCount(gt), me().getGold(), a.gold);
+                    final Offer q = new Offer("sale#" + a.id + "#" + u.getId()
+                        + "#" + now, Offer.Kind.SALE, me().getNationId(),
+                        gt.getId(), room, a.gold, c.getId(), c.getName(), now, 0);
+                    q.audience.add(human.getNationId());
+                    if (room <= 0) { // Full: they say so, no question
+                        q.state = Offer.State.DECLINED;
+                        q.told.add(human.getNationId());
+                        message(cs, human, "agreement.full", q, a.gold);
+                    }
+                    visits.add(q);
+                    lb.add("\n  Agreement: ", u, " at ", c.getName(), ", takes ", room);
+                }
+            }
+        }
+    }
+
+    /** Did we ask this ship about this agreement in the last two turns? */
+    private boolean askedLately(Offer a, Unit u) {
+        final String head = "sale#" + a.id + "#" + u.getId() + "#";
+        for (List<Offer> l : java.util.Arrays.asList(ai.getOffers(), visits)) {
+            for (Offer o : l) {
+                if (o.id.startsWith(head) && (o.state == Offer.State.OPEN
+                                              || now() - o.posted < 2)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** The player says how many to sell at this visit. */
+    private boolean sell(Offer q, ServerPlayer human, boolean accept,
+                         int amount, ChangeSet cs) {
+        final String[] f = q.id.split("#");
+        Offer a = null;
+        if (f.length == 4) {
+            for (Offer x : ai.getOffers()) if (x.id.equals(f[1])) a = x;
+        }
+        final Unit u = (f.length == 4)
+            ? game().getFreeColGameObject(f[2], Unit.class) : null;
+        final Colony c = game().getFreeColGameObject(q.place, Colony.class);
+        final GoodsType gt = game().getSpecification().getGoodsType(q.goods);
+        if (!accept || amount <= 0 || a == null || a.state != Offer.State.TAKEN
+            || u == null || u.getOwner() != human || c == null
+            || c.getOwner() != me() || gt == null || u.getTile() == null
+            || u.getTile().getDistanceTo(c.getTile()) > 1) {
+            q.state = Offer.State.DECLINED;
+            return true;
+        }
+        final int room = net.sf.freecol.common.diplomacy.PriceAgreement.room(
+            c.getWarehouseCapacity(), c.getGoodsCount(gt), me().getGold(), a.gold);
+        final int n = Math.min(Math.min(amount, u.getGoodsCount(gt)), room);
+        if (n <= 0) {
+            q.state = Offer.State.DECLINED;
+            message(cs, human, "agreement.full", q, a.gold);
+            return true;
+        }
+        final int pay = n * a.gold;
+        u.removeGoods(gt, n);
+        c.addGoods(gt, n);
+        gold(me(), -pay, cs);
+        gold(human, pay, cs);
+        cs.add(See.only(human), u);
+        a.delivered += n;
+        a.paid += pay;
+        q.state = Offer.State.DONE;
+        q.paid = pay;
+        q.delivered = n;
+        remember(Memory.Kind.TRADE, human);
+        final Offer done = new Offer(q.id, q.kind, q.from, q.goods, n, a.gold,
+            q.place, q.placeName, q.posted, 0);
+        message(cs, human, "agreement.sold", done, pay);
+        return true;
+    }
+
+
     // Answers
 
     /**
@@ -665,11 +920,59 @@ public final class OfferPlanner {
      */
     public boolean answer(ServerPlayer human, String id, boolean accept,
                           ChangeSet cs) {
+        return answer(human, id, accept, -1, cs);
+    }
+
+    /**
+     * A human player answers an offer, with an amount (a sale under a
+     * price agreement).
+     *
+     * @param human The player.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @param amount How many goods to sell, -1 if not asked.
+     * @param cs A {@code ChangeSet} to update.
+     * @return True if the offer was ours and open to this player.
+     */
+    public boolean answer(ServerPlayer human, String id, boolean accept,
+                          int amount, ChangeSet cs) {
         Offer o = null;
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
+        if (o.kind == Offer.Kind.SALE) return sell(o, human, accept, amount, cs);
+        if (o.kind == Offer.Kind.AGREEMENT) {
+            if (accept) {
+                o.state = Offer.State.TAKEN;
+                o.takenBy = human.getNationId();
+                o.takenTurn = now();
+                message(cs, human, "agreement.started", o, o.gold);
+            } else {
+                o.state = Offer.State.DECLINED;
+            }
+            return true;
+        }
         if (o.kind == Offer.Kind.CALL_TO_ARMS) {
             return answerCall(o, human, accept, cs);
+        }
+        if (o.kind == Offer.Kind.ULTIMATUM) {
+            final GrievancePlanner gp = new GrievancePlanner(ai);
+            final net.sf.freecol.common.diplomacy.Grievance g
+                = ai.getGrievances().get(human.getNationId());
+            if (g == null || g.stage
+                != net.sf.freecol.common.diplomacy.Grievance.Stage.ULTIMATUM) {
+                o.state = Offer.State.EXPIRED;
+            } else if (accept && human.getGold() >= g.demand) {
+                o.state = Offer.State.DONE;
+                o.takenBy = human.getNationId();
+                o.takenTurn = now();
+                o.paid = g.demand;
+                gp.settle(g, human, cs);
+            } else {
+                o.state = Offer.State.DECLINED;
+                gp.refused(human);
+                message(cs, human, "grievance.refused", o, o.gold);
+            }
+            return true;
         }
         if (!accept) {
             if (o.kind.direct()) {
@@ -695,6 +998,24 @@ public final class OfferPlanner {
                     new AlliancePlanner(ai).join(c, human, cs);
                 }
             }
+            return true;
+        }
+        if (o.kind == Offer.Kind.BUYOUT) {
+            final net.sf.freecol.common.diplomacy.Coalition c
+                = AlliancePlanner.coalitionOf(ai, me().getNationId(),
+                                              human.getNationId());
+            if (c == null) {
+                o.state = Offer.State.EXPIRED;
+                return true;
+            }
+            o.state = Offer.State.DONE;
+            o.takenBy = human.getNationId();
+            o.takenTurn = now();
+            final int gold = Math.min(o.gold, Math.max(0, me().getGold()));
+            gold(me(), -gold, cs);
+            gold(human, gold, cs);
+            o.paid = gold;
+            AlliancePlanner.of(ai, c).leave(c, human, cs);
             return true;
         }
         if (o.kind == Offer.Kind.ALLIANCE) {

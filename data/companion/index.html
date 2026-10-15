@@ -39,9 +39,10 @@
   <button class="tab" data-tab="colonies" title="Colony cards and empire goods (2)">Colonies</button>
   <button class="tab" data-tab="trade" title="Map, supply network, trade routes, Europe market (3)">Trade</button>
   <button class="tab" data-tab="nations" title="Every nation in plain figures (4)">Nations</button>
-  <button class="tab" data-tab="military" title="Your forces against theirs (5)">Military</button>
-  <button class="tab" data-tab="independence" title="You against the King's army (6)">Independence</button>
-  <button class="tab" data-tab="history" title="Replay how every empire grew, turn by turn (7)">History</button>
+  <button class="tab" data-tab="diplomacy" title="Alliances, wars, moods, coalitions, offers and the tribes (5)">Diplomacy</button>
+  <button class="tab" data-tab="military" title="Your forces against theirs (6)">Military</button>
+  <button class="tab" data-tab="independence" title="You against the King's army (7)">Independence</button>
+  <button class="tab" data-tab="history" title="Replay how every empire grew, turn by turn (8)">History</button>
   <button id="pickToggle" class="pickbtn" title="Choose what the Overview shows">Widgets</button>
 </nav>
 <div id="picker" class="picker" hidden></div>
@@ -56,7 +57,7 @@
 
   <main id="main">
     <section id="alertsSec" data-w="alerts">
-      <h2>Alerts</h2>
+      <h2>Alerts <span class="sub">what needs you this turn: colonies short of food or goods, idle ships, routes that stall</span></h2>
       <ul id="alerts" class="alerts"></ul>
     </section>
     <section id="netSec" data-w="network">
@@ -85,6 +86,22 @@
         <div class="mwrap"><svg id="nchart" role="img"></svg><div id="ntip" class="tip" hidden></div></div>
       </div>
       <p id="natNote" class="note m"></p>
+    </section>
+    <section id="dipSec" data-w="diplomacy">
+      <h2>Diplomacy <span class="sub">how the other nations stand with you and with each other; only what is public or what they told you</span></h2>
+      <div id="dipYou" class="diptable"></div>
+      <div class="dipcols">
+        <div class="mbox"><h3>Between the others <span class="sub">wars and alliances are public</span></h3><div id="dipOthers"></div></div>
+        <div class="mbox"><h3>Coalitions <span class="sub">allied against a nation that grows too strong</span></h3><div id="dipCoal"></div></div>
+      </div>
+      <div class="mbox"><h3>Relations graph <span class="sub">every nation and tribe you met; wars and alliances are public, old rivals as their cards show them</span></h3><div id="dipGraph" class="dgraph"></div></div>
+      <div id="dipSoon" class="soongrid"></div>
+      <p id="dipNote" class="note m"></p>
+    </section>
+    <section id="tribesSec" data-w="tribes">
+      <h2>Tribes <span class="sub">the tribes you have met; per settlement details in Relations (R)</span></h2>
+      <div id="tribes" class="tribes"></div>
+      <div id="tribesSoon" class="soongrid"></div>
     </section>
     <section id="militarySec" data-w="military">
       <h2>Military <span class="sub">strength counted in soldiers and frigates; hover for details</span></h2>

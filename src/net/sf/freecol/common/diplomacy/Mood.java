@@ -87,6 +87,14 @@ public final class Mood {
     public final Map<String, Feeling> feelings;
     /** The nations our coalitions stand against (public). */
     public final List<String> coalitionTargets = new ArrayList<>();
+    /** Target to the gold we ask to leave that coalition (members who
+        did not found it; the asking price is let known to the target). */
+    public final Map<String, Integer> buyoutPrices = new LinkedHashMap<>();
+    /** Target to a copy of our coalition against it (its members and
+        joint plan: shown to the members only). */
+    public final Map<String, Coalition> coalitions = new LinkedHashMap<>();
+    /** Our grievances by nation id (each shown only to its nation). */
+    public final Map<String, Grievance> grievances = new LinkedHashMap<>();
 
 
     private Mood(String nation, int turn, NationCharacter character,

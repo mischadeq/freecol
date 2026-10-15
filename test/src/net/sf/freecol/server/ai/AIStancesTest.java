@@ -84,11 +84,24 @@ public class AIStancesTest extends FreeColTestCase {
 
         dutch.getTension(french).setValue(Tension.TENSION_MAX);
         assertTrue(warScore(ai, FRENCH) >= 20);
+        // A complaint first (step 6) ...
+        assertFalse(ai.determineStances(new LogBuilder(64)));
+        assertEquals(Stance.PEACE, dutch.getStance(french));
+        ignoredTerms(ai, FRENCH);
+        // ... war once the terms were ignored.
         assertTrue(ai.determineStances(new LogBuilder(64)));
         assertEquals(Stance.WAR, dutch.getStance(french));
         Commitments.Choice c = ai.getCommitments().get(FRENCH);
         assertEquals(Action.Kind.DECLARE_WAR, c.kind);
         assertEquals("hates them", c.why);
+    }
+
+    /** The terms of an ultimatum ran out (step 6). */
+    private static void ignoredTerms(EuropeanAIPlayer ai, String id) {
+        final net.sf.freecol.common.diplomacy.Grievance g = ai.getGrievances().get(id);
+        g.stage = net.sf.freecol.common.diplomacy.Grievance.Stage.ULTIMATUM;
+        g.since = ai.getGame().getTurn().getNumber()
+            - net.sf.freecol.common.diplomacy.Grievance.ULTIMATUM_TURNS;
     }
 
     private static double warScore(EuropeanAIPlayer ai, String id) {
@@ -110,6 +123,9 @@ public class AIStancesTest extends FreeColTestCase {
         english.setStance(dutch, Stance.PEACE);
         dutch.getTension(english).setValue(Tension.TENSION_MAX);
         EuropeanAIPlayer ai = (EuropeanAIPlayer)aiMain.getAIPlayer(dutch);
+        ai.determineStances(new LogBuilder(64));
+        assertEquals("a complaint first", Stance.PEACE, dutch.getStance(english));
+        ignoredTerms(ai, ENGLISH);
         ai.determineStances(new LogBuilder(64));
         assertEquals(Stance.WAR, dutch.getStance(english));
         assertNull(ai.getCommitments().get(ENGLISH));

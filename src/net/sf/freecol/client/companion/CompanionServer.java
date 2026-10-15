@@ -233,7 +233,7 @@ public final class CompanionServer {
                 try {
                     json = onEdt(() -> (this.fcc.getGame() == null
                             || this.fcc.getMyPlayer() == null) ? "{}"
-                        : CompanionRelations.build(this.fcc.getGame(),
+                        : CompanionRelations.build(this.fcc, this.fcc.getGame(),
                                                    this.fcc.getMyPlayer()));
                 } catch (Exception e) {
                     json = "{}";
@@ -269,7 +269,10 @@ public final class CompanionServer {
                     json = onEdt(() -> (this.fcc.getGame() == null
                             || this.fcc.getMyPlayer() == null) ? "{}"
                         : CompanionArchive.of(this.fcc.getGame(),
-                            this.fcc.getMyPlayer()).json(this.fcc.getGame()));
+                            this.fcc.getMyPlayer()).json(this.fcc.getGame(),
+                                parseSince(ex.getRequestURI().getRawQuery()) > 0
+                                ? (int)parseSince(ex.getRequestURI().getRawQuery())
+                                : -1));
                 } catch (Exception e) {
                     json = "{}";
                 }

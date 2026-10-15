@@ -62,7 +62,17 @@ public final class Memory {
         /** They took a colony of our enemy. */
         HELPED_IN_WAR(15, 30, 10),
         /** They turned down our offer. */
-        REFUSED_OFFER(-3, 10, -2);
+        REFUSED_OFFER(-3, 10, -2),
+        /** They built a colony on our lands (tribes). */
+        LAND_TAKEN(-15, 40, 0),
+        /** They set up a mission with us (tribes). */
+        MISSION(8, 40, 5),
+        /** They sold muskets or horses to our old rival (tribes). */
+        ARMED_RIVAL(-15, 30, -5),
+        /** We called for help and they came (tribes). */
+        CAME_TO_HELP(25, 60, 20),
+        /** We called for help and they stayed home (tribes). */
+        LEFT_US_ALONE(-10, 30, -10);
 
         public final int weight;
         public final int fade;

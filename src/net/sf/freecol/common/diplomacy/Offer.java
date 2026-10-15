@@ -63,12 +63,34 @@ public final class Offer {
         /** Join us in a war: gold now, and maybe a colony we take. */
         JOINT_WAR,
         /** Join our coalition against a nation that grows too strong. */
-        COALITION;
+        COALITION,
+        /** We, the target of a coalition, pay a member to leave it
+            ({@code against} is the coalition's founder). */
+        BUYOUT,
+        /** A native settlement asks to break off from its tribe and
+            join us ({@code place} is the settlement). */
+        SETTLEMENT_JOINS,
+        /** Our terms before war: pay {@code gold} (placeName holds the
+            grievance in words). */
+        ULTIMATUM,
+        /** Our breakaway settlement ({@code place}) is raided by its
+            tribe ({@code from}): defend it, or it goes back. */
+        DEFEND_SETTLEMENT,
+        /** A price agreement (step 4): we ({@code from}) buy {@code goods}
+            at {@code gold} each, as many as the other brings by ship to
+            our coastal colonies, for {@code deadline} turns. */
+        AGREEMENT,
+        /** A ship came under an agreement: how many to sell here
+            ({@code amount} is the most we take, at {@code place}). */
+        SALE;
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
-                || this == JOINT_WAR || this == COALITION;
+                || this == JOINT_WAR || this == COALITION || this == BUYOUT
+                || this == SETTLEMENT_JOINS || this == ULTIMATUM
+                || this == DEFEND_SETTLEMENT || this == AGREEMENT
+                || this == SALE;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */
@@ -111,6 +133,8 @@ public final class Offer {
     public int paid;
     /** Audience members told so far (by a popup). */
     public final List<String> told = new ArrayList<>();
+    /** Goods delivered so far (agreements, deliveries in parts). */
+    public int delivered;
 
 
     public Offer(String id, Kind kind, String from, String goods, int amount,
@@ -196,7 +220,7 @@ public final class Offer {
             String.valueOf(posted), String.valueOf(deadline),
             String.join(",", audience), state.name(), nz(takenBy),
             String.valueOf(takenTurn), String.valueOf(paid),
-            String.join(",", told), nz(against));
+            String.join(",", told), nz(against), String.valueOf(delivered));
     }
 
     private static String nz(String s) {
@@ -215,7 +239,7 @@ public final class Offer {
      */
     public static Offer parse(String s) {
         final String[] f = s.split("\\|", -1);
-        if (f.length != 16 && f.length != 17) return null;
+        if (f.length < 16 || f.length > 18) return null;
         try {
             Offer o = new Offer(f[0], Kind.valueOf(f[1]), f[2], nul(f[3]),
                 Integer.parseInt(f[4]), Integer.parseInt(f[5]), nul(f[6]),
@@ -231,6 +255,7 @@ public final class Offer {
                 for (String a : f[15].split(",")) o.told.add(a);
             }
             if (f.length > 16) o.against = nul(f[16]);
+            if (f.length > 17) o.delivered = Integer.parseInt(f[17]);
             return o;
         } catch (IllegalArgumentException e) {
             return null;

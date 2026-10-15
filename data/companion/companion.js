@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const POLL_MS = 1000;
+  const POLL_MS = 1000, HIDDEN_POLL_MS = 5000, MAX_POLL_MS = 5000;
   const $ = (id) => document.getElementById(id);
 
   // ---------------------------------------------------------------- state
@@ -72,9 +72,24 @@
 
   // ---------------------------------------------------------------- polling
 
+  // How long the game took to answer the last poll: the next poll
+  // waits at least three times that, so the page never slows the game.
+  // A page in a background tab asks every few seconds only.
+  let lastRtt = 0;
+  function pollDelay() {
+    if (document.hidden) return HIDDEN_POLL_MS;
+    return Math.max(POLL_MS, Math.min(MAX_POLL_MS, 3 * lastRtt));
+  }
+  // Back on screen: ask now (unless a poll is on its way already).
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && pollTimer) schedule(0); });
+
+  let pollTimer = null;
   async function poll() {
+    pollTimer = null;
+    const t0 = performance.now();
     try {
       const r = await fetch("/api/state?since=" + lastLogId, { cache: "no-store" });
+      lastRtt = performance.now() - t0;
       if (!r.ok) throw new Error(r.status);
       const s = await r.json();
       if (s.busy) { schedule(); return; }
@@ -98,7 +113,10 @@
     }
     schedule();
   }
-  function schedule(ms) { setTimeout(poll, ms == null ? POLL_MS : ms); }
+  function schedule(ms) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, ms == null ? pollDelay() : ms);
+  }
 
   function online(s) {
     if (!s.inGame) {
@@ -132,6 +150,7 @@
   function update(s) {
     const prev = state;
     state = s;
+    stateStamp++;
 
     // Header
     $("date").textContent = s.date + "  ·  Turn " + s.turn;
@@ -165,6 +184,8 @@
     if (s.turn !== natTurn && s.myTurn) loadNations(s.turn);
     if (shownWidgets().includes("expansion") && (s.turn !== expTurn || (exp && exp.reading))) loadExpansion(s.turn);
     if (shownWidgets().includes("offers") && (s.turn !== offTurn || Date.now() - offAt > 10000)) loadOffers(s.turn);
+    if ((shownWidgets().includes("diplomacy") || shownWidgets().includes("tribes")) &&
+        (s.turn !== dipTurn || Date.now() - dipAt > 10000)) loadDiplomacy(s.turn);
     if (shownWidgets().includes("independence") && s.myTurn &&
         (s.turn !== indepTurn || Date.now() - indepAt > 10000)) loadIndependence(s.turn);
     if (view.auto) fitView();
@@ -607,7 +628,7 @@
     try {
       const r = await fetch("/api/nations", { cache: "no-store" });
       const n = await r.json();
-      if (n.nations) { nations = n; natTurn = turn; renderNations(); }
+      if (n.nations) { nations = n; natTurn = turn; renderNations(); renderDiplomacy(); }
     } catch (e) { /* Try again next poll */ }
     natBusy = false;
   }
@@ -990,7 +1011,7 @@
         (rows || '<p class="m">None of their settlements found yet.</p>') + "</div>";
     }).join("") || '<p class="m">You have not met any tribe yet.</p>';
     if (d.unmet) html += '<p class="m">' + d.unmet + (d.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>";
-    html += '<p class="m">Wanted goods: the first pays 50% more, the second 25%, the third 10%. Click an icon for the Colopedia, a settlement to show it on the map. See also claude_docs/tribes.md.</p>';
+    html += '<p class="m">Wanted goods: the first pays 50% more, the second 25%, the third 10%. Click an icon for the Colopedia, a settlement to show it on the map.</p>';
 
     const keep = box.scrollTop;
     box.innerHTML = html;
@@ -1417,8 +1438,25 @@
     ctx.fillText(text, x, y);
   }
 
+  // Draw the map only when it is on screen and something changed: the
+  // view, the state, the mouse, a moving unit or a pulse (full speed),
+  // or the marching route lines (20 frames a second).
+  let lastSig = "", lastDraw = 0, stateStamp = 0, uiTick = 0;
+  const mapSec = $("mapSec");
+  for (const ev of ["pointermove", "pointerdown", "pointerup", "wheel", "keydown", "click"]) {
+    document.addEventListener(ev, () => { uiTick++; }, { passive: true, capture: true });
+  }
   function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden || mapSec.classList.contains("off")) return;
     const r = canvas.getBoundingClientRect();
+    const busy = pulses.length > 0 || Object.keys(anims).length > 0;
+    const sig = r.width + "," + r.height + "," + view.S + "," + view.ox + "," + view.oy + "," +
+      stateStamp + "," + uiTick + "," + (terrain ? terrain.width : 0) + "," + mapRev;
+    const ants = state && state.routes && state.routes.length > 0;
+    if (!busy && sig === lastSig && !(ants && now - lastDraw >= 50)) return;
+    lastSig = sig;
+    lastDraw = now;
     ctx.clearRect(0, 0, r.width, r.height);
     ctx.fillStyle = "#0b0d10";
     ctx.fillRect(0, 0, r.width, r.height);
@@ -1433,7 +1471,6 @@
       drawUnits(now);
       drawPulses(now);
     }
-    requestAnimationFrame(frame);
   }
 
   function drawRoutes(now) {
@@ -1657,17 +1694,20 @@
     { w: "military", label: "Military" },
     { w: "independence", label: "Independence" },
     { w: "expansion", label: "Expansion replay" },
-    { w: "offers", label: "Offers" }
+    { w: "offers", label: "Offers" },
+    { w: "diplomacy", label: "Diplomacy" },
+    { w: "tribes", label: "Tribes" }
   ];
   const TABS = {
     colonies: ["colonies", "goods"],
     trade: ["map", "offers", "network", "routes", "market"],
     nations: ["nations"],
+    diplomacy: ["diplomacy", "offers", "tribes"],
     military: ["military"],
     independence: ["independence"],
     history: ["expansion"]
   };
-  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "military", "independence", "history"];
+  const TAB_KEYS = ["overview", "colonies", "trade", "nations", "diplomacy", "military", "independence", "history"];
   let tab = store.get("fc.tab");
   if (!TAB_KEYS.includes(tab)) tab = "overview";
   let picks = null;
@@ -1700,6 +1740,7 @@
     if (t === "independence" && state) loadIndependence(state.turn);
     if (t === "history") loadExpansion();
     if (t === "trade") loadOffers(state ? state.turn : null);
+    if (t === "diplomacy") { loadOffers(state ? state.turn : null); loadDiplomacy(); }
     store.set("fc.tab", t);
     applyTab();
     $("main").scrollTop = 0;
@@ -1812,6 +1853,13 @@
     for (let i = 1; i <= of; i++) h += "<i" + (i <= level ? ' class="on"' : "") + "></i>";
     return h + "</span>";
   }
+  // A grievance against you (step 6): a complaint, then terms, then war.
+  function grievanceTag(g) {
+    const t = g.turns === 1 ? "1 turn" : g.turns + " turns";
+    return g.stage === "ultimatum"
+      ? '<span class="tag alarm" title="Pay in the game\'s dialog, or they declare war when the time is up.">Ultimatum: ' + num(g.demand) + " gold or war, " + t + " left</span>"
+      : '<span class="tag warn" title="A complaint comes first; if nothing changes they set terms, then go to war.">Complaint: ' + esc(g.cause) + " (terms in " + t + ")</span>";
+  }
   function moodChips(n) {
     const m = n.mood;
     if (!m) return "";
@@ -1822,6 +1870,7 @@
       '<span class="tag ' + t[1] + '" title="Kept deals, gifts and trade raise trust; a broken deal cuts it hard.">' +
         meter(t[0], 3, t[1]) + " " + t[2] + "</span>" +
       '<span class="tag info" title="Their long-term ambition, from their nation type.">' + esc(cap(m.ambition)) + "</span>" +
+      (m.grievance ? grievanceTag(m.grievance) : "") +
       (m.truce ? '<span class="tag info" title="The King declared this war; they keep the peace with you here in the New World and will offer peace.">Local truce</span>' : "") +
       (m.coalitions || []).map((c) => '<span class="tag ' + (c.you ? "alarm" : "warn") + '" title="Allied with others against a nation that grows too strong; they go to war together.">Coalition against ' +
         esc(c.name) + "</span>").join("") + "</div>";
@@ -1952,6 +2001,222 @@
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
   }
 
+  // ---------------------------------------------------------------- diplomacy
+
+  let dipRel = null, dipAt = 0, dipTurn = null;
+  async function loadDiplomacy(turn) {
+    dipAt = Date.now();
+    try {
+      const r = await fetch("/api/relations", { cache: "no-store" });
+      dipRel = await r.json();
+      dipTurn = turn != null ? turn : dipTurn;
+    } catch (e) { /* Try again next poll */ }
+    if (!nations && state && state.myTurn) loadNations(state.turn);
+    renderDiplomacy();
+  }
+
+  // A feature that is planned but not built yet: shown greyed, with its step.
+  function soon(title, step, text) {
+    return '<div class="soon"><span class="soontag">Not yet implemented \u00b7 ' + esc(step) + "</span><b>" + esc(title) +
+      '</b><p class="m">' + esc(text) + "</p></div>";
+  }
+
+  function renderDiplomacy() {
+    if (!$("dipYou")) return;
+    const N = nations ? nations.nations.filter((n) => !n.me) : [];
+    const anyMood = N.some((n) => n.mood);
+    // You and each nation.
+    let h = '<div class="dr dh"><span>Nation</span><span>Stance</span><span title="What they think of you">Mood</span>' +
+      '<span title="Kept deals, gifts and trade raise it; a broken word cuts it">Trust</span><span>Notes</span></div>';
+    h += N.map((n) => {
+      const m = n.mood, st = n.stance || "unContacted";
+      const a = m && (MOOD_LV[m.word] || MOOD_LV.neutral), t = m && (TRUST_LV[m.trust] || TRUST_LV.careful);
+      const notes = [];
+      if (m && m.truce) notes.push('<span class="tag info">Local truce</span>');
+      if (m && m.grievance) notes.push(grievanceTag(m.grievance));
+      for (const c of (m && m.coalitions) || []) notes.push('<span class="tag ' + (c.you ? "alarm" : "warn") + '">Coalition against ' + esc(c.name) + "</span>");
+      if (m && m.remembers && m.remembers.length) notes.push('<span class="m" title="Their strongest memory of you">' + esc(m.remembers[0].text) + " (" + esc(m.remembers[0].year) + ")</span>");
+      return '<div class="dr' + (n.met ? "" : " unmet") + '"><span><i class="sw" style="background:' + esc(n.color) + '"></i> ' + esc(n.name) + "</span>" +
+        "<span>" + (n.met ? '<span class="tag ' + (STANCE_CLASS[st] || "m") + '">' + esc(cap(st.replace("ceaseFire", "cease fire").replace("unContacted", "not met"))) + "</span>" : '<span class="m">not met</span>') + "</span>" +
+        "<span>" + (a ? '<span class="tag ' + a[1] + '">' + meter(a[0], 4, a[1]) + " " + a[2] + "</span>" : '<span class="m">?</span>') + "</span>" +
+        "<span>" + (t ? '<span class="tag ' + t[1] + '">' + meter(t[0], 3, t[1]) + " " + t[2] + "</span>" : '<span class="m">?</span>') + "</span>" +
+        '<span class="dnotes">' + notes.join(" ") + "</span></div>";
+    }).join("");
+    $("dipYou").innerHTML = N.length ? h : '<p class="m">Waiting for the nation figures (they load at the start of your turn).</p>';
+
+    // Between the others: the wars and alliances the computer nations are in.
+    const pairs = new Map();
+    for (const n of N) {
+      for (const f of (n.mood && n.mood.feelings) || []) {
+        const key = [n.name, f.name].sort().join("|") + "|" + f.stance;
+        if (!pairs.has(key)) pairs.set(key, { a: n, b: f, stance: f.stance, why: [] });
+        if (f.why) pairs.get(key).why.push(n.name + ": " + f.why);
+      }
+    }
+    $("dipOthers").innerHTML = pairs.size ? [...pairs.values()].map((p) =>
+      '<div class="mrow"><span class="mname"><i class="sw" style="background:' + esc(p.a.color) + '"></i>' + esc(p.a.name) + "</span>" +
+      '<span class="tag ' + (p.stance === "war" ? "alarm" : "info") + '">' + (p.stance === "war" ? "at war" : "allied") + "</span>" +
+      '<span class="mname"><i class="sw" style="background:' + esc(p.b.color) + '"></i>' + esc(p.b.name) + "</span>" +
+      (p.why.length ? '<span class="m">' + esc(p.why.join("; ")) + "</span>" : "") + "</div>").join("")
+      : '<p class="m">' + (anyMood ? "No wars or alliances between the other nations." : "Known only in a single-player game (the computer nations run in this program).") + "</p>";
+
+    // Coalitions: who stands against whom.
+    const coal = new Map();
+    for (const n of N) {
+      for (const c of (n.mood && n.mood.coalitions) || []) {
+        if (!coal.has(c.name)) coal.set(c.name, { you: c.you, members: [] });
+        coal.get(c.name).members.push({ n: n, price: c.price });
+        if (c.joint) coal.get(c.name).joint = c;
+      }
+    }
+    $("dipCoal").innerHTML = coal.size ? [...coal.entries()].map(([target, c]) =>
+      '<div class="mline"><span class="tag ' + (c.you ? "alarm" : "warn") + '">Against ' + esc(target) + "</span> " +
+      c.members.map((m) => '<i class="sw" style="background:' + esc(m.n.color) + '"></i> ' + esc(m.n.name) +
+        (m.price ? ' <span class="tag info" title="Their asking price to leave the coalition. Give at least this much gold in the game\'s diplomacy screen and they leave: their alliances in it end.">leaves for ' + m.price.toLocaleString() + " gold</span>" : "")).join(", ") +
+      (c.joint ? ' <span class="tag warn" title="The members strike this colony together and time their landings; only the members know.">Joint strike: ' + esc(c.joint.joint) +
+        (c.joint.strikeIn ? ", in " + c.joint.strikeIn + (c.joint.strikeIn === 1 ? " turn" : " turns") : ", now") + "</span>" : "") + "</div>").join("")
+      : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
+
+    renderGraph();
+    $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
+      soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
+    $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +
+      "Their plans stay secret: you see only what they make known, such as goods they want to trade or that they want peace.";
+
+    renderTribes();
+  }
+
+  function tribeThink(t) {
+    const k = t.think, rows = [];
+    if (k) {
+      const a = MOOD_LV[k.word] || MOOD_LV.neutral, tr = TRUST_LV[k.trust] || TRUST_LV.careful;
+      rows.push('<div class="nverd nmood">' +
+        '<span class="tag ' + a[1] + '" title="What the tribe thinks of you: tension and what it remembers.">' + meter(a[0], 4, a[1]) + " " + a[2] + "</span>" +
+        '<span class="tag ' + tr[1] + '" title="Kept word, gifts and help raise trust; broken word cuts it.">' + meter(tr[0], 3, tr[1]) + " " + tr[2] + "</span>" +
+        '<span class="tag info" title="Their character: warlike tribes fight sooner and help their friends most; peaceful ones bring more gifts.">' + esc(cap(k.character)) + "</span></div>");
+      if (k.unrest != null) {
+        const of = k.unrestOf || 5, left = Math.max(0, of - k.unrest);
+        rows.push('<div class="mline" title="The tribes speak of war against you. When the meter fills, the tribes that hate you rise together. Gifts and giving back land calm them.">' +
+          '<span class="tag alarm">Unrest</span> ' + meter(Math.min(of, k.unrest), of, "alarm") +
+          ' <span class="m">' + (left ? left + (left === 1 ? " turn" : " turns") + " before they may rise" : "they may rise now") + "</span></div>");
+      }
+      if (k.remembers && k.remembers.length) {
+        rows.push('<div class="mline"><span class="m">Remembers:</span> ' + k.remembers.map((r) =>
+          '<span class="tag ' + (r.good ? "ok" : "alarm") + '">' + esc(r.text) + "</span>").join(" ") + "</div>");
+      }
+      const rel = [];
+      if (k.rival) rel.push('<span class="tag ' + (k.rival.war ? "alarm" : "warn") + '" title="Their old rival: the nearest tribe. Grudges between them grow over time.">' +
+        swatch(k.rival.color) + " Old rival: " + esc(k.rival.name) + (k.rival.war ? " (at war)" : "") + "</span>");
+      for (const f of k.friends || []) rel.push('<span class="tag ok" title="A tribe they like: it may come when they call for help.">' + swatch(f.color) + " Friend: " + esc(f.name) + "</span>");
+      if (rel.length) rows.push('<div class="mline">' + rel.join(" ") + "</div>");
+      else if (!k.told) rows.push('<p class="m">Friends and rivals: a mission with them would tell you.</p>');
+    }
+    if (t.allied && t.allied.length) {
+      rows.push('<div class="mline">' + t.allied.map((a) => '<span class="tag ' + (a.you ? "ok" : "info") +
+        '" title="Broke off from the tribe and lives under a European\'s protection: free land and fair trade for the ally; its braves fight the ally\'s enemies.">' +
+        esc(a.name) + " allied to " + esc(a.ally) + "</span>").join(" ") + "</div>");
+    }
+    if (t.news && t.news.length) {
+      rows.push('<div class="mline"><span class="m">Lately:</span> ' + t.news.slice(-4).map((n) =>
+        '<span class="tag ' + (n.bad ? "alarm" : "info") + '">' + esc(n.year) + " " + esc(n.text) + "</span>").join(" ") + "</div>");
+    }
+    return rows.join("");
+  }
+
+  // The relations graph (step 5d): Europeans on the upper arc, tribes on
+  // the lower one, you on top.
+  const RING = ["#f2a93b", "#e0ac48", "#c58cff", "#6ad6c8"];
+  function renderGraph() {
+    const box = $("dipGraph");
+    if (!box) return;
+    const g = dipRel && dipRel.graph;
+    if (!g || !g.nodes || g.nodes.length < 2) {
+      box.innerHTML = '<p class="m">Meet other nations or tribes to see who stands with whom.</p>';
+      return;
+    }
+    const W = 680, H = 440, cx = W / 2, cy = H / 2 + 6, rx = 270, ry = 165;
+    const eu = g.nodes.filter((n) => !n.tribe), tr = g.nodes.filter((n) => n.tribe);
+    // The Europeans spread evenly over the upper arc, you in the middle.
+    const me = eu.find((n) => n.me), others = eu.filter((n) => !n.me);
+    const row = others.slice(0, Math.floor(others.length / 2)).concat(me ? [me] : [], others.slice(Math.floor(others.length / 2)));
+    const pos = {};
+    row.forEach((n, i) => {
+      const a = row.length === 1 ? Math.PI * 1.5 : Math.PI + 0.25 + ((Math.PI - 0.5) * i) / (row.length - 1);
+      pos[n.id] = [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
+    });
+    tr.forEach((n, i) => {
+      const a = tr.length === 1 ? Math.PI / 2 : 0.25 + ((Math.PI - 0.5) * i) / (tr.length - 1);
+      pos[n.id] = [cx - rx * Math.cos(a), cy + ry * Math.sin(a)];
+    });
+    const name = {}; for (const n of g.nodes) name[n.id] = n.name;
+    let svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Relations graph">';
+    // Lines first, dots on top.  Two lines between the same pair bend apart.
+    const seen = {};
+    for (const e of g.edges || []) {
+      const p = pos[e.a], q = pos[e.b];
+      if (!p || !q) continue;
+      const k = [e.a, e.b].sort().join("|"), i = seen[k] = (seen[k] || 0) + 1;
+      const bend = (i - 1) * 28, mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      const dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy) || 1;
+      const qx = mx - (dy / len) * bend, qy = my + (dx / len) * bend;
+      const st = e.kind === "war" ? 'stroke="var(--alarm)" stroke-width="2.5"'
+        : e.kind === "alliance" ? 'stroke="var(--info)" stroke-width="2.5"'
+        : e.kind === "rival" ? 'stroke="var(--warn)" stroke-width="1.8" stroke-dasharray="7 5"'
+        : 'stroke="var(--ok)" stroke-width="1.8" stroke-dasharray="2 4"';
+      const tip = e.kind === "war" ? name[e.a] + " and " + name[e.b] + " are at war"
+        : e.kind === "alliance" ? name[e.a] + " and " + name[e.b] + " are allied"
+        : e.kind === "rival" ? name[e.a] + ": old rivals of " + name[e.b]
+        : e.n + (e.n === 1 ? " settlement" : " settlements") + " of the " + name[e.a] + " allied to " + name[e.b];
+      svg += '<path d="M' + p[0].toFixed(1) + " " + p[1].toFixed(1) + " Q" + qx.toFixed(1) + " " + qy.toFixed(1) + " " + q[0].toFixed(1) + " " + q[1].toFixed(1) +
+        '" fill="none" ' + st + "><title>" + esc(tip) + "</title></path>";
+      if (e.kind === "settlement") {
+        svg += '<text x="' + ((mx + qx) / 2).toFixed(1) + '" y="' + ((my + qy) / 2 - 4).toFixed(1) + '" text-anchor="middle">' + e.n + "</text>";
+      }
+    }
+    // Coalition rings around each member, the target marked.
+    const rings = {};
+    (g.coalitions || []).forEach((c, k) => {
+      for (const m of c.members) (rings[m] = rings[m] || []).push([k, c.target]);
+    });
+    for (const n of g.nodes) {
+      const [x, y] = pos[n.id], r = n.me ? 14 : 11;
+      (rings[n.id] || []).forEach(([k, t], i) => {
+        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (r + 5 + 5 * i) + '" fill="none" stroke="' + RING[k % RING.length] +
+          '" stroke-width="2" stroke-dasharray="4 3"><title>' + esc(n.name + ": in the coalition against " + name[t]) + "</title></circle>";
+      });
+      svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + esc(n.color) + '" stroke="var(--bg)" stroke-width="2"' +
+        (n.tribe ? ' stroke-dasharray="3 2"' : "") + "><title>" + esc(n.name + (n.tribe ? " (tribe)" : "")) + "</title></circle>";
+      const below = y > cy;
+      svg += '<text x="' + x.toFixed(1) + '" y="' + (below ? y + r + 15 : y - r - 7).toFixed(1) + '" text-anchor="middle"' +
+        (n.me ? ' font-weight="bold"' : "") + ">" + esc(n.name) + "</text>";
+    }
+    svg += "</svg>";
+    const legend = ['<span><i style="border-color:var(--info)"></i>alliance</span>', '<span><i style="border-color:var(--alarm)"></i>war</span>',
+      '<span><i style="border-color:var(--warn);border-top-style:dashed"></i>old rivals</span>',
+      '<span><i style="border-color:var(--ok);border-top-style:dotted"></i>settlements allied to a European</span>']
+      .concat((g.coalitions || []).map((c, k) => '<span><i style="border-color:' + RING[k % RING.length] + ';border-top-style:dashed"></i>ring: coalition against ' + esc(name[c.target] || "?") + "</span>"));
+    box.innerHTML = svg + '<div class="gl">' + legend.join("") + "</div>";
+  }
+
+  function renderTribes() {
+    if (!$("tribes")) return;
+    const T = (dipRel && dipRel.tribes) || [];
+    $("tribes").innerHTML = T.length ? T.map((t) => {
+      const sets = t.settlements || [];
+      const missions = sets.filter((s) => s.mission === "ours").length;
+      const visited = sets.filter((s) => s.visited).length;
+      return '<div class="ocard"><div class="ohead"><i class="sw" style="background:' + esc(t.color) + '"></i><b>' + esc(t.name) + "</b>" +
+        '<span class="tag ' + (STANCE[t.stance] || "m") + '">' + esc(t.stanceName || t.stance) + "</span>" +
+        (t.worst ? '<span class="tag ' + (MOOD[t.worst] || "m") + '" title="The angriest of their settlements you know">mood: ' + esc(t.worst) + "</span>" : "") + "</div>" +
+        "<div>" + sets.length + (sets.length === 1 ? " settlement" : " settlements") + ' known <span class="m">\u00b7 ' + visited + " visited \u00b7 " +
+        (missions === 0 ? "none" : missions) + " with your mission</span></div>" +
+        tribeThink(t) +
+        '<div class="m">' + esc(cap(t.aggression || "")) + " aggression</div></div>";
+    }).join("") + (dipRel.unmet ? '<p class="m">' + dipRel.unmet + (dipRel.unmet === 1 ? " tribe" : " tribes") + " not met yet.</p>" : "")
+      : '<p class="m">You have not met any tribe yet.</p>';
+    $("tribesSoon").innerHTML = "";
+  }
+
   // ---------------------------------------------------------------- offers
 
   let offTurn = null, offAt = 0;
@@ -1974,11 +2239,19 @@
       return;
     }
     $("offers").innerHTML = list.map((o) => {
-      const st = o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
+      const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
+        : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
       if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
-      else if (o.kind === "call_to_arms") what = "Calls you to arms against <b>" + esc(o.against) + "</b>";
-      else if (o.kind === "alliance") what = "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
+      else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
+      else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";
+      else if (o.kind === "settlement_joins") what = "<b>" + esc(o.place) + "</b> asks to break off from its tribe and live under your protection";
+      else if (o.kind === "agreement") what = "Price agreement: buys " + (o.goods ? gi(o.goods, o.goodsName) : "") + " " + esc(o.goodsName) +
+        " at <b>" + num(o.gold) + "</b> each, as many as you bring by ship to their coastal colonies" +
+        (o.delivered ? ' <span class="m">· ' + num(o.delivered) + " delivered, " + num(o.paid || 0) + " gold earned</span>" : "");
+      else if (o.kind === "ultimatum") what = "Ultimatum: pay <b>" + num(o.gold) + "</b> gold or war <span class=\"m\">(" + esc(o.place) + ")</span>";
+      else if (o.kind === "buyout") what = "Offers <b>" + num(o.gold) + "</b> gold to leave the coalition of <b>" + esc(o.against) + "</b>";
       else if (o.kind === "joint_war") what = "Join their war against <b>" + esc(o.against) + "</b> for <b>" + num(o.gold) + "</b> gold" +
         (o.place ? " and " + esc(o.place) + " if they take it" : "");
       else if (o.kind === "coalition") what = "Invites you into a coalition against <b>" + esc(o.against) + "</b>";
@@ -1994,35 +2267,52 @@
       if (o.left != null) {
         const used = Math.max(0, Math.min(1, (o.deadline - o.left) / o.deadline));
         const cls = o.left > 3 ? "ok" : o.left >= 0 ? "warn" : "alarm";
-        clock = '<div class="oclock" title="Turns left to complete the deal; late pays less, very late ends it">' +
+        clock = '<div class="oclock" title="' + (o.kind === "agreement" ? "Turns left in the agreement; come as often as you like" : "Turns left to complete the deal; late pays less, very late ends it") + '">' +
           '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * used) + '%"></i></span> ' +
           (o.left >= 0 ? o.left + " turns left" : (-o.left) + " turns late, pays " + num(o.priceNow)) + "</div>";
-      } else if (o.kind !== "peace" && o.state === "open") {
+      } else if ((o.kind === "want" || o.kind === "sell") && o.state === "open") {
         clock = '<div class="m">' + o.deadline + " turns to deliver once accepted</div>";
       }
       return '<div class="ocard' + (o.yours ? " yours" : "") + '"><div class="ohead"><i class="sw" style="background:' + esc(o.color) + '"></i><b>' + esc(o.yours ? "Your offer" : o.from) + "</b>" +
         '<span class="tag ' + st[0] + '">' + st[1] + '</span><span class="m">' + esc(o.posted) + "</span></div>" +
-        '<div class="owhat">' + what + (o.paid ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
+        '<div class="owhat">' + what + (o.paid && o.kind !== "agreement" ? ' <span class="m">· paid ' + num(o.paid) + "</span>" : "") + "</div>" + clock + "</div>";
     }).join("");
   }
 
   // ---------------------------------------------------------------- expansion replay
 
-  let exp = null, expIdx = 0, expTimer = null, expTurn = null, expBusy = false, expAt = 0;
+  let exp = null, expIdx = 0, expTimer = null, expTurn = null, expBusy = false, expAt = 0, expBack = null;
 
   async function loadExpansion(turn) {
     if (expBusy || (exp && exp.reading && Date.now() - expAt < 5000)) return;
     expBusy = true;
     expAt = Date.now();
     try {
-      const r = await fetch("/api/expansion", { cache: "no-store" });
+      // After the first load only the new turns (unless old saves are
+      // still being read in: they add turns in between).
+      const since = exp && !exp.reading && exp.frames.length ? exp.frames[exp.frames.length - 1].turn : 0;
+      const r = await fetch("/api/expansion" + (since ? "?since=" + since : ""), { cache: "no-store" });
       const d = await r.json();
       if (d.frames) {
         const atEnd = !exp || expIdx >= exp.frames.length - 1;
         const keep = exp && exp.frames[expIdx] ? exp.frames[expIdx].turn : null;
-        exp = d;
+        if (since && d.since > 0 && exp && d.count === exp.frames.length + d.frames.length) {
+          exp.nations = d.nations;
+          exp.reading = d.reading; exp.done = d.done; exp.todo = d.todo;
+          expAppend(d.frames);
+        } else if (since) {
+          exp = null; // out of step: ask for everything
+          expBusy = false;
+          return loadExpansion(turn);
+        } else {
+          exp = d;
+          exp.own = [];
+          exp.land = [];
+          const frames = exp.frames;
+          exp.frames = [];
+          expAppend(frames);
+        }
         if (turn != null) expTurn = turn;
-        expPrep();
         if (atEnd || keep == null) expIdx = exp.frames.length - 1;
         else expIdx = Math.max(0, exp.frames.findIndex((f) => f.turn >= keep));
         renderExpansion();
@@ -2031,20 +2321,20 @@
     expBusy = false;
   }
 
-  // Owners of every tile at every frame, from the changes.
-  function expPrep() {
+  // Owners of every tile at every frame, from the changes, and the land
+  // per nation.
+  function expAppend(frames) {
     const n = exp.w * exp.h;
-    let cur = new Int16Array(n).fill(-1);
-    exp.own = exp.frames.map((f) => {
+    let cur = exp.own.length ? exp.own[exp.own.length - 1] : new Int16Array(n).fill(-1);
+    for (const f of frames) {
       cur = cur.slice();
       for (let i = 0; i + 1 < f.d.length; i += 2) cur[f.d[i]] = f.d[i + 1];
-      return cur;
-    });
-    exp.land = exp.own.map((o) => {
       const c = new Array(exp.nations.length).fill(0);
-      for (let i = 0; i < o.length; i++) if (o[i] >= 0) c[o[i]]++;
-      return c;
-    });
+      for (let i = 0; i < cur.length; i++) if (cur[i] >= 0) c[cur[i]]++;
+      exp.frames.push(f);
+      exp.own.push(cur);
+      exp.land.push(c);
+    }
   }
 
   function expColor(k) { return exp.nations[k] ? exp.nations[k].color : "#777"; }
@@ -2077,9 +2367,11 @@
     const T = Math.max(3, Math.min(24, W / (exp.w + 0.5)));
     const H = Math.ceil((exp.h + 1) * T / 4);
     const dpr = window.devicePixelRatio || 1;
-    cv.width = Math.round(W * dpr);
-    cv.height = Math.round(H * dpr);
-    cv.style.height = H + "px";
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      cv.style.height = H + "px";
+    }
     const g = cv.getContext("2d");
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = "#0b0d10";
@@ -2093,18 +2385,37 @@
       g.lineTo(px, py + T / 4);
       g.closePath();
     };
-    // Backdrop: land and sea as known now, quiet colours.
+    // Backdrop: land and sea as known now, quiet colours; drawn once
+    // and reused while the replay plays.
     if (mapData && mapData.w === exp.w) {
-      for (let y = 0; y < exp.h; y++) {
-        for (let x = 0; x < exp.w; x++) {
-          const v = mapData.tiles[y * exp.w + x];
-          if (!v) continue;
-          const p = mapData.palette[(v & 255) - 1];
-          diamond(x, y);
-          g.fillStyle = p && p.land ? "#2a2d27" : "#121a22";
-          g.fill();
+      const key = W + "x" + H + "@" + dpr + "#" + mapRev;
+      if (!expBack || expBack.key !== key) {
+        const b = document.createElement("canvas");
+        b.width = cv.width;
+        b.height = cv.height;
+        const bg = b.getContext("2d");
+        bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+        for (let y = 0; y < exp.h; y++) {
+          for (let x = 0; x < exp.w; x++) {
+            const v = mapData.tiles[y * exp.w + x];
+            if (!v) continue;
+            const p = mapData.palette[(v & 255) - 1];
+            const px = (x + (y & 1) * 0.5) * T, py = y * T / 4;
+            bg.beginPath();
+            bg.moveTo(px + T / 2, py);
+            bg.lineTo(px + T, py + T / 4);
+            bg.lineTo(px + T / 2, py + T / 2);
+            bg.lineTo(px, py + T / 4);
+            bg.closePath();
+            bg.fillStyle = p && p.land ? "#2a2d27" : "#121a22";
+            bg.fill();
+          }
         }
+        expBack = { key, canvas: b };
       }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(expBack.canvas, 0, 0);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     const own = exp.own[expIdx];
     for (let y = 0; y < exp.h; y++) {
@@ -2151,10 +2462,21 @@
       "<span>shown faint; small squares are their settlements</span></div>";
   }
 
+  let expChartKey = "";
   function drawExpChart() {
     const svg = $("expChart");
     const W = svg.clientWidth || 600, H = 160, L = 34, B = 18;
     const n = exp.frames.length;
+    const X0 = (i) => L + (n === 1 ? 0 : i * (W - L - 6) / (n - 1));
+    // The lines only change with new turns: then just move the cursor.
+    const key = n + "/" + W + "/" + exp.nations.length;
+    const cur = svg.querySelector("line.cursor");
+    if (key === expChartKey && cur) {
+      cur.setAttribute("x1", X0(expIdx));
+      cur.setAttribute("x2", X0(expIdx));
+      return;
+    }
+    expChartKey = key;
     const eu = exp.nations.map((x, k) => k).filter((k) => exp.nations[k].european);
     const max = Math.max(1, ...exp.land.map((c) => Math.max(...eu.map((k) => c[k]))));
     const X = (i) => L + (n === 1 ? 0 : i * (W - L - 6) / (n - 1));
@@ -2168,7 +2490,7 @@
       const d = exp.land.map((c, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(c[k]).toFixed(1)).join("");
       h += '<path d="' + d + '" stroke="' + esc(exp.nations[k].color) + '" fill="none" stroke-width="1.8"/>';
     }
-    h += '<line x1="' + X(expIdx) + '" x2="' + X(expIdx) + '" y1="4" y2="' + (H - B) + '" stroke="#e8c27a" stroke-width="1.5"/>';
+    h += '<line class="cursor" x1="' + X(expIdx) + '" x2="' + X(expIdx) + '" y1="4" y2="' + (H - B) + '" stroke="#e8c27a" stroke-width="1.5"/>';
     h += '<text x="' + L + '" y="' + (H - 4) + '" fill="#98a2ad" font-size="10">' + esc(exp.frames[0].label) + "</text>" +
       '<text x="' + W + '" y="' + (H - 4) + '" text-anchor="end" fill="#98a2ad" font-size="10">' + esc(exp.frames[n - 1].label) + "</text>";
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
@@ -2498,7 +2820,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
     if (e.key === "l" || e.key === "L") toggleDrawer("log");
-    if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
+    if (e.key >= "1" && e.key <= "8" && !e.ctrlKey && !e.altKey) setTab(TAB_KEYS[+e.key - 1]);
     if (e.key === "c" || e.key === "C") toggleDrawer("pedia");
     if (e.key === "r" || e.key === "R") toggleDrawer("rel");
   });

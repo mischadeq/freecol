@@ -35,6 +35,10 @@ public class AllTests {
         suite.addTestSuite(OfferTest.class);
         suite.addTestSuite(DealValueTest.class);
         suite.addTestSuite(CoalitionTest.class);
+        suite.addTestSuite(TribeRelationsTest.class);
+        suite.addTestSuite(GrievanceTest.class);
+        suite.addTestSuite(PriceAgreementTest.class);
+        suite.addTestSuite(TreasuryTest.class);
         return suite;
     }
 }

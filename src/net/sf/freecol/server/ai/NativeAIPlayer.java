@@ -98,6 +98,28 @@ public final class NativeAIPlayer extends MissionAIPlayer {
      */
     private final java.util.Map<Unit, String> reasons = new HashMap<>();
 
+    // Tribe diplomacy (mod, step 7).  No initializers: read in the
+    // superclass constructor (see EuropeanAIPlayer.bearings).
+
+    /** What we remember of the others.  Saved. */
+    private net.sf.freecol.common.diplomacy.Memories memories;
+    /** Our old rival tribe (nation id), picked once.  Saved. */
+    private String rival;
+    /** Colonies on our lands, null before we first looked.  Saved. */
+    private Set<String> nearColonies;
+    /** The last turn turned into memories (not saved). */
+    private int remembered = -1;
+    /** Our offers to Europeans (mod, step 7d/7e).  Saved. */
+    private List<net.sf.freecol.common.diplomacy.Offer> offers;
+    /** Settlement id to "nation:turn" of its current mission.  Saved. */
+    private java.util.Map<String, String> missionSince;
+    /** European to the turn our unrest against it began.  Saved. */
+    private java.util.Map<String, Integer> unrest;
+    /** How we feel, as of our last turn (not saved). */
+    private volatile net.sf.freecol.common.diplomacy.TribeMood mood;
+    /** Calls for help heard: "caller|enemy" to turn (not saved). */
+    private final java.util.Map<String, Integer> callsHeard = new HashMap<>();
+
 
     /**
      * Creates a new {@code AIPlayer}.
@@ -166,6 +188,8 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         lb.mark();
 
         for (Player p : getGame().getLivePlayerList(player)) {
+            // Between tribes: the TribePlanner decides (mod).
+            if (p.isIndian()) continue;
             Stance newStance = determineStance(p);
             if (newStance != player.getStance(p)) {
                 getAIMain().getFreeColServer().getInGameController()
@@ -462,8 +486,9 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private void bringGifts(int[] randoms, LogBuilder lb) {
         final Player player = getPlayer();
         final CostDecider cd = CostDeciders.numberOfLegalTiles();
-        final int giftPercent = getSpecification()
-            .getPercentage(GameOptions.GIFT_PROBABILITY);
+        // Peaceful tribes bring gifts more often, warlike ones less (mod).
+        final int giftPercent = (int)Math.round(getSpecification()
+            .getPercentage(GameOptions.GIFT_PROBABILITY) * getCharacter().gifts);
         int randomIdx = 0;
         lb.mark();
 
@@ -724,6 +749,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
 
         clearAIUnits();
 
+        new net.sf.freecol.server.ai.diplomacy.TribePlanner(this).plan(lb);
         determineStances(lb);
         List<AIUnit> more;
         if (turn.isFirstTurn()) {
@@ -855,6 +881,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
         int anger, haggle;
         Tension tension = is.getAlarm(other);
         if (tension == null) return NativeTradeAction.NAK_INVALID;
+        // An allied settlement trades without anger (mod, step 7d).
+        if (is.getAlliedPlayer() == other) {
+            tension = new Tension(Tension.Level.HAPPY.getLimit());
+        }
 
         switch (action) {
         case OPEN:
@@ -983,4 +1013,249 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     // Serialization
 
     // getXMLTagName not needed, uses parent
+
+    // Tribe diplomacy (mod)
+
+    /**
+     * What we remember of the others.
+     *
+     * @return The {@code Memories}.
+     */
+    public net.sf.freecol.common.diplomacy.Memories getMemories() {
+        if (memories == null) memories = new net.sf.freecol.common.diplomacy.Memories();
+        return memories;
+    }
+
+    /** Our character, from the nation. */
+    public net.sf.freecol.common.diplomacy.TribeCharacter getCharacter() {
+        return net.sf.freecol.common.diplomacy.TribeCharacter.of(getPlayer().getNationId());
+    }
+
+    /** Our old rival tribe, or null. */
+    public String getRival() {
+        return rival;
+    }
+
+    public void setRival(String rival) {
+        this.rival = rival;
+    }
+
+    /** Colonies on our lands, or null before we first looked. */
+    public Set<String> getNearColonies() {
+        return nearColonies;
+    }
+
+    public void setNearColonies(Set<String> near) {
+        this.nearColonies = near;
+    }
+
+    /** The last turn turned into memories. */
+    public int getRemembered() {
+        return remembered;
+    }
+
+    public void setRemembered(int turn) {
+        this.remembered = turn;
+    }
+
+
+    /** Calls for help heard, "caller|enemy" to the turn. */
+    public java.util.Map<String, Integer> getCallsHeard() {
+        return callsHeard;
+    }
+
+    /**
+     * Send braves against a European: those not needed at home, the
+     * nearest to the trouble first, to seek and destroy its units and
+     * colonies near there.
+     *
+     * @param enemy The enemy {@code Player}.
+     * @param near Where the trouble is, may be null.
+     * @param n Braves to send at most.
+     * @return The number sent.
+     */
+    public int sendWarParty(Player enemy, Tile near, int n) {
+        return sendWarParty(enemy, near, n, null);
+    }
+
+    /** Our offers to Europeans. */
+    public List<net.sf.freecol.common.diplomacy.Offer> getOffers() {
+        if (offers == null) offers = new ArrayList<>();
+        return offers;
+    }
+
+    /** European to the turn our unrest against it began. */
+    public java.util.Map<String, Integer> getUnrest() {
+        if (unrest == null) unrest = new HashMap<>();
+        return unrest;
+    }
+
+    /** How we feel, as of our last turn, or null. */
+    public net.sf.freecol.common.diplomacy.TribeMood getMood() {
+        return mood;
+    }
+
+    public void setMood(net.sf.freecol.common.diplomacy.TribeMood mood) {
+        this.mood = mood;
+    }
+
+    /** Settlement id to "nation:turn" of its current mission. */
+    public java.util.Map<String, String> getMissionSince() {
+        if (missionSince == null) missionSince = new HashMap<>();
+        return missionSince;
+    }
+
+    /**
+     * Send braves against an enemy, from one settlement only.
+     *
+     * @param enemy The enemy {@code Player}.
+     * @param near Where the trouble is, may be null.
+     * @param n Braves to send at most.
+     * @param from Only braves of this settlement, or null for any.
+     * @return The number sent.
+     */
+    public int sendWarParty(Player enemy, Tile near, int n,
+                            IndianSettlement from) {
+        final Tile at = (near != null) ? near
+            : (getPlayer().getIndianSettlementList().isEmpty()) ? null
+            : getPlayer().getIndianSettlementList().get(0).getTile();
+        if (at == null) return 0;
+        // The target: the enemy's colony or soldier nearest the trouble.
+        Location target = null;
+        int top = Integer.MAX_VALUE;
+        for (Colony c : enemy.getColonyList()) {
+            final int d = c.getTile().getDistanceTo(at);
+            if (d < top) {
+                top = d;
+                target = c;
+            }
+        }
+        for (Unit u : (Iterable<Unit>)enemy.getUnits()::iterator) {
+            if (u.getTile() == null || u.isNaval()) continue;
+            final int d = u.getTile().getDistanceTo(at);
+            if (d < top) {
+                top = d;
+                target = u;
+            }
+        }
+        if (target == null) return 0;
+        final List<Unit> braves = new ArrayList<>();
+        for (Unit u : getPlayer().getUnitSet()) {
+            if (u.isNaval() || u.getTile() == null) continue;
+            if (from != null && u.getHomeIndianSettlement() != from) continue;
+            final IndianSettlement is = u.getSettlement() instanceof IndianSettlement
+                ? (IndianSettlement)u.getSettlement() : null;
+            if (is != null && is.getUnitCount() <= is.getRequiredDefenders()) continue;
+            braves.add(u);
+        }
+        braves.sort(Comparator.comparingInt(u -> u.getTile().getDistanceTo(at)));
+        int sent = 0;
+        for (Unit u : braves) {
+            if (sent >= n) break;
+            final AIUnit aiu = getAIUnit(u);
+            if (aiu == null) continue;
+            final Mission m = getSeekAndDestroyMission(aiu, target);
+            if (m == null) continue;
+            aiu.changeMission(m);
+            sent++;
+        }
+        return sent;
+    }
+
+    // Serialization (mod)
+
+    private static final String MEMORIES_TAG = "memories";
+    private static final String RIVAL_TAG = "rival";
+    private static final String NEAR_COLONIES_TAG = "nearColonies";
+    private static final String OFFERS_TAG = "offers";
+    private static final String MISSION_SINCE_TAG = "missionSince";
+    private static final String UNREST_TAG = "unrest";
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void writeAttributes(net.sf.freecol.common.io.FreeColXMLWriter xw)
+        throws XMLStreamException {
+        super.writeAttributes(xw);
+        if (getMemories().size() > 0) {
+            xw.writeAttribute(MEMORIES_TAG, getMemories().serialize(';'));
+        }
+        if (rival != null) xw.writeAttribute(RIVAL_TAG, rival);
+        if (nearColonies != null) {
+            xw.writeAttribute(NEAR_COLONIES_TAG, String.join(",", nearColonies));
+        }
+        if (!getOffers().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Offer o : getOffers()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(o.serialize());
+            }
+            xw.writeAttribute(OFFERS_TAG, sb.toString());
+        }
+        if (!getMissionSince().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, String> e : getMissionSince().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(MISSION_SINCE_TAG, sb.toString());
+        }
+        if (!getUnrest().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, Integer> e : getUnrest().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(UNREST_TAG, sb.toString());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void readAttributes(FreeColXMLReader xr) throws XMLStreamException {
+        super.readAttributes(xr);
+        memories = net.sf.freecol.common.diplomacy.Memories.parse(
+            xr.getAttribute(MEMORIES_TAG, (String)null));
+        rival = xr.getAttribute(RIVAL_TAG, (String)null);
+        final String near = xr.getAttribute(NEAR_COLONIES_TAG, (String)null);
+        nearColonies = null;
+        if (near != null) {
+            nearColonies = new HashSet<>();
+            for (String id : near.split(",")) {
+                if (!id.isEmpty()) nearColonies.add(id);
+            }
+        }
+        offers = new ArrayList<>();
+        final String os = xr.getAttribute(OFFERS_TAG, (String)null);
+        if (os != null && !os.isEmpty()) {
+            for (String rec : os.split(";")) {
+                final net.sf.freecol.common.diplomacy.Offer o
+                    = net.sf.freecol.common.diplomacy.Offer.parse(rec);
+                if (o != null) offers.add(o);
+            }
+        }
+        missionSince = new HashMap<>();
+        final String ms = xr.getAttribute(MISSION_SINCE_TAG, (String)null);
+        if (ms != null && !ms.isEmpty()) {
+            for (String rec : ms.split(";")) {
+                final int i = rec.indexOf('=');
+                if (i > 0) missionSince.put(rec.substring(0, i), rec.substring(i + 1));
+            }
+        }
+        unrest = new HashMap<>();
+        final String us = xr.getAttribute(UNREST_TAG, (String)null);
+        if (us != null && !us.isEmpty()) {
+            for (String rec : us.split(";")) {
+                final int i = rec.indexOf('=');
+                if (i <= 0) continue;
+                try {
+                    unrest.put(rec.substring(0, i),
+                               Integer.parseInt(rec.substring(i + 1)));
+                } catch (NumberFormatException nfe) {} // skip
+            }
+        }
+    }
 }
