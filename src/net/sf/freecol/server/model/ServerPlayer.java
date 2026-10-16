@@ -1353,17 +1353,22 @@ public class ServerPlayer extends Player implements TurnTaker {
         boolean change = false;
         Stance old = getStance(otherPlayer);
 
+        // A war the King orders is nobody's own choice: it adds no
+        // anger on either side (mod; the fighting still does).
+        final boolean kings = stance == Stance.WAR
+            && WarDeclarations.isKingsOrder();
         if (old != stance) {
             // Who declared it, and was it the King (mod)?
             if (stance == Stance.WAR) WarDeclarations.record(this, otherPlayer);
-            int modifier = old.getTensionModifier(stance);
+            int modifier = (kings) ? 0 : old.getTensionModifier(stance);
             setStance(otherPlayer, stance);
             if (modifier != 0) {
                 csModifyTension(otherPlayer, modifier, cs);//+til
             }
-            cs.addHistory(this, new HistoryEvent(getGame().getTurn(),
+            cs.addHistory(this, warTag(new HistoryEvent(getGame().getTurn(),
                     HistoryEvent.getEventTypeFromStance(stance), otherPlayer)
-                .addStringTemplate("%nation%", otherPlayer.getNationLabel()));
+                .addStringTemplate("%nation%", otherPlayer.getNationLabel()),
+                stance, kings));
             logger.info("Stance modification " + getName()
                 + " " + old + " -> " + stance + " wrt " + otherPlayer.getName());
             this.addStanceChange(otherPlayer);
@@ -1378,14 +1383,15 @@ public class ServerPlayer extends Player implements TurnTaker {
             change = true;
         }
         if (symmetric && (old = otherPlayer.getStance(this)) != stance) {
-            int modifier = old.getTensionModifier(stance);
+            int modifier = (kings) ? 0 : old.getTensionModifier(stance);
             otherPlayer.setStance(this, stance);
             if (modifier != 0) {
                 ((ServerPlayer)otherPlayer).csModifyTension(this, modifier, cs);//+til
             }
-            cs.addHistory(otherPlayer, new HistoryEvent(getGame().getTurn(),
+            cs.addHistory(otherPlayer, warTag(new HistoryEvent(getGame().getTurn(),
                     HistoryEvent.getEventTypeFromStance(stance), this)
-                .addStringTemplate("%nation%", this.getNationLabel()));
+                .addStringTemplate("%nation%", this.getNationLabel()),
+                stance, kings));
             logger.info("Stance modification " + otherPlayer.getName()
                 + " " + old + " -> " + stance
                 + " wrt " + getName() + " (symmetric)");
@@ -1416,6 +1422,50 @@ public class ServerPlayer extends Player implements TurnTaker {
      */
     public void csModifyTension(Player player, int add, ChangeSet cs) {
         csModifyTension(player, add, null, cs);
+    }
+
+    /** History tag: who declared a war (a nation id) (mod). */
+    public static final String DECLARER_TAG = "%declarer%";
+    /** History tag: the war was the King's order (mod). */
+    public static final String KINGS_TAG = "%kingsWar%";
+
+    /**
+     * Tag a war in the history with who declared it and whether the
+     * King ordered it, so a nation's memory knows (mod).  The tags are
+     * not in the history text.
+     *
+     * @param h The {@code HistoryEvent}.
+     * @param stance The new stance.
+     * @param kings True if the King ordered the war.
+     * @return The event.
+     */
+    private HistoryEvent warTag(HistoryEvent h, Stance stance,
+                                boolean kings) {
+        if (stance != Stance.WAR) return h;
+        h.addName(DECLARER_TAG, getNationId());
+        if (kings) h.addName(KINGS_TAG, "true");
+        return h;
+    }
+
+    /** Anger between European nations at peace fades by this much a
+        turn (mod): without it a few forced wars left hatred for good. */
+    public static final int TENSION_FADE = 10;
+
+    /**
+     * Let anger towards other European nations fade while at peace
+     * (mod).
+     */
+    void csFadeTension() {
+        if (!isEuropean() || isREF()) return;
+        for (Player p : getGame().getLiveEuropeanPlayerList(this)) {
+            if (p == this || p.isREF()) continue;
+            final Stance st = getStance(p);
+            if (st != Stance.PEACE && st != Stance.ALLIANCE) continue;
+            final Tension t = getTension(p);
+            if (t.getValue() > 0) {
+                t.modify(-Math.min(TENSION_FADE, t.getValue()));
+            }
+        }
     }
 
     /**
@@ -4595,6 +4645,7 @@ outer:  for (Effect effect : effects) {
     public void csNewTurn(Random random, LogBuilder lb, ChangeSet cs) {
         lb.add("PLAYER ", getName(), ": ");
         final Game game = getGame();
+        csFadeTension();
         final Specification spec = getSpecification();
         int oldImmigration = getImmigration(), oldLiberty = getLiberty(),
             newSoL = 0, newImmigration = 0, newLiberty = 0;

@@ -1716,6 +1716,24 @@ top, so the (modal) dialog was hidden but blocked every click.
   runs (`CompanionHighlight`), the page draws them. Tested with the
   lines of Mischa's turn 272 (`HighlightTest`) and a drawing of them.
   All 704 tests green.
+- **The King's wars no longer poison relations:** in Mischa's game the
+  French King kept declaring war on the Dutch (at the turn change),
+  then France offered peace and paid, yet France grew angrier each
+  time. Causes: the old rule adds 1000 tension for any war and takes
+  only 500 off for peace, and tension between Europeans never fades,
+  so each forced war plus peace left 500 more for good; and our memory
+  turned every war in the history into "they declared war on us" for
+  both sides. Now: a war the King orders adds no tension (the fighting
+  still does); a war in the history is a grudge only for the side that
+  was attacked by the other's own choice (wars are tagged with the
+  declarer and the King's order; older saves count as before);
+  tension towards other European nations at peace fades by 10 a turn
+  (`ServerPlayer.TENSION_FADE`), so full hatred is gone after about
+  100 peaceful turns. Tested: `KingsWarTest` (King's war: no tension,
+  no grudge, peace leaves none; own war: tension, only the victim holds
+  a grudge; fading in peace, not at war, never below 0). All 707 tests
+  green. **Not done:** the King still declares wars at random (the
+  idea of a nation paying to stay out of the King's war stays open).
 
 ## Ideas, not started
 

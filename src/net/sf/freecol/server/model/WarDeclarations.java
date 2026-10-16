@@ -81,6 +81,15 @@ public final class WarDeclarations {
     }
 
     /**
+     * Is a King's order being carried out right now (on this thread)?
+     *
+     * @return True while {@link #asKing} runs.
+     */
+    public static boolean isKingsOrder() {
+        return kingsOrder.get();
+    }
+
+    /**
      * Note a war declaration.
      *
      * @param declarer The declaring {@code Player}.
