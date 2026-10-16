@@ -3244,49 +3244,115 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
     /**
      * What we sell another nation at one of our colonies, and for how
-     * much (mod): see {@link SaleTerms}.
+     * much (mod): see {@link SaleTerms}.  Discounts haggled this turn
+     * are taken off.
      *
      * @param colony Our {@code Colony}.
      * @param buyer The buying {@code Player}.
      * @return A line for every storable goods type.
      */
     public List<SaleTerms.Line> saleTerms(Colony colony, Player buyer) {
-        final Player player = getPlayer();
         final List<SaleTerms.Line> ret = new ArrayList<>();
-        if (colony == null || buyer == null || !player.owns(colony)) {
+        if (colony == null || buyer == null || !getPlayer().owns(colony)) {
             return ret;
         }
         final Outlook dip = getOutlook();
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            final SaleTerms.Line l
+                = SaleTerms.line(saleInput(colony, buyer, gt, dip));
+            final int[] h = haggleState(colony, buyer, gt.getId());
+            ret.add((h == null) ? l : l.haggled(h[1], h[2] != 0));
+        }
+        return ret;
+    }
+
+    /**
+     * Everything that goes into the terms for one goods type (mod).
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @param gt The {@code GoodsType}.
+     * @param dip Our {@code Outlook}.
+     * @return The {@code SaleTerms.Input}.
+     */
+    private SaleTerms.Input saleInput(Colony colony, Player buyer,
+                                      GoodsType gt, Outlook dip) {
+        final Player player = getPlayer();
         final net.sf.freecol.common.diplomacy.WorldView w = dip.view;
         final net.sf.freecol.common.diplomacy.NationView nv
             = w.others.get(buyer.getNationId());
-        final boolean atWar = !w.enemies().isEmpty();
         final int sail = getSpecification()
             .getInteger(GameOptions.TURNS_TO_SAIL);
-        final int trip = 2 * sail + (colony.isConnectedPort() ? 0 : 2);
         final Market market = player.getMarket();
-        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
-            final SaleTerms.Input in = new SaleTerms.Input();
-            in.goodsId = gt.getId();
-            in.military = gt.getMilitary();
-            in.stock = colony.getGoodsCount(gt);
-            in.net = colony.getNetProductionOf(gt);
-            in.atWar = atWar;
-            final net.sf.freecol.common.diplomacy.GoodsView gv
-                = w.goods.get(gt.getId());
-            in.europePrice = (gv != null) ? gv.sellPrice
-                : (market == null) ? 1 : market.getSalePrice(gt, 1);
-            in.boycotted = (gv != null) ? gv.boycotted
-                : (market != null && market.getArrears(gt) > 0);
-            in.tax = player.getTax();
-            in.tripTurns = trip;
-            in.rebels = player.getSoL();
-            in.opinion = (nv == null) ? 0 : nv.opinion;
-            in.fear = (nv == null) ? 0 : nv.fear;
-            in.character = w.character;
-            ret.add(SaleTerms.line(in));
-        }
-        return ret;
+        final SaleTerms.Input in = new SaleTerms.Input();
+        in.goodsId = gt.getId();
+        in.military = gt.getMilitary();
+        in.stock = colony.getGoodsCount(gt);
+        in.net = colony.getNetProductionOf(gt);
+        in.atWar = !w.enemies().isEmpty();
+        final net.sf.freecol.common.diplomacy.GoodsView gv
+            = w.goods.get(gt.getId());
+        in.europePrice = (gv != null) ? gv.sellPrice
+            : (market == null) ? 1 : market.getSalePrice(gt, 1);
+        in.boycotted = (gv != null) ? gv.boycotted
+            : (market != null && market.getArrears(gt) > 0);
+        in.tax = player.getTax();
+        in.tripTurns = 2 * sail + (colony.isConnectedPort() ? 0 : 2);
+        in.rebels = player.getSoL();
+        in.opinion = (nv == null) ? 0 : nv.opinion;
+        in.fear = (nv == null) ? 0 : nv.fear;
+        in.character = w.character;
+        return in;
+    }
+
+    /**
+     * Haggling this turn, by buyer, colony and goods (mod): the turn,
+     * the percent off agreed, and 1 if we refused further haggling.
+     * Not saved: a bargain lasts the turn.
+     */
+    private final java.util.Map<String, int[]> haggles
+        = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private int[] haggleState(Colony colony, Player buyer, String goodsId) {
+        final int[] h = haggles.get(buyer.getId() + "|" + colony.getId()
+                                    + "|" + goodsId);
+        return (h == null || h[0] != getGame().getTurn().getNumber())
+            ? null : h;
+    }
+
+    /** What came of a haggle (mod). */
+    public enum HaggleResult { AGREED, REFUSED, CLOSED }
+
+    /**
+     * A buyer asks for a discount on goods at one of our colonies
+     * (mod).  We agree with the chance {@link SaleTerms#haggleChance}
+     * gives; a refusal holds for the rest of the turn.
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @param goodsId The goods.
+     * @param ask Percent more off asked.
+     * @return The {@code HaggleResult}.
+     */
+    public HaggleResult haggle(Colony colony, Player buyer, String goodsId,
+                               int ask) {
+        final GoodsType gt = getSpecification().getGoodsType(goodsId);
+        if (colony == null || buyer == null || gt == null
+            || !getPlayer().owns(colony)) return HaggleResult.CLOSED;
+        final int turn = getGame().getTurn().getNumber();
+        final int[] h = haggleState(colony, buyer, goodsId);
+        if (h != null && h[2] != 0) return HaggleResult.CLOSED;
+        final int already = (h == null) ? 0 : h[1];
+        final double p = SaleTerms.haggleChance(
+            saleInput(colony, buyer, gt, getOutlook()), already, ask);
+        final boolean yes = p > 0 && randomInt(logger, "Haggle",
+            getAIRandom(), 1000) < (int)Math.round(p * 1000);
+        haggles.put(buyer.getId() + "|" + colony.getId() + "|" + goodsId,
+            new int[] { turn, already + (yes ? ask : 0), yes ? 0 : 1 });
+        logger.info(getPlayer().getName() + " haggle " + goodsId + " -"
+            + ask + "% (had " + already + "%) chance " + p + ": "
+            + (yes ? "yes" : "no"));
+        return (yes) ? HaggleResult.AGREED : HaggleResult.REFUSED;
     }
 
     /**

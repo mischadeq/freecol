@@ -96,8 +96,13 @@ public class AISaleTermsTest extends FreeColTestCase {
 
     private TradeStatus buy(GoodsType gt, int amount, int gold) {
         List<TradeItem> items = new ArrayList<>();
-        items.add(new GoodsTradeItem(game, dutch, english,
-            new Goods(game, havana, gt, amount)));
+        // As the trade screen makes them: no place first (the player can
+        // not see their store), then put in their colony.
+        Goods goods = new Goods(game, null, gt, amount);
+        goods.setLocation(havana);
+        GoodsTradeItem gti = new GoodsTradeItem(game, dutch, english, goods);
+        assertTrue(gti.isValid());
+        items.add(gti);
         items.add(new GoldTradeItem(game, english, dutch, gold));
         DiplomaticTrade dt = new DiplomaticTrade(game, TradeContext.TRADE,
                                                  english, dutch, items, 1);
@@ -128,6 +133,26 @@ public class AISaleTermsTest extends FreeColTestCase {
                      buy(cloth, c.max, c.priceFor(c.max)));
     }
 
+    /** The server carries the deal out: cloth to the ship, gold paid. */
+    public void testDealCarriedOut() {
+        setUpGame();
+        SaleTerms.Line c = line(cloth);
+        Goods goods = new Goods(game, null, cloth, c.max);
+        goods.setLocation(havana);
+        List<TradeItem> items = new ArrayList<>();
+        items.add(new GoodsTradeItem(game, dutch, english, goods));
+        items.add(new GoldTradeItem(game, english, dutch, c.priceFor(c.max)));
+        DiplomaticTrade dt = new DiplomaticTrade(game, TradeContext.TRADE,
+                                                 english, dutch, items, 1);
+        final int gold = english.getGold();
+        assertTrue(((net.sf.freecol.server.model.ServerGame)game)
+            .csAcceptTrade(dt, ship, havana,
+                           new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals(c.max, ship.getGoodsCount(cloth));
+        assertEquals(300 - c.max, havana.getGoodsCount(cloth));
+        assertEquals(gold - c.priceFor(c.max), english.getGold());
+    }
+
     /** Too little gold, or more than they let go: no deal. */
     public void testDealOffTermsRefused() {
         setUpGame();
@@ -136,6 +161,41 @@ public class AISaleTermsTest extends FreeColTestCase {
                     == buy(cloth, c.max, c.priceFor(c.max) / 2));
         assertFalse(TradeStatus.ACCEPT_TRADE
                     == buy(cloth, c.max + SaleTerms.STEP, 5000));
+    }
+
+    /** A haggle that is agreed lowers the price, and a deal at the
+        lower price is taken; a refusal holds for the turn. */
+    public void testHaggle() {
+        setUpGame();
+        final SaleTerms.Line before = line(cloth);
+        EuropeanAIPlayer.HaggleResult r = null;
+        // Keep asking 5% until they agree or refuse once.
+        r = ai.haggle(havana, english, cloth.getId(), 5);
+        final SaleTerms.Line after = line(cloth);
+        if (r == EuropeanAIPlayer.HaggleResult.AGREED) {
+            assertEquals(5, after.off);
+            assertTrue(after.unitPrice < before.unitPrice);
+            assertEquals(TradeStatus.ACCEPT_TRADE,
+                buy(cloth, after.max, after.priceFor(after.max)));
+        } else {
+            assertEquals(EuropeanAIPlayer.HaggleResult.REFUSED, r);
+            assertTrue(after.closed);
+            assertEquals(before.unitPrice, after.unitPrice, 1e-9);
+            assertEquals("no second try this turn",
+                EuropeanAIPlayer.HaggleResult.CLOSED,
+                ai.haggle(havana, english, cloth.getId(), 5));
+        }
+        // Far past their margin: always refused.
+        if (!after.closed) {
+            assertEquals(EuropeanAIPlayer.HaggleResult.REFUSED,
+                ai.haggle(havana, english, cloth.getId(), 20));
+            assertTrue(line(cloth).closed);
+        }
+        // A new turn: the bargain is gone.
+        game.setTurn(new net.sf.freecol.common.model.Turn(
+            game.getTurn().getNumber() + 1));
+        assertFalse(line(cloth).closed);
+        assertEquals(0, line(cloth).off);
     }
 
     /** Disliked: nothing for sale, and no deal. */

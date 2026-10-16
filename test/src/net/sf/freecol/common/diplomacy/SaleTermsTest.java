@@ -141,6 +141,45 @@ public class SaleTermsTest extends TestCase {
         assertEquals(0, no.max);
     }
 
+    /** Haggling eats into the margin: small asks likely, past it never. */
+    public void testHaggleChance() {
+        SaleTerms.Input in = input(100);
+        final double room = SaleTerms.room(in);
+        assertEquals(100 * 0.15 / 1.15, room, 1e-9);
+        final double p5 = SaleTerms.haggleChance(in, 0, 5);
+        final double p10 = SaleTerms.haggleChance(in, 0, 10);
+        assertTrue(p5 > p10 && p10 > 0);
+        assertEquals("past the margin", 0.0,
+                     SaleTerms.haggleChance(in, 0, 15), 1e-9);
+        assertTrue("less after a first discount",
+                   SaleTerms.haggleChance(in, 5, 5) < p5);
+        SaleTerms.Input trader = input(100), friend = input(100),
+            conqueror = input(100);
+        trader.character = NationCharacter.TRADING_EMPIRE;
+        conqueror.character = NationCharacter.CONQUEROR;
+        friend.opinion = 100;
+        assertTrue("traders bargain gladly",
+                   SaleTerms.haggleChance(trader, 0, 5)
+                   > SaleTerms.haggleChance(conqueror, 0, 5));
+        assertTrue("a friend still has room", SaleTerms.room(friend) > 0);
+        assertEquals(0.0, SaleTerms.haggleChance(in, 0, 0), 1e-9);
+    }
+
+    /** A haggled line is cheaper and remembers the discount. */
+    public void testHaggledLine() {
+        SaleTerms.Line l = new SaleTerms.Line("model.goods.cloth",
+            SaleTerms.Status.FOR_SALE, 50, 2.0);
+        SaleTerms.Line h = l.haggled(10, true);
+        assertEquals(1.8, h.unitPrice, 1e-9);
+        assertEquals(10, h.off);
+        assertTrue(h.closed);
+        SaleTerms.Line back = SaleTerms.parse(SaleTerms.serialize(
+            java.util.Collections.singletonList(h))).get(0);
+        assertEquals(10, back.off);
+        assertTrue(back.closed);
+        assertEquals(1.8, back.unitPrice, 1e-9);
+    }
+
     /** The terms travel to the buyer as text and back. */
     public void testSerialize() {
         List<SaleTerms.Line> lines = Arrays.asList(

@@ -4220,10 +4220,32 @@ public final class InGameController extends FreeColClientHolder {
      * @param lines The terms.
      */
     public void saleTermsHandler(String colonyId,
-        List<net.sf.freecol.common.diplomacy.SaleTerms.Line> lines) {
+        List<net.sf.freecol.common.diplomacy.SaleTerms.Line> lines,
+        String result) {
         if (colonyId != null && lines != null) {
             this.saleTerms.put(colonyId, lines);
         }
+        this.haggleResult = (result == null || result.isEmpty()) ? null
+            : result;
+    }
+
+    /** What came of the last haggle (mod). */
+    private volatile String haggleResult = null;
+
+    /**
+     * Haggle over goods at another nation's colony (mod).
+     *
+     * Called from NegotiationDialog.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @param goodsId The goods.
+     * @param off Percent more off asked.
+     * @return "AGREED", "REFUSED" or "CLOSED" (null if no answer).
+     */
+    public String haggle(Colony colony, String goodsId, int off) {
+        this.haggleResult = null;
+        askServer().haggle(colony, goodsId, off);
+        return this.haggleResult;
     }
 
     /**

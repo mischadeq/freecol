@@ -45,6 +45,9 @@ public class SaleTermsMessage extends AttributeMessage {
     public static final String TAG = "saleTerms";
     private static final String COLONY_TAG = "colony";
     private static final String TERMS_TAG = "terms";
+    private static final String GOODS_TAG = "goods";
+    private static final String OFF_TAG = "off";
+    private static final String RESULT_TAG = "result";
 
 
     /**
@@ -57,13 +60,27 @@ public class SaleTermsMessage extends AttributeMessage {
     }
 
     /**
+     * The player haggles: asks for a percentage off some goods.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @param goodsId The goods.
+     * @param off Percent more off.
+     */
+    public SaleTermsMessage(Colony colony, String goodsId, int off) {
+        super(TAG, COLONY_TAG, colony.getId(), GOODS_TAG, goodsId,
+              OFF_TAG, String.valueOf(off));
+    }
+
+    /**
      * The answer.
      *
      * @param colonyId The colony id.
      * @param terms The terms, as {@link SaleTerms#serialize} writes them.
+     * @param result What came of a haggle, or null.
      */
-    public SaleTermsMessage(String colonyId, String terms) {
-        super(TAG, COLONY_TAG, colonyId, TERMS_TAG, terms);
+    public SaleTermsMessage(String colonyId, String terms, String result) {
+        super(TAG, COLONY_TAG, colonyId, TERMS_TAG, terms,
+              RESULT_TAG, (result == null) ? "" : result);
     }
 
     /**
@@ -75,7 +92,7 @@ public class SaleTermsMessage extends AttributeMessage {
      */
     public SaleTermsMessage(Game game, FreeColXMLReader xr)
         throws XMLStreamException {
-        super(TAG, xr, COLONY_TAG, TERMS_TAG);
+        super(TAG, xr, COLONY_TAG, TERMS_TAG, GOODS_TAG, OFF_TAG, RESULT_TAG);
     }
 
 
@@ -109,7 +126,8 @@ public class SaleTermsMessage extends AttributeMessage {
     @Override
     public void clientHandler(FreeColClient freeColClient) {
         igc(freeColClient).saleTermsHandler(getStringAttribute(COLONY_TAG),
-            SaleTerms.parse(getStringAttribute(TERMS_TAG)));
+            SaleTerms.parse(getStringAttribute(TERMS_TAG)),
+            getStringAttribute(RESULT_TAG));
     }
 
     /**
@@ -125,16 +143,22 @@ public class SaleTermsMessage extends AttributeMessage {
             return serverPlayer.clientError("Not a colony: " + id);
         }
         final Player owner = colony.getOwner();
-        String terms = "";
+        String terms = "", result = null;
         if (owner != serverPlayer && serverPlayer.hasContacted(owner)) {
             final AIPlayer ai = freeColServer.getAIMain().getAIPlayer(owner);
             if (ai instanceof EuropeanAIPlayer) {
+                final EuropeanAIPlayer eai = (EuropeanAIPlayer)ai;
+                final String goods = getStringAttribute(GOODS_TAG);
+                if (goods != null && !goods.isEmpty()) {
+                    result = eai.haggle(colony, serverPlayer, goods,
+                        getIntegerAttribute(OFF_TAG, 0)).name();
+                }
                 final List<SaleTerms.Line> lines
-                    = ((EuropeanAIPlayer)ai).saleTerms(colony, serverPlayer);
+                    = eai.saleTerms(colony, serverPlayer);
                 terms = SaleTerms.serialize(lines);
             }
         }
         return ChangeSet.simpleChange(serverPlayer,
-                                      new SaleTermsMessage(id, terms));
+                                      new SaleTermsMessage(id, terms, result));
     }
 }

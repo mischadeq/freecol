@@ -88,15 +88,38 @@ public final class SaleTerms {
         public final Status status;
         /** Most they sell, in steps of {@link #STEP}; 0 if none. */
         public final int max;
-        /** Gold per unit. */
+        /** Gold per unit (after any haggling). */
         public final double unitPrice;
+        /** Percent off already agreed by haggling this turn. */
+        public final int off;
+        /** They refused to haggle further this turn. */
+        public final boolean closed;
 
         public Line(String goodsId, Status status, int max,
                     double unitPrice) {
+            this(goodsId, status, max, unitPrice, 0, false);
+        }
+
+        public Line(String goodsId, Status status, int max,
+                    double unitPrice, int off, boolean closed) {
             this.goodsId = goodsId;
             this.status = status;
             this.max = (status == Status.FOR_SALE) ? max : 0;
             this.unitPrice = unitPrice;
+            this.off = off;
+            this.closed = closed;
+        }
+
+        /**
+         * The same line with a haggled discount.
+         *
+         * @param off Percent off the price.
+         * @param closed True if they will not haggle further.
+         * @return A new {@code Line}.
+         */
+        public Line haggled(int off, boolean closed) {
+            return new Line(goodsId, status, max,
+                            unitPrice * (1 - off / 100.0), off, closed);
         }
 
         /**
@@ -228,12 +251,68 @@ public final class SaleTerms {
         final double trip = Math.min(TRIP_MAX, TRIP_PER_TURN * in.tripTurns);
         final double rebels = REBELS_MAX
             * Math.max(0, Math.min(100, in.rebels)) / 100.0;
-        final double feel = (in.opinion >= 0)
-            ? -FRIEND_DISCOUNT * Math.min(100, in.opinion) / 100.0
-            : FOE_PREMIUM * Math.min(100, -in.opinion) / 100.0;
         final double p = base * (1 - trip - rebels)
-            * (1 + margin(in.character) + feel);
+            * (1 + margin(in.character) + feel(in.opinion));
         return Math.max(0.1, p);
+    }
+
+    // Haggling: the buyer asks for a percentage off; the seller agrees
+    // with a chance that falls as the discount eats into its margin.
+
+    /** The discounts a buyer may ask for, percent. */
+    public static final int[] HAGGLE_STEPS = { 5, 10, 15, 20 };
+
+    /**
+     * How far, in percent of the price, the seller can come down: its
+     * margin and any extra asked of a disliked buyer, never below what
+     * the goods are worth to it.
+     *
+     * @param in The {@code Input}.
+     * @return Percent of the price.
+     */
+    public static double room(Input in) {
+        // A friend already pays less, but a merchant always keeps
+        // half his margin to bargain with.
+        final double m = margin(in.character);
+        final double up = Math.max(m / 2, m + feel(in.opinion));
+        return 100.0 * up / (1 + up);
+    }
+
+    /**
+     * What the buyer's standing adds to the price: off for a friend,
+     * on for a nation we dislike.
+     *
+     * @param opinion The opinion, -100..100.
+     * @return A fraction of the price.
+     */
+    public static double feel(double opinion) {
+        return (opinion >= 0)
+            ? -FRIEND_DISCOUNT * Math.min(100, opinion) / 100.0
+            : FOE_PREMIUM * Math.min(100, -opinion) / 100.0;
+    }
+
+    /**
+     * The chance the seller agrees to a further discount.
+     *
+     * @param in The {@code Input}.
+     * @param already Percent off agreed already.
+     * @param ask Percent more off asked.
+     * @return The chance, 0..0.95.
+     */
+    public static double haggleChance(Input in, int already, int ask) {
+        final double room = room(in);
+        final double used = already + ask;
+        if (ask <= 0 || room <= 0 || used > room) return 0;
+        final double base;
+        switch (in.character) {
+        case TRADING_EMPIRE: base = 0.75; break;
+        case CONQUEROR: base = 0.4; break;
+        default: base = 0.55; break;
+        }
+        final double share = used / room;
+        final double p = base * (1 - share * share)
+            + Math.max(-100, Math.min(100, in.opinion)) / 400.0;
+        return Math.max(0, Math.min(0.95, p));
     }
 
     /**
@@ -274,7 +353,8 @@ public final class SaleTerms {
             if (sb.length() > 0) sb.append(';');
             sb.append(l.goodsId).append(',').append(l.status.name())
                 .append(',').append(l.max).append(',')
-                .append(String.format(Locale.ROOT, "%.3f", l.unitPrice));
+                .append(String.format(Locale.ROOT, "%.4f", l.unitPrice))
+                .append(',').append(l.off).append(',').append(l.closed);
         }
         return sb.toString();
     }
@@ -290,11 +370,13 @@ public final class SaleTerms {
         if (text == null || text.isEmpty()) return ret;
         for (String part : text.split(";")) {
             final String[] f = part.split(",");
-            if (f.length != 4) continue;
+            if (f.length != 4 && f.length != 6) continue;
             try {
                 ret.add(new Line(f[0], Status.valueOf(f[1]),
                                  Integer.parseInt(f[2]),
-                                 Double.parseDouble(f[3])));
+                                 Double.parseDouble(f[3]),
+                                 (f.length == 6) ? Integer.parseInt(f[4]) : 0,
+                                 f.length == 6 && Boolean.parseBoolean(f[5])));
             } catch (IllegalArgumentException e) {
                 // Skip a bad entry.
             }

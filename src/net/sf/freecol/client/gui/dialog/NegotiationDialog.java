@@ -864,8 +864,13 @@ public final class NegotiationDialog extends FreeColPanel {
         }
         final int total = Math.min(line.max, had + amount);
         final int extra = line.priceFor(total) - line.priceFor(had);
+        // We can not see their warehouse, so the goods are made without
+        // a place and then put in their colony (the constructor refuses
+        // a colony whose store we do not know).
+        final Goods goods = new Goods(getGame(), null, type, total);
+        goods.setLocation(this.otherColony);
         agreement.add(new GoodsTradeItem(getGame(), otherPlayer, player,
-            new Goods(getGame(), this.otherColony, type, total)));
+                                         goods));
         final int gold = Math.max(0, agreement.getGoldGivenBy(player));
         agreement.add(new GoldTradeItem(getGame(), player, otherPlayer,
                                         gold + extra));
@@ -873,25 +878,63 @@ public final class NegotiationDialog extends FreeColPanel {
     }
 
     /**
+     * Haggle over the goods (mod): they agree to a discount or refuse.
+     * Goods already on the table get the new price.
+     *
+     * @param line The {@code SaleTerms.Line}.
+     * @param off Percent more off asked.
+     * @return What came of it ("AGREED", "REFUSED", "CLOSED"), or null.
+     */
+    private String haggleOver(SaleTerms.Line line, int off) {
+        final String result = igc().haggle(this.otherColony, line.goodsId,
+                                           off);
+        final List<SaleTerms.Line> lines = igc().getSaleTerms(this.otherColony);
+        if (lines.isEmpty()) return result;
+        final SaleTerms.Line now = SaleTerms.find(lines, line.goodsId);
+        // Goods of this kind on the table: their price changes.
+        if (now != null) {
+            final GoodsType type = getSpecification().getGoodsType(line.goodsId);
+            int had = 0;
+            for (TradeItem ti : agreement.getItemsGivenBy(otherPlayer)) {
+                if (ti instanceof GoodsTradeItem && ti.getGoods() != null
+                    && ti.getGoods().getType() == type) {
+                    had += ti.getGoods().getAmount();
+                }
+            }
+            final Player player = getMyPlayer();
+            final int gold = agreement.getGoldGivenBy(player);
+            final int less = line.priceFor(had) - now.priceFor(had);
+            if (had > 0 && gold >= 0 && less != 0) {
+                agreement.add(new GoldTradeItem(getGame(), player,
+                    otherPlayer, Math.max(0, gold - less)));
+            }
+        }
+        this.saleLines = lines;
+        updateDialog(true);
+        return result;
+    }
+
+    /**
      * What the other nation sells at its colony (mod): pick the goods,
-     * the amount (in tens, up to what they let go) and see the price.
-     * Goods they have none of, or will not sell, are greyed out.
+     * see what they ask, choose the amount (the total shows as you
+     * type) and haggle. Goods they have none of, or will not sell, are
+     * greyed out.
      */
     private class SaleGoodsPanel extends MigPanel {
 
         private final JComboBox<SaleTerms.Line> box;
+        private final JLabel ask;
         private final JSpinner spinner;
         private final JLabel price;
         private final JButton addButton;
+        private final JComboBox<Integer> haggleBox;
+        private final JButton haggleButton;
+        private final JLabel haggleText;
+        private boolean filling = false;
 
         public SaleGoodsPanel() {
             super(new MigLayout("wrap 1", "", ""));
             this.box = new JComboBox<>();
-            for (SaleTerms.Line l : saleLines) {
-                if (getSpecification().getGoodsType(l.goodsId) != null) {
-                    this.box.addItem(l);
-                }
-            }
             this.box.setRenderer(new ListCellRenderer<SaleTerms.Line>() {
                 private final JLabel label = new JLabel();
                 @Override
@@ -917,25 +960,79 @@ public final class NegotiationDialog extends FreeColPanel {
                     return label;
                 }
             });
+            this.ask = new JLabel();
             this.spinner = new JSpinner(new SpinnerNumberModel(0, 0, 0,
                                                                SaleTerms.STEP));
-            ((JSpinner.DefaultEditor)this.spinner.getEditor())
-                .getTextField().setColumns(4);
+            final javax.swing.JFormattedTextField field
+                = ((JSpinner.DefaultEditor)this.spinner.getEditor())
+                    .getTextField();
+            field.setColumns(4);
+            // The total follows every key, not only Enter.
+            if (field.getFormatter() instanceof javax.swing.text.DefaultFormatter) {
+                ((javax.swing.text.DefaultFormatter)field.getFormatter())
+                    .setCommitsOnValidEdit(true);
+            }
+            field.getDocument().addDocumentListener(
+                new javax.swing.event.DocumentListener() {
+                    public void insertUpdate(javax.swing.event.DocumentEvent e) { showPrice(); }
+                    public void removeUpdate(javax.swing.event.DocumentEvent e) { showPrice(); }
+                    public void changedUpdate(javax.swing.event.DocumentEvent e) { showPrice(); }
+                });
             this.price = new JLabel();
             this.addButton = Utility.localizedButton("negotiationDialog.add");
             this.addButton.addActionListener(ae -> {
                 final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
-                if (l != null) buyOnTerms(l, (Integer)spinner.getValue());
+                final int n = amount();
+                if (l != null && n > 0) buyOnTerms(l, n);
             });
-            this.box.addActionListener(ae -> select());
-            this.spinner.addChangeListener(ce -> showPrice());
+            this.haggleBox = new JComboBox<>();
+            for (int pct : SaleTerms.HAGGLE_STEPS) this.haggleBox.addItem(pct);
+            this.haggleBox.setRenderer(new ListCellRenderer<Integer>() {
+                private final JLabel label = new JLabel();
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<? extends Integer> list, Integer v, int index,
+                    boolean isSelected, boolean hasFocus) {
+                    label.setText((v == null) ? "" : Messages.message(
+                        StringTemplate.template("negotiationDialog.sale.off")
+                            .addAmount("%percent%", v)));
+                    label.setOpaque(isSelected);
+                    return label;
+                }
+            });
+            this.haggleButton = Utility.localizedButton("negotiationDialog.sale.haggleAsk");
+            this.haggleText = new JLabel();
+            this.haggleButton.addActionListener(ae -> {
+                final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
+                final Integer pct = (Integer)haggleBox.getSelectedItem();
+                if (l == null || pct == null) return;
+                final String r = haggleOver(l, pct);
+                final String key = (r == null) ? "closed"
+                    : r.toLowerCase(java.util.Locale.ROOT);
+                haggleText.setText(Messages.message(StringTemplate
+                    .template("negotiationDialog.sale." + key)
+                    .addAmount("%percent%", pct)));
+            });
+            this.box.addActionListener(ae -> {
+                if (!filling) {
+                    haggleText.setText("");
+                    select();
+                }
+            });
 
             setBorder(Utility.getSimpleLineBorder());
             add(Utility.localizedLabel("negotiationDialog.sale.title"));
             add(this.box);
-            add(this.spinner, "split 2");
+            add(this.ask);
+            add(Utility.localizedLabel("negotiationDialog.sale.amount"), "split 3");
+            add(this.spinner);
             add(this.price);
             add(this.addButton);
+            add(Utility.localizedLabel("negotiationDialog.sale.haggle"), "split 3");
+            add(this.haggleBox);
+            add(this.haggleButton);
+            add(this.haggleText);
+            fill();
             // Start on the first goods they sell.
             for (int i = 0; i < box.getItemCount(); i++) {
                 if (box.getItemAt(i).status == SaleTerms.Status.FOR_SALE) {
@@ -945,6 +1042,36 @@ public final class NegotiationDialog extends FreeColPanel {
             }
             select();
             setSize(getPreferredSize());
+        }
+
+        /** Put the lines in the box, keeping the selected goods. */
+        private void fill() {
+            final SaleTerms.Line was = (SaleTerms.Line)box.getSelectedItem();
+            filling = true;
+            box.removeAllItems();
+            int sel = -1;
+            for (SaleTerms.Line l : saleLines) {
+                if (getSpecification().getGoodsType(l.goodsId) == null) continue;
+                if (was != null && was.goodsId.equals(l.goodsId)) {
+                    sel = box.getItemCount();
+                }
+                box.addItem(l);
+            }
+            if (sel >= 0) box.setSelectedIndex(sel);
+            filling = false;
+        }
+
+        /** The amount typed, even before Enter. */
+        private int amount() {
+            final String t = ((JSpinner.DefaultEditor)spinner.getEditor())
+                .getTextField().getText().replaceAll("[^0-9]", "");
+            final int max = ((Integer)((SpinnerNumberModel)spinner.getModel())
+                             .getMaximum());
+            try {
+                return Math.max(0, Math.min(max, Integer.parseInt(t)));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
         }
 
         /** Most of the selected goods we can still take. */
@@ -961,32 +1088,43 @@ public final class NegotiationDialog extends FreeColPanel {
             if (tradeUnit != null && type != null) {
                 max = Math.min(max, tradeUnit.getLoadableAmount(type));
             }
-            return Math.max(0, (max / SaleTerms.STEP) * SaleTerms.STEP);
+            return Math.max(0, max);
         }
 
         private void select() {
             final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
-            final int max = (l == null || l.status != SaleTerms.Status.FOR_SALE)
-                ? 0 : room(l);
+            final boolean sells = l != null
+                && l.status == SaleTerms.Status.FOR_SALE;
+            final int max = (sells) ? room(l) : 0;
             final SpinnerNumberModel m = (SpinnerNumberModel)spinner.getModel();
-            m.setMaximum(max);
             m.setMinimum(0);
-            m.setValue(Math.min(max, (max > 0) ? SaleTerms.STEP : 0));
+            m.setMaximum(max);
+            m.setValue(Math.min(max, SaleTerms.STEP));
             spinner.setEnabled(max > 0);
             addButton.setEnabled(max > 0);
+            haggleBox.setEnabled(sells && !l.closed);
+            haggleButton.setEnabled(sells && !l.closed);
+            ask.setText((!sells) ? "" : Messages.message(StringTemplate
+                .template((l.off > 0) ? "negotiationDialog.sale.askOff"
+                          : "negotiationDialog.sale.ask")
+                .addAmount("%gold%", l.priceFor(SaleTerms.STEP))
+                .addAmount("%amount%", SaleTerms.STEP)
+                .addAmount("%percent%", l.off)));
             showPrice();
         }
 
         private void showPrice() {
             final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
-            final int n = (Integer)spinner.getValue();
-            price.setText((l == null || n <= 0) ? ""
+            final int n = amount();
+            price.setText((l == null || n <= 0
+                           || l.status != SaleTerms.Status.FOR_SALE) ? ""
                 : Messages.message(StringTemplate
                     .template("negotiationDialog.sale.price")
                     .addAmount("%gold%", l.priceFor(n))));
         }
 
         public void update(DiplomaticTrade dt) {
+            fill();
             select();
         }
     }

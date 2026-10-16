@@ -488,6 +488,20 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Haggle over goods at another nation's colony (mod).  The answer
+     * arrives before this returns.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @param goodsId The goods.
+     * @param off Percent more off asked.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean haggle(net.sf.freecol.common.model.Colony colony,
+                          String goodsId, int off) {
+        return ask(new SaleTermsMessage(colony, goodsId, off));
+    }
+
+    /**
      * Answer a sale under a price agreement with how many goods to sell
      * (mod).
      *

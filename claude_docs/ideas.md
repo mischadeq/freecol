@@ -1683,6 +1683,28 @@ top, so the (modal) dialog was hidden but blocked every click.
     little gold or too much refused, disliked buyer gets nothing).
     All 695 tests green. **Not checked:** the screen itself in the
     game (layout, a full deal at a Spanish colony). No haggling yet.
+- **Trade screen fixes and haggling (Mischa's first try):** Add did
+  nothing: the game refuses to make goods "at" a colony whose store
+  the player cannot see; the goods are now made without a place and
+  then put in their colony. The total follows the amount as you type
+  (not only after Enter). The box now reads: goods, "They ask 4 gold
+  per 10", "Amount [10] = 4 gold", Add.
+  - **Haggling:** pick 5, 10, 15 or 20% off and Ask. They agree with a
+    chance that falls as the discount eats into their margin (room:
+    their margin plus any extra asked of a disliked buyer; a friend
+    keeps at least half the margin to bargain with), higher for
+    traders (0.75 at the start) than settlers (0.55) and conquerors
+    (0.4), plus a quarter of the opinion. Past the room: always no.
+    Agreed discounts add up; a refusal holds for that goods for the
+    rest of the turn. Goods already on the table get the new price.
+    Worked out on the server with the nation's own dice; not saved.
+  - **Tested:** `SaleTermsTest` (room, chances fall with the discount,
+    traders bargain gladly, a friend still has room, a haggled line);
+    `AISaleTermsTest` (goods made as the screen makes them are valid,
+    a haggle lowers the price and a deal at it is taken, a refusal
+    holds, a new turn forgets it, the server moves the cloth to the
+    ship and the gold to the seller). All 699 tests green. **Not
+    checked:** the screen in the game.
 
 ## Ideas, not started
 
