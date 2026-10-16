@@ -1705,6 +1705,17 @@ top, so the (modal) dialog was hidden but blocked every click.
     holds, a new turn forgets it, the server moves the cloth to the
     ship and the gold to the seller). All 699 tests green. **Not
     checked:** the screen in the game.
+- **Log: the important words stand out:** on the companion page log,
+  who and where are bold (the nations, tribes, colonies, places and
+  goods the game filled into the message), and so is what went wrong
+  (exceeded its capacity, wasted, shortage, missing, stopped
+  production, concerned, encroachments, our lands, starving...); good
+  news is green (peace, alliance, joined, completed, arrived), bad news
+  red (war, attacked, destroyed, captured, burned, lost...). Numbers
+  stay plain; "war" in "warehouse" is not war. The game works out the
+  runs (`CompanionHighlight`), the page draws them. Tested with the
+  lines of Mischa's turn 272 (`HighlightTest`) and a drawing of them.
+  All 704 tests green.
 
 ## Ideas, not started
 

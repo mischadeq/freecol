@@ -962,7 +962,7 @@
       const head = turnGroup(e.turn, null);
       const li = document.createElement("li");
       li.className = logClass(e) + (e.x >= 0 ? " link" : "") + (state ? " new" : "");
-      let html = esc(e.text);
+      let html = highlight(e.text, e.hl);
       if (e.goods && e.goods.length) {
         html += ' <span class="g">' + e.goods.map((g) =>
           '<span class="' + (g[1] < 0 ? "neg" : "pos") + '">' + gi(g[0]) +
@@ -975,6 +975,21 @@
     }
     while (ol.children.length > 500) ol.removeChild(ol.lastChild);
     showUnread();
+  }
+
+  // The important words of a log line (mod): names and trouble in
+  // bold, good news green, bad news red. The game sends the runs.
+  function highlight(text, runs) {
+    if (!runs || !runs.length) return esc(text);
+    let out = "", at = 0;
+    for (const [a, b, f] of runs) {
+      if (a < at || b > text.length) continue;
+      out += esc(text.slice(at, a));
+      const cls = [(f & 1) ? "hb" : "", (f & 4) ? "hbad" : (f & 2) ? "hgood" : ""].filter(Boolean).join(" ");
+      out += '<span class="' + cls + '">' + esc(text.slice(a, b)) + "</span>";
+      at = b;
+    }
+    return out + esc(text.slice(at));
   }
 
   function showUnread() {
