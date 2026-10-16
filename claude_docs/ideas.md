@@ -1628,6 +1628,11 @@ top, so the (modal) dialog was hidden but blocked every click.
   ParchmentFadeTest); the drawing and the turn order need Mischa's eye
   in the game.
 
+### Trade with other nations, supply network (2026-10-16)
+- **Europe price says it is gold:** the trade screen showed
+  "100 Muskets (300 in Europe)", which read like a number of goods.
+  Now "(worth 300 gold in Europe)"; the same when posting an offer.
+
 ## Ideas, not started
 
 ### Unit groups, next steps
