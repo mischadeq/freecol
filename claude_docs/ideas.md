@@ -1632,6 +1632,17 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Europe price says it is gold:** the trade screen showed
   "100 Muskets (300 in Europe)", which read like a number of goods.
   Now "(worth 300 gold in Europe)"; the same when posting an offer.
+- **Supply network keeps its shape with far colonies:** every colony was
+  placed by its map position and stretched to fill the box, so one far
+  colony (Cuper's Cove) squeezed the rest into a strip at the top and
+  the labels were cut off. Now colonies keep their direction from each
+  other (west-east, north-south order) but are spaced evenly; route
+  networks that do not touch get their own part of the box, side by
+  side, with a faint line between; a colony without routes stays in its
+  direction, with the network nearest to it. Nodes shrink when they
+  stand close; the box grows only within the room the page has; labels
+  stay inside the box. Checked with a drawing of Mischa's colonies plus
+  a far network. To be tested on the page.
 
 ## Ideas, not started
 

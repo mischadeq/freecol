@@ -313,6 +313,86 @@
   const NET_C = { ok: "#7d8794", none: "#f2a93b", short: "#ff5d61" };
   const NET_RANK = { ok: 0, none: 1, short: 2 };
 
+  // Layout of the supply network (mod, 2026-10-16). Colonies keep
+  // their direction from each other (west-east, north-south order) but
+  // not the distance: they are spaced evenly, so one far colony does not
+  // squeeze the rest into a corner. Route networks that do not touch
+  // each other get their own part of the box, side by side, west to
+  // east; a colony without routes joins the network nearest to it.
+  // Nodes shrink when crowded; the box grows only within the room the
+  // page has. Sets X, Y and r on every node; returns the box height
+  // and where the lines between networks go.
+  function netLayout(nodes, ids, edges, outside, W) {
+    // Networks: colonies joined by routes (Europe does not join them).
+    const parent = {};
+    const find = (a) => (parent[a] === undefined || parent[a] === a) ? a : (parent[a] = find(parent[a]));
+    ids.forEach((i) => { parent[i] = i; });
+    Object.values(edges).forEach((e) => {
+      if (nodes[e.from] && nodes[e.to] && !nodes[e.to].outside) parent[find(e.from)] = find(e.to);
+    });
+    const linked = new Set();
+    Object.values(edges).forEach((e) => { if (nodes[e.to]) { linked.add(e.from); linked.add(e.to); } else { linked.add(e.from); } });
+    const groups = {};
+    ids.filter((i) => linked.has(i)).forEach((i) => { (groups[find(i)] = groups[find(i)] || []).push(i); });
+    let parts = Object.values(groups);
+    if (!parts.length) parts = [[]];
+    // Colonies without routes go with the nearest network.
+    const d2 = (a, b) => (a.px - b.px) ** 2 + (a.py - b.py) ** 2;
+    ids.filter((i) => !linked.has(i)).forEach((i) => {
+      let best = parts[0], bd = Infinity;
+      for (const p of parts) for (const j of p) {
+        const d = d2(nodes[i], nodes[j]);
+        if (d < bd) { bd = d; best = p; }
+      }
+      best.push(i);
+    });
+    const mean = (p) => p.reduce((t, i) => t + nodes[i].px, 0) / p.length;
+    parts.sort((a, b) => mean(a) - mean(b));
+    // Even spacing: a colony's place is its rank along each axis.
+    const ranks = (p, key) => {
+      const vals = [...new Set(p.map((i) => Math.round(nodes[i][key] * 2) / 2))].sort((a, b) => a - b);
+      const r = {};
+      p.forEach((i) => { r[i] = vals.indexOf(Math.round(nodes[i][key] * 2) / 2); });
+      return { r, n: vals.length };
+    };
+    const rx = parts.map((p) => ranks(p, "px")), ry = parts.map((p) => ranks(p, "py"));
+    const rows = Math.max(...ry.map((r) => r.n));
+    // Height: room for the rows, but no more than the page offers.
+    const room = Math.max(300, Math.round((window.innerHeight || 800) * 0.55));
+    const padY = 34;
+    const H = Math.max(240, Math.min(room, 2 * padY + rows * 70));
+    const right = outside.length ? 110 : 0;
+    const usable = W - right;
+    const cols = parts.map((p, k) => rx[k].n);
+    const total = cols.reduce((t, c) => t + c, 0);
+    let x = 0;
+    const dividers = [];
+    parts.forEach((p, k) => {
+      // Each network gets a share of the width by its number of columns;
+      // names sit right of the nodes, so more pad on the right.
+      const w = usable * cols[k] / total, padL = 26, padR = 96;
+      const bw = Math.max(1, w - padL - padR), bh = H - 2 * padY;
+      p.forEach((i) => {
+        const n = nodes[i];
+        n.X = x + padL + ((rx[k].n > 1) ? rx[k].r[i] / (rx[k].n - 1) * bw : bw / 2);
+        n.Y = padY + ((ry[k].n > 1) ? ry[k].r[i] / (ry[k].n - 1) * bh : bh / 2);
+      });
+      if (k) dividers.push(x);
+      x += w;
+    });
+    // Smaller nodes when they stand close together.
+    let gap = Infinity;
+    for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
+      gap = Math.min(gap, Math.hypot(nodes[ids[a]].X - nodes[ids[b]].X, nodes[ids[a]].Y - nodes[ids[b]].Y));
+    }
+    const cap = (gap === Infinity) ? 30 : Math.max(8, gap * 0.36);
+    ids.forEach((i) => { nodes[i].r = Math.min(nodes[i].r, cap); });
+    outside.forEach((o, k) => {
+      nodes[o] = { name: o.slice(1), X: W - 55, Y: padY + (k + 0.5) * (H - 2 * padY) / outside.length, r: 18, outside: true };
+    });
+    return { H, dividers };
+  }
+
   function renderNetwork(colonies) {
     const svg = $("net");
     const W = svg.getBoundingClientRect().width || 700;
@@ -329,29 +409,18 @@
     const ids = Object.keys(nodes);
     $("netSec").hidden = !Object.keys(edges).length;
     if (!Object.keys(edges).length) return;
-    // Fit the map positions into the box, same scale both ways.
-    const xs = ids.map((i) => nodes[i].px), ys = ids.map((i) => nodes[i].py);
-    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    // Each axis stretched on its own: the layout keeps north, south,
-    // east and west, and uses the whole box.
-    const padX = 110, padY = 46, right = outside.length ? 150 : 0;
-    const H = Math.max(260, Math.min(440, 140 + ids.length * 50));
-    const bw = W - 2 * padX - right, bh = H - 2 * padY;
-    const place = (v, a, b, size) => (b - a < 0.3) ? size / 2 : (v - a) / (b - a) * size;
-    ids.forEach((i) => {
-      const n = nodes[i];
-      n.X = padX + place(n.px, x0, x1, bw);
-      n.Y = padY + place(n.py, y0, y1, bh);
-    });
-    outside.forEach((o, k) => {
-      nodes[o] = { name: o.slice(1), X: W - 70, Y: padY + (k + 0.5) * (H - 2 * padY) / outside.length, r: 18, outside: true };
-    });
+    const lay = netLayout(nodes, ids, edges, outside, W), H = lay.H;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.style.height = H + "px";
 
     let s = '<defs>' + Object.keys(NET_C).map((st) =>
       '<marker id="ah-' + st + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
       '<path d="M0,0 L10,5 L0,10 z" fill="' + NET_C[st] + '"/></marker>').join("") + "</defs>";
+    // A faint line between route networks that do not touch.
+    lay.dividers.forEach((dx) => {
+      s += '<line x1="' + dx.toFixed(1) + '" y1="10" x2="' + dx.toFixed(1) + '" y2="' + (H - 10) +
+        '" stroke="#2f3742" stroke-dasharray="4 6"/>';
+    });
     const labels = [];
     for (const k of Object.keys(edges)) {
       const e = edges[k], a = nodes[e.from], b = nodes[e.to];
@@ -382,6 +451,11 @@
         if (!hit(r)) { placed.push(r); break; }
         l.x += l.nx * 8; l.y += l.ny * 8;
       }
+    }
+    for (const l of labels) {
+      // Never past the edge of the box (they were cut off at the top).
+      l.x = Math.max(l.w / 2 + 2, Math.min(W - l.w / 2 - 2, l.x));
+      l.y = Math.max(14, Math.min(H - 14, l.y));
     }
     for (const l of labels) {
       const items = l.items, w = l.w;
@@ -421,8 +495,9 @@
           " colonists, rebels " + g.sol + "%" + (g.bonus < 0 ? ", tory penalty" : "")) + "</title>" +
         '<circle cx="' + n.X + '" cy="' + n.Y + '" r="' + n.r + '" fill="#222832" stroke="' + ring + '" stroke-width="2"/>' +
         arc(g.sol) +
-        '<text x="' + n.X + '" y="' + (n.Y + 5) + '" text-anchor="middle" font-size="14" font-weight="600" fill="#e8e3d8">' + c.size + "</text>" +
-        '<text x="' + (n.X + n.r + 8) + '" y="' + (n.Y + 5) + '" font-size="13" fill="#e8e3d8">' + esc(c.name) + "</text>";
+        '<text x="' + n.X + '" y="' + (n.Y + Math.round(n.r * 0.33)) + '" text-anchor="middle" font-size="' + Math.max(10, Math.min(14, Math.round(n.r * 0.85))) +
+          '" font-weight="600" fill="#e8e3d8">' + c.size + "</text>" +
+        '<text x="' + (n.X + n.r + 6) + '" y="' + (n.Y + 5) + '" font-size="' + (n.r < 13 ? 11 : 13) + '" fill="#e8e3d8">' + esc(c.name) + "</text>";
       // Goods that arrive and go no further pile up beside the node.
       stuck.forEach((a, k) => {
         const bx = n.X + n.r + 8 + k * 22, by = n.Y + 12;
