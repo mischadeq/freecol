@@ -58,6 +58,7 @@ import net.sf.freecol.client.gui.panel.FreeColPanel;
 import net.sf.freecol.client.gui.panel.MigPanel;
 import net.sf.freecol.client.gui.panel.Utility;
 import net.sf.freecol.common.debug.FreeColDebugger;
+import net.sf.freecol.common.diplomacy.SaleTerms;
 import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.ColonyTradeItem;
@@ -71,6 +72,7 @@ import net.sf.freecol.common.model.Goods;
 import net.sf.freecol.common.model.GoodsContainer;
 import net.sf.freecol.common.model.GoodsLocation;
 import net.sf.freecol.common.model.GoodsTradeItem;
+import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.InciteTradeItem;
 import net.sf.freecol.common.model.Market;
 import net.sf.freecol.common.model.NationSummary;
@@ -146,6 +148,11 @@ public final class NegotiationDialog extends FreeColPanel {
     private GoodsTradeItemPanel goodsOfferPanel, goodsDemandPanel;
     private InciteTradeItemPanel inciteOfferPanel, inciteDemandPanel;
     private UnitTradeItemPanel unitOfferPanel, unitDemandPanel;
+    /** What the other nation sells at its colony, if it said (mod). */
+    private SaleGoodsPanel saleDemandPanel;
+    private List<SaleTerms.Line> saleLines = null;
+    private Colony otherColony = null;
+    private Unit tradeUnit = null;
 
     /** A panel showing a summary of the current agreement. */
     private JPanel summary;
@@ -232,7 +239,22 @@ public final class NegotiationDialog extends FreeColPanel {
                 this.stancePanel = null;
                 this.colonyDemandPanel = this.colonyOfferPanel = null;
                 List<Goods> goods = getAnyGoods();
-                this.goodsDemandPanel = new GoodsTradeItemPanel(otherPlayer, goods);
+                // A colony of a computer nation says what it sells and
+                // for how much (mod); the placeholder goods of the old
+                // dialog were never accepted.
+                if (other instanceof Colony) {
+                    this.otherColony = (Colony)other;
+                    this.tradeUnit = ourUnit;
+                    List<SaleTerms.Line> lines
+                        = igc().getSaleTerms(this.otherColony);
+                    if (!lines.isEmpty()) this.saleLines = lines;
+                }
+                if (this.saleLines != null) {
+                    this.saleDemandPanel = new SaleGoodsPanel();
+                    this.goodsDemandPanel = null;
+                } else {
+                    this.goodsDemandPanel = new GoodsTradeItemPanel(otherPlayer, goods);
+                }
                 GoodsLocation gl = (ourUnit != null) ? ourUnit : ourColony;
                 goods = (ourUnit != null) ? ourUnit.getGoodsList()
                         : ourColony.getCompactGoodsList();
@@ -319,7 +341,10 @@ public final class NegotiationDialog extends FreeColPanel {
         if (this.stancePanel != null) {
             add(this.stancePanel, "skip, sg item");
         }
-        if (this.goodsDemandPanel != null) {
+        if (this.saleDemandPanel != null) {
+            add(this.saleDemandPanel, "sg item");
+            add(this.goodsOfferPanel, "sg item");
+        } else if (this.goodsDemandPanel != null) {
             add(this.goodsDemandPanel, "sg item");
             add(this.goodsOfferPanel, "sg item");
         }
@@ -474,6 +499,9 @@ public final class NegotiationDialog extends FreeColPanel {
         }
         if (this.unitDemandPanel != null) {
             this.unitDemandPanel.update(agreement);
+        }
+        if (this.saleDemandPanel != null) {
+            this.saleDemandPanel.update(agreement);
         }
 
         if (changed && this.accept != null) {
@@ -781,7 +809,185 @@ public final class NegotiationDialog extends FreeColPanel {
         @Override
         public void actionPerformed(ActionEvent ae) {
             agreement.remove(item);
+            // Goods bought on their terms: their price comes off our
+            // gold too (mod).
+            final SaleTerms.Line l = saleLineFor(item);
+            if (l != null) {
+                final Player player = getMyPlayer();
+                final int gold = agreement.getGoldGivenBy(player);
+                if (gold >= 0) {
+                    agreement.removeType(GoldTradeItem.class);
+                    final int left = gold - l.priceFor(item.getGoods().getAmount());
+                    if (left > 0) {
+                        agreement.add(new GoldTradeItem(getGame(), player,
+                                                        otherPlayer, left));
+                    }
+                }
+            }
             updateDialog(true);
+        }
+    }
+
+    /**
+     * The sale terms line for goods the other nation gives (mod).
+     *
+     * @param item A {@code TradeItem}.
+     * @return Its {@code SaleTerms.Line}, or null.
+     */
+    private SaleTerms.Line saleLineFor(TradeItem item) {
+        if (this.saleLines == null || !(item instanceof GoodsTradeItem)
+            || item.getSource() != otherPlayer
+            || item.getGoods() == null) return null;
+        return SaleTerms.find(this.saleLines,
+                              item.getGoods().getType().getId());
+    }
+
+    /**
+     * Buy goods from the other nation on its terms (mod): the goods from
+     * its colony, and their price added to our gold.
+     *
+     * @param line The {@code SaleTerms.Line}.
+     * @param amount How many.
+     */
+    private void buyOnTerms(SaleTerms.Line line, int amount) {
+        final Player player = getMyPlayer();
+        final GoodsType type = getSpecification().getGoodsType(line.goodsId);
+        if (type == null || amount <= 0) return;
+        // The same goods again: one item with the total.
+        int had = 0;
+        for (TradeItem ti : new ArrayList<>(agreement.getItemsGivenBy(otherPlayer))) {
+            if (ti instanceof GoodsTradeItem && ti.getGoods() != null
+                && ti.getGoods().getType() == type) {
+                had += ti.getGoods().getAmount();
+                agreement.remove(ti);
+            }
+        }
+        final int total = Math.min(line.max, had + amount);
+        final int extra = line.priceFor(total) - line.priceFor(had);
+        agreement.add(new GoodsTradeItem(getGame(), otherPlayer, player,
+            new Goods(getGame(), this.otherColony, type, total)));
+        final int gold = Math.max(0, agreement.getGoldGivenBy(player));
+        agreement.add(new GoldTradeItem(getGame(), player, otherPlayer,
+                                        gold + extra));
+        updateDialog(true);
+    }
+
+    /**
+     * What the other nation sells at its colony (mod): pick the goods,
+     * the amount (in tens, up to what they let go) and see the price.
+     * Goods they have none of, or will not sell, are greyed out.
+     */
+    private class SaleGoodsPanel extends MigPanel {
+
+        private final JComboBox<SaleTerms.Line> box;
+        private final JSpinner spinner;
+        private final JLabel price;
+        private final JButton addButton;
+
+        public SaleGoodsPanel() {
+            super(new MigLayout("wrap 1", "", ""));
+            this.box = new JComboBox<>();
+            for (SaleTerms.Line l : saleLines) {
+                if (getSpecification().getGoodsType(l.goodsId) != null) {
+                    this.box.addItem(l);
+                }
+            }
+            this.box.setRenderer(new ListCellRenderer<SaleTerms.Line>() {
+                private final JLabel label = new JLabel();
+                @Override
+                public Component getListCellRendererComponent(
+                    JList<? extends SaleTerms.Line> list, SaleTerms.Line l,
+                    int index, boolean isSelected, boolean hasFocus) {
+                    if (l == null) {
+                        label.setText("");
+                        label.setIcon(null);
+                        return label;
+                    }
+                    final GoodsType gt = getSpecification()
+                        .getGoodsType(l.goodsId);
+                    label.setIcon(new javax.swing.ImageIcon(
+                        getImageLibrary().getSmallerGoodsTypeImage(gt)));
+                    label.setText(Messages.message(StringTemplate
+                        .template("negotiationDialog.sale."
+                            + l.status.name().toLowerCase(java.util.Locale.ROOT))
+                        .addNamed("%goods%", gt)
+                        .addAmount("%amount%", l.max)));
+                    label.setEnabled(l.status == SaleTerms.Status.FOR_SALE);
+                    label.setOpaque(isSelected);
+                    return label;
+                }
+            });
+            this.spinner = new JSpinner(new SpinnerNumberModel(0, 0, 0,
+                                                               SaleTerms.STEP));
+            ((JSpinner.DefaultEditor)this.spinner.getEditor())
+                .getTextField().setColumns(4);
+            this.price = new JLabel();
+            this.addButton = Utility.localizedButton("negotiationDialog.add");
+            this.addButton.addActionListener(ae -> {
+                final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
+                if (l != null) buyOnTerms(l, (Integer)spinner.getValue());
+            });
+            this.box.addActionListener(ae -> select());
+            this.spinner.addChangeListener(ce -> showPrice());
+
+            setBorder(Utility.getSimpleLineBorder());
+            add(Utility.localizedLabel("negotiationDialog.sale.title"));
+            add(this.box);
+            add(this.spinner, "split 2");
+            add(this.price);
+            add(this.addButton);
+            // Start on the first goods they sell.
+            for (int i = 0; i < box.getItemCount(); i++) {
+                if (box.getItemAt(i).status == SaleTerms.Status.FOR_SALE) {
+                    box.setSelectedIndex(i);
+                    break;
+                }
+            }
+            select();
+            setSize(getPreferredSize());
+        }
+
+        /** Most of the selected goods we can still take. */
+        private int room(SaleTerms.Line l) {
+            int max = l.max;
+            final GoodsType type = getSpecification().getGoodsType(l.goodsId);
+            for (TradeItem ti : agreement.getItemsGivenBy(otherPlayer)) {
+                if (ti instanceof GoodsTradeItem && ti.getGoods() != null
+                    && ti.getGoods().getType() == type) {
+                    max -= ti.getGoods().getAmount();
+                }
+            }
+            // No more than the ship or wagon can carry.
+            if (tradeUnit != null && type != null) {
+                max = Math.min(max, tradeUnit.getLoadableAmount(type));
+            }
+            return Math.max(0, (max / SaleTerms.STEP) * SaleTerms.STEP);
+        }
+
+        private void select() {
+            final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
+            final int max = (l == null || l.status != SaleTerms.Status.FOR_SALE)
+                ? 0 : room(l);
+            final SpinnerNumberModel m = (SpinnerNumberModel)spinner.getModel();
+            m.setMaximum(max);
+            m.setMinimum(0);
+            m.setValue(Math.min(max, (max > 0) ? SaleTerms.STEP : 0));
+            spinner.setEnabled(max > 0);
+            addButton.setEnabled(max > 0);
+            showPrice();
+        }
+
+        private void showPrice() {
+            final SaleTerms.Line l = (SaleTerms.Line)box.getSelectedItem();
+            final int n = (Integer)spinner.getValue();
+            price.setText((l == null || n <= 0) ? ""
+                : Messages.message(StringTemplate
+                    .template("negotiationDialog.sale.price")
+                    .addAmount("%gold%", l.priceFor(n))));
+        }
+
+        public void update(DiplomaticTrade dt) {
+            select();
         }
     }
 

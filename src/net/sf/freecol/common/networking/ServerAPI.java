@@ -477,6 +477,17 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Ask what another nation sells at one of its colonies (mod).  The
+     * answer arrives before this returns.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean saleTerms(net.sf.freecol.common.model.Colony colony) {
+        return ask(new SaleTermsMessage(colony));
+    }
+
+    /**
      * Answer a sale under a price agreement with how many goods to sell
      * (mod).
      *

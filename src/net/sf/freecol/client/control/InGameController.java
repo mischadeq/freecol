@@ -4187,6 +4187,45 @@ public final class InGameController extends FreeColClientHolder {
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
      */
+    /** The last sale terms heard, by colony id (mod). */
+    private final java.util.Map<String,
+        List<net.sf.freecol.common.diplomacy.SaleTerms.Line>> saleTerms
+        = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * What another nation sells at one of its colonies (mod): asks the
+     * server, which answers on the nation's behalf.
+     *
+     * Called from NegotiationDialog.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @return The terms, empty if there are none.
+     */
+    public List<net.sf.freecol.common.diplomacy.SaleTerms.Line>
+        getSaleTerms(Colony colony) {
+        if (colony == null) return new ArrayList<>();
+        this.saleTerms.remove(colony.getId());
+        askServer().saleTerms(colony);
+        final List<net.sf.freecol.common.diplomacy.SaleTerms.Line> ret
+            = this.saleTerms.get(colony.getId());
+        return (ret == null) ? new ArrayList<>() : ret;
+    }
+
+    /**
+     * The server's answer about sale terms (mod).
+     *
+     * Called from SaleTermsMessage.
+     *
+     * @param colonyId The colony id.
+     * @param lines The terms.
+     */
+    public void saleTermsHandler(String colonyId,
+        List<net.sf.freecol.common.diplomacy.SaleTerms.Line> lines) {
+        if (colonyId != null && lines != null) {
+            this.saleTerms.put(colonyId, lines);
+        }
+    }
+
     /**
      * Count the units with orders that have not been carried out
      * yet this turn: a go-to order or a trade route, and moves left.

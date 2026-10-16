@@ -77,6 +77,7 @@ import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.Mood;
 import net.sf.freecol.common.diplomacy.Observed;
 import net.sf.freecol.common.diplomacy.Offer;
+import net.sf.freecol.common.diplomacy.SaleTerms;
 import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Sightings;
@@ -3242,6 +3243,53 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
 
     /**
+     * What we sell another nation at one of our colonies, and for how
+     * much (mod): see {@link SaleTerms}.
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @return A line for every storable goods type.
+     */
+    public List<SaleTerms.Line> saleTerms(Colony colony, Player buyer) {
+        final Player player = getPlayer();
+        final List<SaleTerms.Line> ret = new ArrayList<>();
+        if (colony == null || buyer == null || !player.owns(colony)) {
+            return ret;
+        }
+        final Outlook dip = getOutlook();
+        final net.sf.freecol.common.diplomacy.WorldView w = dip.view;
+        final net.sf.freecol.common.diplomacy.NationView nv
+            = w.others.get(buyer.getNationId());
+        final boolean atWar = !w.enemies().isEmpty();
+        final int sail = getSpecification()
+            .getInteger(GameOptions.TURNS_TO_SAIL);
+        final int trip = 2 * sail + (colony.isConnectedPort() ? 0 : 2);
+        final Market market = player.getMarket();
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            final SaleTerms.Input in = new SaleTerms.Input();
+            in.goodsId = gt.getId();
+            in.military = gt.getMilitary();
+            in.stock = colony.getGoodsCount(gt);
+            in.net = colony.getNetProductionOf(gt);
+            in.atWar = atWar;
+            final net.sf.freecol.common.diplomacy.GoodsView gv
+                = w.goods.get(gt.getId());
+            in.europePrice = (gv != null) ? gv.sellPrice
+                : (market == null) ? 1 : market.getSalePrice(gt, 1);
+            in.boycotted = (gv != null) ? gv.boycotted
+                : (market != null && market.getArrears(gt) > 0);
+            in.tax = player.getTax();
+            in.tripTurns = trip;
+            in.rebels = player.getSoL();
+            in.opinion = (nv == null) ? 0 : nv.opinion;
+            in.fear = (nv == null) ? 0 : nv.fear;
+            in.character = w.character;
+            ret.add(SaleTerms.line(in));
+        }
+        return ret;
+    }
+
+    /**
      * What a trade item is worth to our diplomat (mod).
      *
      * @param item The {@code TradeItem}.
@@ -3254,6 +3302,20 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (item instanceof GoodsTradeItem) {
             final Goods g = ((GoodsTradeItem)item).getGoods();
             if (g == null) return DealValue.NO_OPINION;
+            // Goods from one of our colonies: on our sale terms (mod),
+            // the same the buyer was shown.
+            if (item.getSource() == player
+                && g.getLocation() instanceof Colony
+                && player.owns((Colony)g.getLocation())) {
+                final SaleTerms.Line l = SaleTerms.find(
+                    saleTerms((Colony)g.getLocation(), other),
+                    g.getType().getId());
+                if (l != null) {
+                    return (l.status != SaleTerms.Status.FOR_SALE
+                            || g.getAmount() > l.max) ? DealValue.NEVER
+                        : -l.priceFor(g.getAmount());
+                }
+            }
             return DealValue.goods(dip.view, g.getType().getId(),
                 g.getAmount(), item.getDestination() == player);
         }

@@ -636,6 +636,13 @@ Known limits of the supply warnings (by design, not bugs):
 
 ## Planned (designed, not built)
 
+### New steps, to discuss when we start on them (2026-10-16)
+- **Making offers as the player:** the player proposes deals to
+  computer nations (not only answering theirs). To discuss.
+- **Peace with tribes, instant diplomats:** a way to ask a tribe for
+  peace; sending a diplomat straight to a nation or a tribe without
+  sailing a unit there. To discuss.
+
 ### Living diplomacy and native tribes (2026-10-13)
 Full plan: `claude_docs/plans/ai-diplomacy-and-natives.md` (snapshot of
 the Claude Doc "FreeCol: living diplomacy design").
@@ -1643,6 +1650,39 @@ top, so the (modal) dialog was hidden but blocked every click.
   stand close; the box grows only within the room the page has; labels
   stay inside the box. Checked with a drawing of Mischa's colonies plus
   a far network. To be tested on the page.
+- **Buying from another nation's colony works, on their terms:** asking
+  a colony for goods was always refused: the old trade screen offered
+  placeholder goods ("100 Muskets") that sat in no warehouse, so the
+  computer marked them invalid whatever gold was offered, and the
+  server would not have handed them over anyway. Now the colony says
+  what it sells (`SaleTerms`, worked out by the nation itself in
+  `EuropeanAIPlayer.saleTerms`, sent with `SaleTermsMessage`):
+  - **How much:** what the colony can spare after its own needs (5
+    turns of what it uses up; 50 muskets and horses kept, 100 at war),
+    times a share by character (traders 0.9, conquerors 0.5, others
+    0.65; weapons less, except for traders) and by how they feel about
+    you (half at neutral, all for a friend, nothing below opinion -40).
+    No weapons or horses to a nation they dislike or fear. Rounded
+    down to tens: you see what they sell, not what they hold.
+  - **Price:** Europe price after tax, less the trip to Europe and back
+    (2.5% a turn, at most 25%), less up to 15% when their colonists are
+    rebels (they do not like arming the Crown), plus their margin
+    (traders 10%, conquerors 20%, others 15%), up to 10% off for a
+    friend, up to 30% on for a nation they hate. Boycotted goods a
+    quarter less (Europe will not take them).
+  - **The screen:** "They sell" box: pick goods (icon, "up to 40",
+    greyed "out of stock" / "not for sale"), the amount in tens (no
+    more than they sell or the ship can carry), the price shows, Add
+    puts the goods and their price in gold on the table. Removing the
+    goods takes their price off again. A deal on the terms is
+    accepted; less gold or more goods is not.
+  - **Tested:** `SaleTermsTest` (amounts in tens, out of stock, own
+    needs kept, traders sell more, opinion, weapons, trip and rebels
+    lower the price, friend/foe/trader prices, deal checks, sending);
+    `AISaleTermsTest` (every goods listed, deal on terms taken, too
+    little gold or too much refused, disliked buyer gets nothing).
+    All 695 tests green. **Not checked:** the screen itself in the
+    game (layout, a full deal at a Spanish colony). No haggling yet.
 
 ## Ideas, not started
 
