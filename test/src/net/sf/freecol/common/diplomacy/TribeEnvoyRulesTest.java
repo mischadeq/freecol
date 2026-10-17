@@ -108,16 +108,22 @@ public class TribeEnvoyRulesTest extends TestCase {
                      TribeEnvoyRules.judge(f).reason);
     }
 
-    /** War against a nation: dear (the old incite price); against a
-        tribe cheaper, cheapest against the old rival (8.2). */
+    /** War: by the braves you get; more against a nation, less
+        against the old rival, more if it likes you less (8.2). */
     public void testWarPrice() {
-        assertEquals(5000, TribeEnvoyRules.warPrice(true, false, 0, 0));
-        assertTrue(TribeEnvoyRules.warPrice(true, false, 400, 100)
-                   >= 10000);
-        assertTrue(TribeEnvoyRules.warPrice(false, true, 0, 0)
-                   < TribeEnvoyRules.warPrice(false, false, 0, 0));
-        assertEquals(300, TribeEnvoyRules.warPrice(false, true, 0, 1000));
-        assertEquals(0, TribeEnvoyRules.warPrice(false, false, 130, 0) % 50);
+        assertEquals("4 braves against a tribe", 400,
+                     TribeEnvoyRules.warPrice(4, false, false, 0, 0));
+        assertEquals("4 braves against a nation", 600,
+                     TribeEnvoyRules.warPrice(4, true, false, 0, 0));
+        assertEquals("against the old rival", 200,
+                     TribeEnvoyRules.warPrice(4, false, true, 0, 0));
+        assertEquals("likes you less: up to twice", 800,
+                     TribeEnvoyRules.warPrice(4, false, false, 1000, 0));
+        assertEquals("hates the enemy: down to half", 200,
+                     TribeEnvoyRules.warPrice(4, false, false, 0, 1000));
+        assertEquals("never free", TribeEnvoyRules.MIN_WAR_PRICE,
+                     TribeEnvoyRules.warPrice(0, false, false, 0, 0));
+        assertEquals(0, TribeEnvoyRules.warPrice(7, true, false, 130, 0) % 50);
     }
 
     /** An ally fights for free; a friend for gold and an alliance; no

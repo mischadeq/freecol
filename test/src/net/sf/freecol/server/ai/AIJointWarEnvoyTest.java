@@ -205,14 +205,15 @@ public class AIJointWarEnvoyTest extends FreeColTestCase {
         for (Offer o : nai.getOffers()) if (o.kind == Offer.Kind.TERMS) t = o;
         assertNotNull("their price", t);
         assertEquals(TribeEnvoyRules.ALLY, t.amount);
-        assertEquals(5000, t.gold);
+        assertEquals("4 braves against a nation", 4
+            * TribeEnvoyRules.PER_BRAVE * TribeEnvoyRules.EUROPEAN, t.gold, 0.1);
         assertEquals(Stance.PEACE, tribe.getStance(french));
         assertTrue(new TribePlanner(nai).answer(english, t.id, true,
                                                  new ChangeSet()));
         assertEquals(Offer.State.DONE, t.state);
         assertEquals(Stance.ALLIANCE, tribe.getStance(english));
         assertEquals(Stance.WAR, tribe.getStance(french));
-        assertEquals(15000, english.getGold());
+        assertEquals(20000 - t.gold, english.getGold());
 
         // Allies: the next war is free.
         final ServerPlayer spanish = getServerPlayer(game,

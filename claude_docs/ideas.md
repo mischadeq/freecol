@@ -1828,15 +1828,18 @@ top, so the (modal) dialog was hidden but blocked every click.
   worth to it): alliances with the members end, its war with you ends,
   the members remember it broke its word.
 - **Tribes fight for you**: an ally fights your wars anyway, so yes, for
-  free. Otherwise, if it likes you: its price (the old incite price:
-  5000 gold against a nation, 10000 if it likes you less than the enemy;
-  against a tribe 800-2000, cheapest against its old rival) and only as
-  your ally (you will be called to help in its wars too). If it
-  dislikes you: no.
+  free. Otherwise, if it likes you: its price and only as your ally
+  (you will be called to help in its wars too). If it dislikes you: no.
+  The price is by what you get: 100 gold per brave it has, x1.5
+  against a European nation, half against its old rival, from half to
+  twice as much by how it likes you compared with the enemy; at least
+  100 (4 braves against France: 600). Mischa found the first version
+  (the old missionary incite price, 5000-10000) far too dear: "20
+  cannons for 4 warriors".
 - The answers, terms and companion lines name the enemy. The envoy
   status now says which nations are in the coalition against you.
 - **Tested:** `EnvoyRulesTest` (war price without a reason, misfit
-  reasons, buy-out price), `TribeEnvoyRulesTest` (war prices, ally
+  reasons, buy-out price), `TribeEnvoyRulesTest` (war prices per brave, ally
   free, price plus alliance, no if disliked, already at war),
   `AIJointWarEnvoyTest` (war for enough gold and held; their price as
   terms, taken: war; misfits: no gold lost, not against an ally; buy a

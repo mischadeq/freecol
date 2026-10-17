@@ -125,7 +125,7 @@ public final class TribeEnvoyDesk {
      * @return The price.
      */
     int warPrice(Player h, Player x) {
-        return TribeEnvoyRules.warPrice(x.isEuropean(),
+        return TribeEnvoyRules.warPrice(braves(), x.isEuropean(),
             x.getNationId().equals(ai.getRival()),
             me().getTension(h).getValue(), me().getTension(x).getValue());
     }

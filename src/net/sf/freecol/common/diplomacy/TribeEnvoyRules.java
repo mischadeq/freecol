@@ -50,28 +50,37 @@ public final class TribeEnvoyRules {
     /** Why a tribe says no. */
     public enum Reason { REVENGE, NOT_NOW, TRUST }
 
+    /** Gold per brave the tribe has, for going to war (an artillery
+        costs 500 in Europe: a brave is worth far less). */
+    public static final int PER_BRAVE = 100;
+    /** More against a European nation (it hits back harder). */
+    public static final double EUROPEAN = 1.5;
+    /** Less against the tribe's old rival (it wants that war). */
+    public static final double RIVAL = 0.5;
+    /** The least a war costs. */
+    public static final int MIN_WAR_PRICE = 100;
+
     /**
-     * The gold a tribe asks to go to war for the player (8.2): the
-     * game's old price for inciting against a European nation (dear:
-     * 5000, 10000 when it likes the payer less than the enemy), the
-     * tribes' own price against a tribe (cheaper against an old rival).
+     * The gold a tribe asks to go to war for the player (8.2): by what
+     * the player gets, its braves; more against a European nation, less
+     * against its old rival; more the less it likes the player compared
+     * with the enemy (half to twice).
      *
+     * @param braves The tribe's braves.
      * @param european The enemy is a European nation.
      * @param rival The enemy is the tribe's old rival.
      * @param payerTension The tribe's tension towards the player.
      * @param enemyTension Its tension towards the enemy.
      * @return The price.
      */
-    public static int warPrice(boolean european, boolean rival,
+    public static int warPrice(int braves, boolean european, boolean rival,
                                int payerTension, int enemyTension) {
-        if (european) {
-            int p = (payerTension > enemyTension) ? 10000 : 5000;
-            p += 20 * (payerTension - enemyTension);
-            return EnvoyRules.roundUp(Math.max(650, p));
-        }
-        int p = (rival) ? 800 : 2000;
-        p += 3 * payerTension - 2 * enemyTension;
-        return EnvoyRules.roundUp(Math.max(300, p));
+        double p = Math.max(0, braves) * PER_BRAVE;
+        if (european) p *= EUROPEAN;
+        if (rival) p *= RIVAL;
+        p *= Math.max(0.5, Math.min(2.0,
+                1.0 + (payerTension - enemyTension) / 1000.0));
+        return EnvoyRules.roundUp(Math.max(MIN_WAR_PRICE, (int)Math.round(p)));
     }
 
     /**
