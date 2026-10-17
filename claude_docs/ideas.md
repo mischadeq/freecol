@@ -52,6 +52,7 @@ Aim: release the mod once Mischa is content with it.
 | Offer dialogs (peace terms, calls to arms, notices, agreements, ultimatums, buy-outs, tribe offers, envoy terms) | start of turn | in use |
 | War of Spanish Succession as a war, then a partial cession; game option | game options | to check (new game) |
 | A new game starts with the game and map options chosen last time | new game screen | to check |
+| Notice-board deals: move a ship or wagon train into their colony to deliver or fetch at once | map | to check |
 
 ### Companion page (http://localhost:8765, View > Open Companion Page)
 
@@ -2108,3 +2109,24 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Tested:** `SavedOptionsTest` (the map size saved and read back; an
   older game options file keeps the Spanish Succession default). All
   751 tests green. **Not checked:** in the game.
+
+### Notice-board deals: move into their colony to deliver (2026-10-17)
+- **Why:** Mischa took a Russian "wanted: 100 lumber at Unalashka" and
+  tried to sail into the colony: "cannot go in". Same with wagon trains.
+  Without Jan de Witt the game forbids trading in a foreign colony, and
+  the deal only completed when a *ship* stood *next to* the colony at
+  the start of the Russians' turn (his merchantman was already next to
+  it, so ending the turn would have done it, but nothing said so).
+- **Now:** moving a ship or wagon train into their colony hands the
+  deal over at once (the goods, or for a "for sale" deal the room and
+  the gold; part of the goods is paid pro rata), with the usual
+  messages. No Jan de Witt needed for that. With nothing to deliver
+  there, the move is refused as before. Wagon trains next to the colony
+  now count too, not only ships. The promise message says so.
+- Code: `DeliverMessage`, `InGameController.deliver` (server),
+  `OfferPlanner.deliverNow` / `complete`, client
+  `InGameController.deliverAt` (from the "no access" and trade moves).
+- **Tested:** `AIOffersTest.testDeliverNowByMovingIn` (nobody there,
+  part, the rest, done and remembered, not at another colony),
+  `testWagonDelivers`. All 753 tests green. **Not checked:** in the
+  game.

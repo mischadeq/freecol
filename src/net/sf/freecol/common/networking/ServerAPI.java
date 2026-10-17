@@ -477,8 +477,18 @@ public abstract class ServerAPI {
     }
 
     /**
-     * Send an envoy, or with a null nation just ask how the envoys
-     * stand (step 8, mod).  The answer arrives before this returns.
+     * Deliver (or fetch) the goods of a notice-board deal at another
+     * nation's colony now (mod). The answer arrives before this returns.
+     *
+     * @param colonyId The colony id.
+     * @return True if the server interaction succeeded.
+     */
+        public boolean deliver(String colonyId) {
+        return ask(new DeliverMessage(colonyId));
+    }
+
+    /**
+     * Send an envoy (mod), see above.
      *
      * @param to The nation id, or null.
      * @param kind The envoy kind name, or null.

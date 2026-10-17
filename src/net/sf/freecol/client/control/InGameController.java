@@ -1529,6 +1529,7 @@ public final class InGameController extends FreeColClientHolder {
             }
             break;
         case MOVE_NO_ACCESS_SETTLEMENT:
+            if (deliverAt(unit, direction)) break; // an empty carrier fetching (mod)
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -1549,6 +1550,9 @@ public final class InGameController extends FreeColClientHolder {
             }
             break;
         case MOVE_NO_ACCESS_TRADE:
+            // Mod: moving into their colony hands over a notice-board
+            // deal taken there (no Jan de Witt needed for that).
+            if (deliverAt(unit, direction)) break;
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -2197,6 +2201,7 @@ public final class InGameController extends FreeColClientHolder {
      */
     private boolean moveTrade(Unit unit, Direction direction) {
         if (!askClearGotoOrders(unit)) return false;
+        if (deliverAt(unit, direction)) return false; // mod
 
         Settlement settlement = getSettlementAt(unit.getTile(), direction);
         if (settlement instanceof Colony) {
@@ -4246,6 +4251,45 @@ public final class InGameController extends FreeColClientHolder {
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
      */
+    /** The answer to the last delivery (mod). */
+    private volatile String deliverResult = null;
+
+    /**
+     * The server's word on a delivery (mod).
+     *
+     * Called from DeliverMessage.
+     *
+     * @param result "done", "part" or "none".
+     */
+    public void deliverHandler(String result) {
+        this.deliverResult = result;
+    }
+
+    /**
+     * A ship or wagon train moves into another European nation's colony:
+     * if the player took a notice-board deal there, hand it over now
+     * (mod). Otherwise nothing happens here.
+     *
+     * @param unit The {@code Unit} moving.
+     * @param direction The direction of the colony.
+     * @return True if a delivery was made (the move is done).
+     */
+    private boolean deliverAt(Unit unit, Direction direction) {
+        if (unit == null || !unit.canCarryGoods() || unit.getTile() == null) {
+            return false;
+        }
+        final Settlement s = getSettlementAt(unit.getTile(), direction);
+        if (!(s instanceof Colony) || s.getOwner() == unit.getOwner()
+            || !s.getOwner().isEuropean()) return false;
+        this.deliverResult = null;
+        askServer().deliver(s.getId());
+        final String r = this.deliverResult;
+        if (r == null || "none".equals(r)) return false;
+        invokeLater(() -> displayModelMessages(false, false));
+        updateGUI(null, false);
+        return true;
+    }
+
     // The player's envoys (step 8, mod).
 
     /** The envoy status from the server: nation id to {wait, readyTurn,

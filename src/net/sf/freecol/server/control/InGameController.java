@@ -1951,6 +1951,34 @@ public final class InGameController extends Controller {
     }
 
     /**
+     * The player moved a ship or wagon train into another nation's
+     * colony to deliver (or fetch) a notice-board deal he took (mod).
+     *
+     * @param serverPlayer The {@code ServerPlayer} delivering.
+     * @param colonyId The colony id.
+     * @return A {@code ChangeSet} with the answer.
+     */
+    public ChangeSet deliver(ServerPlayer serverPlayer, String colonyId) {
+        final ChangeSet cs = new ChangeSet();
+        final Colony colony = (colonyId == null) ? null
+            : getGame().getFreeColGameObject(colonyId, Colony.class);
+        String result = "none";
+        if (colony != null && colony.getOwner() != serverPlayer) {
+            final net.sf.freecol.server.ai.AIPlayer ai = getFreeColServer()
+                .getAIMain().getAIPlayer(colony.getOwner());
+            if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer) {
+                result = new net.sf.freecol.server.ai.diplomacy.OfferPlanner(
+                    (net.sf.freecol.server.ai.EuropeanAIPlayer)ai)
+                    .deliverNow(serverPlayer, colony, cs);
+            }
+        }
+        cs.add(See.only(serverPlayer),
+            new net.sf.freecol.common.networking.DeliverMessage(colonyId,
+                                                                result));
+        return cs;
+    }
+
+    /**
      * The player sends an envoy, or asks how his envoys stand (step 8,
      * mod).  The answer carries the status of every computer nation he
      * knows (turns to wait), and why an envoy could not go, if so.

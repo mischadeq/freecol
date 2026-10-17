@@ -173,6 +173,46 @@ public class AIOffersTest extends FreeColTestCase {
         assertTrue(remembers(Memory.Kind.TRADE));
     }
 
+    /** Moving into their colony hands the goods over at once (mod). */
+    public void testDeliverNowByMovingIn() {
+        setUpGame();
+        dutch.modifyGold(1000 - dutch.getGold());
+        final int englishGold = english.getGold();
+        Offer o = want(8);
+        OfferPlanner planner = new OfferPlanner(ai);
+        planner.answer(english, o.id, true, new ChangeSet());
+        assertEquals("nobody there", "none",
+                     planner.deliverNow(english, havana, new ChangeSet()));
+        Unit ship = shipNextToHavana(60);
+        assertEquals("part of it", "part",
+                     planner.deliverNow(english, havana, new ChangeSet()));
+        assertEquals(Offer.State.TAKEN, o.state);
+        assertEquals(60, o.delivered);
+        ship.addGoods(muskets, 40);
+        assertEquals("done", planner.deliverNow(english, havana,
+                                                new ChangeSet()));
+        assertEquals(Offer.State.DONE, o.state);
+        assertEquals(englishGold + 600, english.getGold());
+        assertTrue(remembers(Memory.Kind.DEAL_KEPT));
+        assertEquals("not at someone else's colony", "none",
+            planner.deliverNow(english, jamestown, new ChangeSet()));
+    }
+
+    /** A wagon train next to the colony delivers too (mod). */
+    public void testWagonDelivers() {
+        setUpGame();
+        dutch.modifyGold(1000 - dutch.getGold());
+        Offer o = want(8);
+        OfferPlanner planner = new OfferPlanner(ai);
+        planner.answer(english, o.id, true, new ChangeSet());
+        Unit wagon = new ServerUnit(game, game.getMap().getTile(7, 10),
+            english, spec().getUnitType("model.unit.wagonTrain"));
+        wagon.addGoods(muskets, 100);
+        planner.plan(ai.getOutlook(), new LogBuilder(64));
+        assertEquals(Offer.State.DONE, o.state);
+        assertEquals(0, wagon.getGoodsCount(muskets));
+    }
+
     public void testLateAndTooLate() {
         setUpGame();
         dutch.modifyGold(2000 - dutch.getGold());

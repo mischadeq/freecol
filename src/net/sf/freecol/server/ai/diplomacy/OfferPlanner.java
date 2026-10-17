@@ -166,14 +166,7 @@ public final class OfferPlanner {
         }
         final int price = o.priceAt(now);
         if (price >= 0 && deliver(o, taker, colony, price, cs)) {
-            if (o.kind != Offer.Kind.WANT) o.paid = price;
-            final boolean late = price < o.gold;
-            o.state = (late) ? Offer.State.LATE : Offer.State.DONE;
-            remember(late ? Memory.Kind.DEAL_LATE : Memory.Kind.DEAL_KEPT, taker);
-            remember(Memory.Kind.TRADE, taker);
-            message(cs, taker, (o.kind == Offer.Kind.WANT)
-                ? ((late) ? "offer.deliveredLate" : "offer.delivered")
-                : "offer.fetched", o, (o.kind == Offer.Kind.WANT) ? o.paid : price);
+            complete(o, taker, price, cs);
             return;
         }
         if (price < 0) {
@@ -191,9 +184,55 @@ public final class OfferPlanner {
         }
     }
 
+    /** A delivery made: the deal is done (or late), and remembered. */
+    private void complete(Offer o, Player taker, int price, ChangeSet cs) {
+        if (o.kind != Offer.Kind.WANT) o.paid = price;
+        final boolean late = price < o.gold;
+        o.state = (late) ? Offer.State.LATE : Offer.State.DONE;
+        remember(late ? Memory.Kind.DEAL_LATE : Memory.Kind.DEAL_KEPT, taker);
+        remember(Memory.Kind.TRADE, taker);
+        message(cs, taker, (o.kind == Offer.Kind.WANT)
+            ? ((late) ? "offer.deliveredLate" : "offer.delivered")
+            : "offer.fetched", o, (o.kind == Offer.Kind.WANT) ? o.paid : price);
+    }
+
     /**
-     * Complete a deal if a ship of the taker is next to the colony with
-     * the goods (or the room and the gold).
+     * The player moved a ship or wagon train into one of our colonies to
+     * deliver (or fetch) a notice-board deal he took (mod): hand it over
+     * now instead of at the start of our turn.
+     *
+     * @param taker The player.
+     * @param colony Our colony.
+     * @param cs A {@code ChangeSet} to update.
+     * @return "done" if a deal was completed, "part" if goods were
+     *     handed over but the deal is not complete, "none" otherwise.
+     */
+    public String deliverNow(ServerPlayer taker, Colony colony,
+                             ChangeSet cs) {
+        if (colony == null || colony.getOwner() != me()) return "none";
+        String ret = "none";
+        for (Offer o : ai.getOffers()) {
+            if (o.state != Offer.State.TAKEN
+                || (o.kind != Offer.Kind.WANT && o.kind != Offer.Kind.SELL)
+                || !me().getNationId().equals(o.from)
+                || !taker.getNationId().equals(o.takenBy)
+                || !colony.getId().equals(o.place)) continue;
+            final int price = o.priceAt(now());
+            if (price < 0) continue; // too late: settled on our turn
+            final int before = o.delivered;
+            if (deliver(o, taker, colony, price, cs)) {
+                complete(o, taker, price, cs);
+                ret = "done";
+            } else if (o.delivered > before && !"done".equals(ret)) {
+                ret = "part";
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Complete a deal if a ship or wagon train of the taker is next to
+     * the colony with the goods (or the room and the gold).
      *
      * @return True if done.
      */
@@ -204,8 +243,8 @@ public final class OfferPlanner {
         final Player me = me();
         for (Tile t : colony.getTile().getSurroundingTiles(1)) {
             for (Unit u : t.getUnitList()) {
-                if (u.getOwner() != taker || !u.isNaval()
-                    || !u.canCarryGoods()) continue;
+                // Ships and, since the player asked, wagon trains.
+                if (u.getOwner() != taker || !u.canCarryGoods()) continue;
                 if (o.kind == Offer.Kind.WANT) {
                     // In parts (step 4): what the ship has, paid pro rata.
                     final int n = Math.min(u.getGoodsCount(gt),
