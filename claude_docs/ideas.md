@@ -51,6 +51,7 @@ Aim: release the mod once Mischa is content with it.
 | Post a Trade Offer (notice board, price agreement) | Report | to check |
 | Offer dialogs (peace terms, calls to arms, notices, agreements, ultimatums, buy-outs, tribe offers, envoy terms) | start of turn | in use |
 | War of Spanish Succession as a war, then a partial cession; game option | game options | to check (new game) |
+| A new game starts with the game and map options chosen last time | new game screen | to check |
 
 ### Companion page (http://localhost:8765, View > Open Companion Page)
 
@@ -2088,3 +2089,22 @@ top, so the (modal) dialog was hidden but blocked every click.
   ceded, a small one abandoned, a tenth sails home, no rebels left,
   garrison home, the loser alive and at peace; war first, treaty
   later). All 749 tests green. **Not checked:** in a game.
+
+### Your game and map options are remembered (2026-10-17)
+- **Why:** Mischa set up a big map (75 x 150, high seas 3) and his game
+  options, and wants them as the default for the next game.
+- **Found:** the Game Options and Map Generator Options dialogs already
+  save what you pick (on OK) to `game_options.xml` and
+  `map_generator_options.xml` in the FreeCol folder (Documents\Freecol\
+  freecol), but the game never read them back (FreeCol's own loading
+  code is switched off).
+- **Now:** a new game starts from those two files, once (the new-game
+  screen, `StartGamePanel.applySavedOptions`), and tells the server.
+  The dialogs still change everything; OK saves the new choice as the
+  default; Reset in the game options goes back to the rules' defaults.
+  An older file without a newer option keeps that option's default.
+- Set on Mischa's PC: map 75 x 150, high seas 3, natural disasters 10%
+  (old files kept as `*.before-claude.xml`).
+- **Tested:** `SavedOptionsTest` (the map size saved and read back; an
+  older game options file keeps the Spanish Succession default). All
+  751 tests green. **Not checked:** in the game.

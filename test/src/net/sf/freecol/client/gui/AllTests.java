@@ -28,6 +28,7 @@ public class AllTests {
     public static Test suite() {
         TestSuite suite = new TestSuite("Test for net.sf.freecol.client.gui");
         //$JUnit-BEGIN$
+        suite.addTestSuite(SavedOptionsTest.class);
         suite.addTestSuite(FontTest.class);
         suite.addTestSuite(ScreenChooserTest.class);
         suite.addTestSuite(net.sf.freecol.client.gui.mapviewer.ParchmentPainterTest.class);
