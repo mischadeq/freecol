@@ -38,6 +38,8 @@ public final class EnvoyRules {
     public static final double OPINION_LINE = -60;
     /** A nation names no price above this: it says no. */
     public static final int MAX_PRICE = 5000;
+    /** ... but a war may cost more (8.2; the tribes ask 5000-10000). */
+    public static final int MAX_WAR_PRICE = 10000;
     /** Prices are rounded up to this. */
     public static final int ROUND = 50;
     /** Tension taken off per gold of a gift. */
@@ -57,7 +59,24 @@ public final class EnvoyRules {
         /** The proposal does not fit (not at war, not at peace...). */
         NOT_NOW,
         /** It sees nothing in it, or the price would be too high. */
-        NO_INTEREST
+        NO_INTEREST,
+        /** It will not fight a nation it is allied with (8.2). */
+        FRIENDS,
+        /** It leads the coalition: it cannot be bought out (8.2). */
+        LEADER,
+        /** It is in no coalition against the player (8.2). */
+        NO_COALITION
+    }
+
+    /**
+     * What a nation asks to join a war it has no reason of its own for
+     * (8.2): more if it likes the enemy, less if it dislikes it.
+     *
+     * @param opinionOfEnemy Its opinion of the enemy, -100..100.
+     * @return The worth of the move, negative.
+     */
+    public static int warWithoutReason(double opinionOfEnemy) {
+        return -(int)Math.round(1500 + 20 * Math.max(-50, opinionOfEnemy));
     }
 
     /** One answer. */
@@ -102,6 +121,9 @@ public final class EnvoyRules {
         /** The proposal fits the stance (peace at war, alliance at
             peace). */
         public boolean fits = true;
+        /** Why it does not fit, when there is a better word than
+            {@link Reason#NOT_NOW} (8.2). */
+        public Reason misfit = null;
     }
 
     private EnvoyRules() {}
@@ -136,7 +158,9 @@ public final class EnvoyRules {
      */
     public static Answer judge(Input in) {
         if (in.kind == Offer.Kind.ENVOY_GIFT) return Answer.yes();
-        if (!in.fits) return Answer.no(Reason.NOT_NOW);
+        if (!in.fits) {
+            return Answer.no((in.misfit != null) ? in.misfit : Reason.NOT_NOW);
+        }
         if (in.kind == Offer.Kind.ENVOY_PEACE && in.committed) {
             return Answer.no(Reason.NOT_YET);
         }
@@ -151,7 +175,8 @@ public final class EnvoyRules {
         if (distrust(in)) return Answer.no(Reason.TRUST);
         final int price = roundUp((int)Math.min(Integer.MAX_VALUE,
                                                 -(long)in.value));
-        if (price > MAX_PRICE) return Answer.no(Reason.NO_INTEREST);
+        if (price > ((in.kind == Offer.Kind.ENVOY_WAR) ? MAX_WAR_PRICE
+                     : MAX_PRICE)) return Answer.no(Reason.NO_INTEREST);
         return Answer.price(price);
     }
 

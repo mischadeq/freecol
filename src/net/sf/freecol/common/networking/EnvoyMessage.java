@@ -41,6 +41,7 @@ public class EnvoyMessage extends AttributeMessage {
     private static final String TO_TAG = "to";
     private static final String KIND_TAG = "kind";
     private static final String GOLD_TAG = "gold";
+    private static final String AGAINST_TAG = "against";
     private static final String STATUS_TAG = "status";
     private static final String ERROR_TAG = "error";
 
@@ -58,9 +59,11 @@ public class EnvoyMessage extends AttributeMessage {
      * @param to The nation id.
      * @param kind The envoy kind name.
      * @param gold The gold sent with it.
+     * @param against The enemy for a joint war (8.2), or null.
      */
-    public EnvoyMessage(String to, String kind, int gold) {
-        super(TAG, TO_TAG, to, KIND_TAG, kind, GOLD_TAG, String.valueOf(gold));
+    public EnvoyMessage(String to, String kind, int gold, String against) {
+        super(TAG, TO_TAG, to, KIND_TAG, kind, GOLD_TAG, String.valueOf(gold),
+              AGAINST_TAG, (against == null) ? "" : against);
     }
 
     /**
@@ -82,7 +85,8 @@ public class EnvoyMessage extends AttributeMessage {
      */
     public EnvoyMessage(Game game, FreeColXMLReader xr)
         throws XMLStreamException {
-        super(TAG, xr, TO_TAG, KIND_TAG, GOLD_TAG, STATUS_TAG, ERROR_TAG);
+        super(TAG, xr, TO_TAG, KIND_TAG, GOLD_TAG, AGAINST_TAG, STATUS_TAG,
+              ERROR_TAG);
     }
 
 
@@ -128,6 +132,11 @@ public class EnvoyMessage extends AttributeMessage {
                                    ServerPlayer serverPlayer) {
         return igc(freeColServer).envoy(serverPlayer,
             getStringAttribute(TO_TAG), getStringAttribute(KIND_TAG),
-            getIntegerAttribute(GOLD_TAG, 0));
+            getIntegerAttribute(GOLD_TAG, 0), against());
+    }
+
+    private String against() {
+        final String a = getStringAttribute(AGAINST_TAG);
+        return (a == null || a.isEmpty()) ? null : a;
     }
 }

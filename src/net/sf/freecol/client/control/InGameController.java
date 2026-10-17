@@ -3997,8 +3997,11 @@ public final class InGameController extends FreeColClientHolder {
             key = "offer.buyout";
             break;
         case TERMS:
-            key = (from.isIndian()) ? ((o.amount == 0) ? "offer.tribeTerms"
-                                       : "offer.tribeTermsConditions")
+            key = (from.isIndian())
+                ? (("ENVOY_WAR".equals(o.goods)) ? ((o.amount == 0)
+                        ? "offer.tribeTermsWar" : "offer.tribeTermsWarAlly")
+                    : (o.amount == 0) ? "offer.tribeTerms"
+                    : "offer.tribeTermsConditions")
                 : "offer.terms." + o.goods;
             break;
         case WANT:
@@ -4212,7 +4215,8 @@ public final class InGameController extends FreeColClientHolder {
      */
     // The player's envoys (step 8, mod).
 
-    /** The envoy status from the server: nation id to {wait, readyTurn}. */
+    /** The envoy status from the server: nation id to {wait, readyTurn,
+        coalition (0 none against us, 1 member, 2 leader)}. */
     private final java.util.Map<String, int[]> envoyStatus
         = new java.util.concurrent.ConcurrentHashMap<>();
     /** Why the last envoy could not go (a message key), or null. */
@@ -4231,10 +4235,11 @@ public final class InGameController extends FreeColClientHolder {
         if (status != null && !status.isEmpty()) {
             for (String line : status.split(";")) {
                 final String[] f = line.split(":");
-                if (f.length != 3) continue;
+                if (f.length < 3) continue;
                 try {
                     this.envoyStatus.put(f[0], new int[] {
-                            Integer.parseInt(f[1]), Integer.parseInt(f[2]) });
+                            Integer.parseInt(f[1]), Integer.parseInt(f[2]),
+                            (f.length > 3) ? Integer.parseInt(f[3]) : 0 });
                 } catch (NumberFormatException e) {
                     // skip
                 }
@@ -4250,7 +4255,7 @@ public final class InGameController extends FreeColClientHolder {
      *     sent)}.
      */
     public java.util.Map<String, int[]> envoyStatus() {
-        askServer().envoy(null, null, 0);
+        askServer().envoy(null, null, 0, null);
         return new java.util.HashMap<>(this.envoyStatus);
     }
 
@@ -4318,6 +4323,31 @@ public final class InGameController extends FreeColClientHolder {
             kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_ALLIANCE"),
                 net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_ALLIANCE));
         }
+        // Join my war (8.2): against a nation we fight that they do not.
+        final java.util.List<ChoiceItem<Player>> enemies
+            = new java.util.ArrayList<>();
+        if (stance == Stance.PEACE || stance == Stance.ALLIANCE
+            || (stance == Stance.CEASE_FIRE && !to.isIndian())) {
+            for (Player e : getGame().getLivePlayerList()) {
+                if (e == player || e == to || e.isREF()
+                    || e.isUnknownEnemy() || e.isUndead()
+                    || player.getStance(e) != Stance.WAR
+                    || to.getStance(e) == Stance.WAR
+                    || to.getStance(e) == Stance.ALLIANCE
+                    || !to.hasContacted(e)) continue;
+                enemies.add(new ChoiceItem<>(
+                    Messages.message(e.getNationLabel()), e));
+            }
+        }
+        if (!enemies.isEmpty()) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_WAR"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR));
+        }
+        final int[] toStatus = status.get(to.getNationId());
+        if (!to.isIndian() && toStatus != null && toStatus[2] == 1) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_LEAVE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_LEAVE));
+        }
         kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_GIFT"),
             net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT));
         final net.sf.freecol.common.diplomacy.Offer.Kind kind
@@ -4325,6 +4355,14 @@ public final class InGameController extends FreeColClientHolder {
                 .addStringTemplate("%nation%", to.getNationLabel()),
                 "cancel", kinds);
         if (kind == null) return;
+        Player against = null;
+        if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR) {
+            against = (enemies.size() == 1) ? enemies.get(0).getObject()
+                : gui.modalChoiceDialog(StringTemplate.template("envoy.enemy")
+                    .addStringTemplate("%nation%", to.getNationLabel()),
+                    "cancel", enemies);
+            if (against == null) return;
+        }
         final boolean gift = kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT;
         final String g = gui.modalInputDialog(null,
             StringTemplate.template((gift) ? "envoy.gold.gift" : "envoy.gold")
@@ -4340,7 +4378,8 @@ public final class InGameController extends FreeColClientHolder {
         gold = Math.max(0, Math.min(Math.max(0, player.getGold()), gold));
         if (gift && gold <= 0) return;
         this.envoyError = null;
-        askServer().envoy(to.getNationId(), kind.name(), gold);
+        askServer().envoy(to.getNationId(), kind.name(), gold,
+                          (against == null) ? null : against.getNationId());
         if (this.envoyError != null) {
             showInformationPanel(null, StringTemplate.template(this.envoyError)
                 .addStringTemplate("%nation%", to.getNationLabel()));

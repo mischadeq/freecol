@@ -92,9 +92,42 @@ public final class TribeEnvoyDesk {
             return stance == Stance.WAR || stance == Stance.CEASE_FIRE;
         case ENVOY_GIFT:
             return stance != Stance.UNCONTACTED;
+        case ENVOY_WAR:
+            return stance == Stance.PEACE || stance == Stance.ALLIANCE;
         default:
             return false;
         }
+    }
+
+    /**
+     * The enemy of a war envoy (8.2), if the tribe could fight it: the
+     * player is at war with it, it is not the tribe nor the tribe's ally.
+     *
+     * @param h The player.
+     * @param against The enemy nation id.
+     * @return The enemy, or null.
+     */
+    Player enemy(Player h, String against) {
+        final Player x = (against == null) ? null
+            : ai.getGame().getPlayerByNationId(against);
+        if (x == null || x.isDead() || x == me() || x == h || x.isREF()
+            || h.getStance(x) != Stance.WAR
+            || me().getStance(x) == Stance.ALLIANCE
+            || x.isUnknownEnemy() || x.isUndead()) return null;
+        return x;
+    }
+
+    /**
+     * What the tribe asks to fight the player's enemy.
+     *
+     * @param h The player.
+     * @param x The enemy.
+     * @return The price.
+     */
+    int warPrice(Player h, Player x) {
+        return TribeEnvoyRules.warPrice(x.isEuropean(),
+            x.getNationId().equals(ai.getRival()),
+            me().getTension(h).getValue(), me().getTension(x).getValue());
     }
 
 
@@ -111,8 +144,24 @@ public final class TribeEnvoyDesk {
      */
     public String send(ServerPlayer human, Offer.Kind kind, int gold,
                        ChangeSet cs) {
+        return send(human, kind, gold, null, cs);
+    }
+
+    /**
+     * The player sends an envoy to the tribe.
+     *
+     * @param human The player.
+     * @param kind The envoy kind.
+     * @param gold The gold he sends.
+     * @param against The enemy for {@code ENVOY_WAR}, else null.
+     * @param cs A {@code ChangeSet} to update.
+     * @return Null if sent, else why not (a message key).
+     */
+    public String send(ServerPlayer human, Offer.Kind kind, int gold,
+                       String against, ChangeSet cs) {
         if (kind == null || !kind.envoy()
-            || kind == Offer.Kind.ENVOY_ALLIANCE) return "envoy.error.kind";
+            || kind == Offer.Kind.ENVOY_ALLIANCE
+            || kind == Offer.Kind.ENVOY_LEAVE) return "envoy.error.kind";
         if (!me().isIndian() || human.isAI()) return "envoy.error.nation";
         if (!me().hasContacted(human)) return "envoy.error.contact";
         if (EnvoyRules.waitLeft(EnvoyDesk.lastSent(ai.getOffers(),
@@ -120,6 +169,9 @@ public final class TribeEnvoyDesk {
             return "envoy.error.wait";
         }
         if (!fits(kind, me().getStance(human))) return "envoy.error.fits";
+        if (kind == Offer.Kind.ENVOY_WAR && enemy(human, against) == null) {
+            return "envoy.error.enemy";
+        }
         if (gold < 0 || gold > human.getGold()
             || (kind == Offer.Kind.ENVOY_GIFT && gold <= 0)) {
             return "envoy.error.gold";
@@ -127,6 +179,7 @@ public final class TribeEnvoyDesk {
         final Offer o = new Offer("envoy:" + human.getNationId() + ":"
             + me().getNationId() + ":" + now(), kind, human.getNationId(),
             null, 0, gold, null, "", now(), 0);
+        o.against = (kind == Offer.Kind.ENVOY_WAR) ? against : null;
         o.audience.add(me().getNationId());
         ai.getOffers().add(o);
         gold(human, -gold, cs);
@@ -193,9 +246,27 @@ public final class TribeEnvoyDesk {
         return in;
     }
 
+    /**
+     * Judge a war envoy (8.2).
+     *
+     * @param o The envoy.
+     * @param h The player.
+     * @return The {@code TribeEnvoyRules.Answer}.
+     */
+    TribeEnvoyRules.Answer judgeWar(Offer o, Player h) {
+        final Player x = enemy(h, o.against);
+        if (x == null || !fits(o.kind, me().getStance(h))) {
+            return TribeEnvoyRules.notNow();
+        }
+        return TribeEnvoyRules.judgeWar(TribePlanner.opinion(ai, h),
+            me().getStance(h) == Stance.ALLIANCE,
+            me().getStance(x) == Stance.WAR, warPrice(h, x));
+    }
+
     private void answer(Offer o, ServerPlayer h, ChangeSet cs,
                         LogBuilder lb) {
-        final TribeEnvoyRules.Answer a = TribeEnvoyRules.judge(input(o, h));
+        final TribeEnvoyRules.Answer a = (o.kind == Offer.Kind.ENVOY_WAR)
+            ? judgeWar(o, h) : TribeEnvoyRules.judge(input(o, h));
         lb.add("\n  Envoy from ", h.getName(), ": ", o, " -> ", a);
         logger.info(me().getName() + " answers the envoy of " + h.getName()
             + ": " + o + " -> " + a);
@@ -206,6 +277,8 @@ public final class TribeEnvoyDesk {
             gold(me(), o.gold, cs);
             if (o.kind == Offer.Kind.ENVOY_GIFT) {
                 gift(h, o.gold, cs);
+            } else if (o.kind == Offer.Kind.ENVOY_WAR) {
+                goToWar(h, enemy(h, o.against), cs);
             } else {
                 makePeace(h, cs);
                 if (a.standing == TribeEnvoyRules.Standing.LOSING) {
@@ -223,13 +296,15 @@ public final class TribeEnvoyDesk {
                 me().getNationId(), o.kind.name(), a.conditions, a.price,
                 (c == null) ? null : c.getId(),
                 (c == null) ? "" : c.getName(), now(), 0);
+            t.against = o.against;
             t.audience.add(h.getNationId());
             ai.getOffers().add(t); // shown by TribePlanner.tellOffers
             break;
         default:
             o.state = Offer.State.DECLINED;
             gold(h, o.gold, cs);
-            message(cs, h, "envoy.tribe.refused." + a.reason.name(), 0);
+            message(cs, h, "envoy.tribe.refused." + a.reason.name(), 0, "",
+                    o.against);
             break;
         }
     }
@@ -249,6 +324,9 @@ public final class TribeEnvoyDesk {
         if (!accept) {
             o.state = Offer.State.DECLINED;
             return true;
+        }
+        if (Offer.Kind.ENVOY_WAR.name().equals(o.goods)) {
+            return answerWarTerms(o, h, cs);
         }
         if (!fits(Offer.Kind.ENVOY_PEACE, me().getStance(h))) {
             o.state = Offer.State.EXPIRED;
@@ -282,7 +360,45 @@ public final class TribeEnvoyDesk {
     }
 
 
+    /** The player takes the tribe's price to fight for him (8.2). */
+    private boolean answerWarTerms(Offer o, ServerPlayer h, ChangeSet cs) {
+        final Player x = enemy(h, o.against);
+        if (x == null || !fits(Offer.Kind.ENVOY_WAR, me().getStance(h))) {
+            o.state = Offer.State.EXPIRED;
+            message(cs, h, "envoy.terms.over", o.gold);
+            return true;
+        }
+        if (h.getGold() < o.gold) {
+            o.state = Offer.State.DECLINED;
+            message(cs, h, "envoy.terms.noGold", o.gold);
+            return true;
+        }
+        gold(h, -o.gold, cs);
+        gold(me(), o.gold, cs);
+        o.paid = o.gold;
+        o.takenBy = h.getNationId();
+        o.takenTurn = now();
+        o.state = Offer.State.DONE;
+        if ((o.amount & TribeEnvoyRules.ALLY) != 0
+            && me().getStance(h) != Stance.ALLIANCE) {
+            ((ServerPlayer)me()).csChangeStance(Stance.ALLIANCE, h, true, cs);
+        }
+        goToWar(h, x, cs);
+        return true;
+    }
+
+
     // Effects
+
+    /** The tribe takes up the player's war. */
+    void goToWar(ServerPlayer h, Player x, ChangeSet cs) {
+        if (x == null) return;
+        final ServerPlayer me = (ServerPlayer)me();
+        if (me.getStance(x) != Stance.WAR) {
+            me.csChangeStance(Stance.WAR, x, true, cs);
+        }
+        message(cs, h, "envoy.tribe.war", 0, "", x.getNationId());
+    }
 
     /**
      * Peace with the player: the stance, and the anger of the tribe and
@@ -442,10 +558,19 @@ public final class TribeEnvoyDesk {
 
     private void message(ChangeSet cs, Player to, String key, int gold,
                          String colony) {
-        cs.addMessage(to, new ModelMessage(
+        message(cs, to, key, gold, colony, null);
+    }
+
+    private void message(ChangeSet cs, Player to, String key, int gold,
+                         String colony, String against) {
+        final ModelMessage m = new ModelMessage(
             ModelMessage.MessageType.FOREIGN_DIPLOMACY, key, me())
             .addStringTemplate("%nation%", me().getNationLabel())
             .addAmount("%gold%", gold)
-            .addName("%colony%", colony));
+            .addName("%colony%", colony);
+        final Player x = (against == null) ? null
+            : ai.getGame().getPlayerByNationId(against);
+        if (x != null) m.addStringTemplate("%enemy%", x.getNationLabel());
+        cs.addMessage(to, m);
     }
 }

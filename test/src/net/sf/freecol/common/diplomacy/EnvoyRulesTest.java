@@ -109,4 +109,36 @@ public class EnvoyRulesTest extends TestCase {
         assertEquals(100, EnvoyRules.roundUp(100));
         assertEquals(150, EnvoyRules.roundUp(101));
     }
+
+    /** Joining a war with no reason of its own: dearer if it likes
+        the enemy (8.2). */
+    public void testWarWithoutReason() {
+        assertTrue(EnvoyRules.warWithoutReason(50)
+                   < EnvoyRules.warWithoutReason(0));
+        assertTrue(EnvoyRules.warWithoutReason(0)
+                   < EnvoyRules.warWithoutReason(-50));
+        assertTrue("never free", EnvoyRules.warWithoutReason(-100) < 0);
+        assertEquals(EnvoyRules.warWithoutReason(-50),
+                     EnvoyRules.warWithoutReason(-100));
+    }
+
+    /** A misfit carries its own reason (8.2). */
+    public void testMisfitReason() {
+        EnvoyRules.Input in = new EnvoyRules.Input();
+        in.kind = Offer.Kind.ENVOY_WAR;
+        in.fits = false;
+        in.misfit = EnvoyRules.Reason.FRIENDS;
+        assertEquals(EnvoyRules.Reason.FRIENDS, EnvoyRules.judge(in).reason);
+        in.misfit = null;
+        assertEquals(EnvoyRules.Reason.NOT_NOW, EnvoyRules.judge(in).reason);
+        in.kind = Offer.Kind.ENVOY_LEAVE;
+        in.fits = true;
+        in.value = -800;
+        in.gold = 1000;
+        assertEquals(EnvoyRules.Verdict.ACCEPT, EnvoyRules.judge(in).verdict);
+        in.gold = 0;
+        EnvoyRules.Answer a = EnvoyRules.judge(in);
+        assertEquals(EnvoyRules.Verdict.COUNTER, a.verdict);
+        assertEquals(800, a.price);
+    }
 }

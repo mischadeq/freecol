@@ -1959,10 +1959,11 @@ public final class InGameController extends Controller {
      * @param to The nation id, or null just to ask.
      * @param kind The envoy kind name, or null.
      * @param gold The gold sent with it.
+     * @param against The enemy for a joint war (8.2), or null.
      * @return A {@code ChangeSet} with the answer.
      */
     public ChangeSet envoy(ServerPlayer serverPlayer, String to, String kind,
-                           int gold) {
+                           int gold, String against) {
         final ChangeSet cs = new ChangeSet();
         final net.sf.freecol.server.ai.AIMain aiMain
             = getFreeColServer().getAIMain();
@@ -2002,11 +2003,11 @@ public final class InGameController extends Controller {
             error = (target instanceof net.sf.freecol.server.ai.EuropeanAIPlayer)
                 ? new net.sf.freecol.server.ai.diplomacy.EnvoyDesk(
                     (net.sf.freecol.server.ai.EuropeanAIPlayer)target)
-                    .send(serverPlayer, k, gold, cs)
+                    .send(serverPlayer, k, gold, against, cs)
                 : (target instanceof net.sf.freecol.server.ai.NativeAIPlayer)
                 ? new net.sf.freecol.server.ai.diplomacy.TribeEnvoyDesk(
                     (net.sf.freecol.server.ai.NativeAIPlayer)target)
-                    .send(serverPlayer, k, gold, cs)
+                    .send(serverPlayer, k, gold, against, cs)
                 : "envoy.error.nation";
             if (error == null) {
                 cs.addMessage(serverPlayer, new ModelMessage(

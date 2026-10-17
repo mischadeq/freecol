@@ -2332,12 +2332,13 @@
       const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
         : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
-      const DEAL = { envoy_peace: "peace", envoy_alliance: "an alliance", envoy_gift: "a gift" };
+      const DEAL = { envoy_peace: "peace", envoy_alliance: "an alliance", envoy_gift: "a gift",
+        envoy_war: "war on <b>" + esc(o.against) + "</b>", envoy_leave: "leaving the coalition against you" };
       if (o.kind === "envoy_gift") what = "Your envoy to <b>" + esc(o.to) + "</b>: a gift of <b>" + num(o.gold) + "</b> gold";
-      else if (o.kind === "envoy_peace" || o.kind === "envoy_alliance") what = "Your envoy to <b>" + esc(o.to) + "</b>: " + DEAL[o.kind] +
+      else if (DEAL[o.kind]) what = "Your envoy to <b>" + esc(o.to) + "</b>: " + DEAL[o.kind] +
         (o.gold ? ", with <b>" + num(o.gold) + "</b> gold" : "") + (o.state === "open" ? ' <span class="m">(answer next turn)</span>' : "");
       else if (o.kind === "terms") what = "Their terms for " + (DEAL[o.deal] || "your envoy's offer") + ": <b>" + num(o.gold) + "</b> gold" +
-        [[1, "give back the land you took"], [2, "abandon <b>" + esc(o.place) + "</b>"], [4, "pull your soldiers out of their land"]]
+        [[1, "give back the land you took"], [2, "abandon <b>" + esc(o.place) + "</b>"], [4, "pull your soldiers out of their land"], [8, "as your allies"]]
           .filter((c) => o.amount & c[0]).map((c) => ", " + c[1]).join("");
       else if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";

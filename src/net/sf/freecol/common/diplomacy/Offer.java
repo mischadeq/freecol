@@ -90,6 +90,11 @@ public final class Offer {
         ENVOY_ALLIANCE,
         /** The player's envoy: a gift of {@code gold}. */
         ENVOY_GIFT,
+        /** The player's envoy: join me in my war against {@code against}
+            (step 8.2; a tribe too). */
+        ENVOY_WAR,
+        /** The player's envoy: leave the coalition against me (8.2). */
+        ENVOY_LEAVE,
         /** Our answer to an envoy: we agree for {@code gold} in all;
             {@code goods} holds the envoy's kind. */
         TERMS;
@@ -97,7 +102,8 @@ public final class Offer {
         /** One of the player's envoys (answered on our next turn). */
         public boolean envoy() {
             return this == ENVOY_PEACE || this == ENVOY_ALLIANCE
-                || this == ENVOY_GIFT;
+                || this == ENVOY_GIFT || this == ENVOY_WAR
+                || this == ENVOY_LEAVE;
         }
 
         /** Answered at once, by one nation (not a public notice). */

@@ -34,8 +34,9 @@ public final class TribeEnvoyRules {
     /** How the war stands, as the tribe sees it. */
     public enum Standing { LOSING, EVEN, STRONG }
 
-    /** Conditions of peace (a bit set, kept in an offer's amount). */
-    public static final int LAND = 1, COLONY = 2, TROOPS = 4;
+    /** Conditions of peace (a bit set, kept in an offer's amount);
+        {@link #ALLY}: only as allies (to fight for the player, 8.2). */
+    public static final int LAND = 1, COLONY = 2, TROOPS = 4, ALLY = 8;
 
     /** Braves per soldier at or under which a tribe is losing. */
     public static final double LOSING_RATIO = 0.67;
@@ -47,7 +48,66 @@ public final class TribeEnvoyRules {
     public static final double REVENGE_LINE = -90;
 
     /** Why a tribe says no. */
-    public enum Reason { REVENGE, NOT_NOW }
+    public enum Reason { REVENGE, NOT_NOW, TRUST }
+
+    /**
+     * The gold a tribe asks to go to war for the player (8.2): the
+     * game's old price for inciting against a European nation (dear:
+     * 5000, 10000 when it likes the payer less than the enemy), the
+     * tribes' own price against a tribe (cheaper against an old rival).
+     *
+     * @param european The enemy is a European nation.
+     * @param rival The enemy is the tribe's old rival.
+     * @param payerTension The tribe's tension towards the player.
+     * @param enemyTension Its tension towards the enemy.
+     * @return The price.
+     */
+    public static int warPrice(boolean european, boolean rival,
+                               int payerTension, int enemyTension) {
+        if (european) {
+            int p = (payerTension > enemyTension) ? 10000 : 5000;
+            p += 20 * (payerTension - enemyTension);
+            return EnvoyRules.roundUp(Math.max(650, p));
+        }
+        int p = (rival) ? 800 : 2000;
+        p += 3 * payerTension - 2 * enemyTension;
+        return EnvoyRules.roundUp(Math.max(300, p));
+    }
+
+    /**
+     * No: it does not fit.
+     *
+     * @return The {@code Answer}.
+     */
+    public static Answer notNow() {
+        return new Answer(EnvoyRules.Verdict.REFUSE, Reason.NOT_NOW, 0, 0,
+                          Standing.EVEN);
+    }
+
+    /**
+     * Judge an envoy asking a tribe to fight for the player (8.2).  An
+     * ally fights his wars anyway: yes.  Otherwise: no if it does not
+     * like him, else its price, and only as his ally.
+     *
+     * @param opinion Its opinion of the player.
+     * @param allied It is allied with the player already.
+     * @param atWar It is at war with the enemy already.
+     * @param price Its price ({@link #warPrice}).
+     * @return The {@code Answer}.
+     */
+    public static Answer judgeWar(double opinion, boolean allied,
+                                  boolean atWar, int price) {
+        if (allied || atWar) {
+            return new Answer(EnvoyRules.Verdict.ACCEPT, null, 0, 0,
+                              Standing.EVEN);
+        }
+        if (opinion < 0) {
+            return new Answer(EnvoyRules.Verdict.REFUSE, Reason.TRUST, 0, 0,
+                              Standing.EVEN);
+        }
+        return new Answer(EnvoyRules.Verdict.COUNTER, null, price, ALLY,
+                          Standing.EVEN);
+    }
 
     /** What the tribe brings to the decision. */
     public static final class Input {
@@ -78,7 +138,8 @@ public final class TribeEnvoyRules {
         public final EnvoyRules.Verdict verdict;
         public final Reason reason;
         public final int price;
-        /** Conditions ({@link #LAND}, {@link #COLONY}, {@link #TROOPS}). */
+        /** Conditions ({@link #LAND}, {@link #COLONY}, {@link #TROOPS},
+            {@link #ALLY}). */
         public final int conditions;
         public final Standing standing;
 

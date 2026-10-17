@@ -1814,6 +1814,37 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Next:** 8.2 (joint wars, leaving a coalition), asking a tribe to
   fight for you, 8.4 (trade in the same window).
 
+### Step 8.2 built: join my war, leave the coalition, tribes fight for you (2026-10-17)
+- **Join my war** (envoy window, a nation or a tribe you are not at war
+  with): pick a nation you fight that they do not fight and are not
+  allied with. A nation scores the war with its own diplomat; if it has
+  no reason of its own the price is 1500 gold, more if it likes the
+  enemy (up to 3500), less if it dislikes it (down to 500); twice that
+  when you are not allies. A war it wanted anyway is free. It says no
+  above 10000 gold, or when allied with the enemy. Once agreed it
+  declares war and holds it 10 turns like a war of its own.
+- **Leave the coalition against me** (only shown for a member, not the
+  leader): it leaves for its buy-out price (what the coalition is
+  worth to it): alliances with the members end, its war with you ends,
+  the members remember it broke its word.
+- **Tribes fight for you**: an ally fights your wars anyway, so yes, for
+  free. Otherwise, if it likes you: its price (the old incite price:
+  5000 gold against a nation, 10000 if it likes you less than the enemy;
+  against a tribe 800-2000, cheapest against its old rival) and only as
+  your ally (you will be called to help in its wars too). If it
+  dislikes you: no.
+- The answers, terms and companion lines name the enemy. The envoy
+  status now says which nations are in the coalition against you.
+- **Tested:** `EnvoyRulesTest` (war price without a reason, misfit
+  reasons, buy-out price), `TribeEnvoyRulesTest` (war prices, ally
+  free, price plus alliance, no if disliked, already at war),
+  `AIJointWarEnvoyTest` (war for enough gold and held; their price as
+  terms, taken: war; misfits: no gold lost, not against an ally; buy a
+  member out of a coalition, the leader cannot be; a tribe's price and
+  alliance, then the next war free). All 744 tests green. **Not
+  checked:** in the game.
+- **Next:** 8.4 (trade in the same window).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

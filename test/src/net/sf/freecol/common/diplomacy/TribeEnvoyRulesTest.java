@@ -107,4 +107,34 @@ public class TribeEnvoyRulesTest extends TestCase {
         assertEquals(TribeEnvoyRules.Reason.NOT_NOW,
                      TribeEnvoyRules.judge(f).reason);
     }
+
+    /** War against a nation: dear (the old incite price); against a
+        tribe cheaper, cheapest against the old rival (8.2). */
+    public void testWarPrice() {
+        assertEquals(5000, TribeEnvoyRules.warPrice(true, false, 0, 0));
+        assertTrue(TribeEnvoyRules.warPrice(true, false, 400, 100)
+                   >= 10000);
+        assertTrue(TribeEnvoyRules.warPrice(false, true, 0, 0)
+                   < TribeEnvoyRules.warPrice(false, false, 0, 0));
+        assertEquals(300, TribeEnvoyRules.warPrice(false, true, 0, 1000));
+        assertEquals(0, TribeEnvoyRules.warPrice(false, false, 130, 0) % 50);
+    }
+
+    /** An ally fights for free; a friend for gold and an alliance; no
+        if it dislikes the player (8.2). */
+    public void testJudgeWar() {
+        TribeEnvoyRules.Answer a = TribeEnvoyRules.judgeWar(-10, true,
+                                                            false, 5000);
+        assertEquals(EnvoyRules.Verdict.ACCEPT, a.verdict);
+        a = TribeEnvoyRules.judgeWar(-10, false, false, 5000);
+        assertEquals(EnvoyRules.Verdict.REFUSE, a.verdict);
+        assertEquals(TribeEnvoyRules.Reason.TRUST, a.reason);
+        a = TribeEnvoyRules.judgeWar(20, false, false, 5000);
+        assertEquals(EnvoyRules.Verdict.COUNTER, a.verdict);
+        assertEquals(5000, a.price);
+        assertEquals(TribeEnvoyRules.ALLY, a.conditions);
+        a = TribeEnvoyRules.judgeWar(20, false, true, 5000);
+        assertEquals("fighting it already", EnvoyRules.Verdict.ACCEPT,
+                     a.verdict);
+    }
 }

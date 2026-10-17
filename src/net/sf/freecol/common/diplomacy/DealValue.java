@@ -101,6 +101,24 @@ public final class DealValue {
         return (kind == Action.Kind.ALLIANCE) ? NEVER : NO_OPINION;
     }
 
+    /**
+     * What declaring war on a nation is worth to the diplomat (8.2: the
+     * player asks it to join his war), in gold.
+     *
+     * @param ranked The diplomat's moves.
+     * @param enemy The nation to fight.
+     * @return The worth, or {@link #NO_OPINION} if not a candidate.
+     */
+    public static int war(List<ScoredAction> ranked, String enemy) {
+        for (ScoredAction sa : ranked) {
+            if (sa.action.kind == Action.Kind.DECLARE_WAR
+                && enemy.equals(sa.action.target)) {
+                return (int)Math.round(sa.total * GOLD_PER_POINT);
+            }
+        }
+        return NO_OPINION;
+    }
+
     /** An alliance we would never make. */
     public static final int NEVER = Integer.MIN_VALUE + 1;
 }

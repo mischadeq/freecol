@@ -49,6 +49,7 @@ public class AllTests {
         suite.addTestSuite(AISaleTermsTest.class);
         suite.addTestSuite(AIEnvoyTest.class);
         suite.addTestSuite(AITribeEnvoyTest.class);
+        suite.addTestSuite(AIJointWarEnvoyTest.class);
         //$JUnit-END$
         suite.addTest(net.sf.freecol.server.ai.mission.AllTests.suite());
         return suite;

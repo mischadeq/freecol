@@ -107,7 +107,8 @@ public class AIEnvoyTest extends FreeColTestCase {
         List<String> st = EnvoyDesk.status(english,
             java.util.Collections.singletonList(ai));
         final int now = game.getTurn().getNumber();
-        assertEquals(dutch.getNationId() + ":5:" + (now + 5), st.get(0));
+        assertEquals(dutch.getNationId() + ":5:" + (now + 5) + ":0",
+                     st.get(0));
 
         dutchTurn();
         assertEquals(Offer.State.DONE, envoy().state);
@@ -125,7 +126,7 @@ public class AIEnvoyTest extends FreeColTestCase {
         assertEquals(700, dutch.getGold());
 
         for (int i = 0; i < EnvoyRules.WAIT; i++) nextTurn();
-        assertEquals(dutch.getNationId() + ":0:" + (now + 5),
+        assertEquals(dutch.getNationId() + ":0:" + (now + 5) + ":0",
             EnvoyDesk.status(english,
                 java.util.Collections.singletonList(ai)).get(0));
         assertNull(desk.send(english, Offer.Kind.ENVOY_GIFT, 100,

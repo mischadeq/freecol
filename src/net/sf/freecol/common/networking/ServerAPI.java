@@ -483,11 +483,12 @@ public abstract class ServerAPI {
      * @param to The nation id, or null.
      * @param kind The envoy kind name, or null.
      * @param gold The gold sent with it.
+     * @param against The enemy for a joint war (8.2), or null.
      * @return True if the server interaction succeeded.
      */
-    public boolean envoy(String to, String kind, int gold) {
+    public boolean envoy(String to, String kind, int gold, String against) {
         return ask((to == null) ? new EnvoyMessage()
-                   : new EnvoyMessage(to, kind, gold));
+                   : new EnvoyMessage(to, kind, gold, against));
     }
 
     /**

@@ -31,6 +31,8 @@ import net.sf.freecol.common.diplomacy.NationView;
 import net.sf.freecol.common.diplomacy.Offer;
 import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.Action;
+import net.sf.freecol.common.diplomacy.Coalition;
+import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.model.ModelMessage;
 import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.Stance;
@@ -114,8 +116,48 @@ public final class EnvoyDesk {
             return stance == Stance.PEACE;
         case ENVOY_GIFT:
             return stance != Stance.UNCONTACTED;
+        case ENVOY_WAR:
+            return stance != Stance.WAR && stance != Stance.UNCONTACTED;
+        case ENVOY_LEAVE:
+            return stance == Stance.WAR || stance == Stance.CEASE_FIRE
+                || stance == Stance.PEACE;
         default:
             return false;
+        }
+    }
+
+    /**
+     * Why a joint war or a buy-out cannot be (8.2), beyond the stance.
+     *
+     * @param kind The envoy kind.
+     * @param h The player.
+     * @param against The enemy (ENVOY_WAR), or null.
+     * @return Null if it can be, else the reason.
+     */
+    EnvoyRules.Reason misfit(Offer.Kind kind, Player h, String against) {
+        switch (kind) {
+        case ENVOY_WAR: {
+            final Player x = (against == null) ? null
+                : ai.getGame().getPlayerByNationId(against);
+            if (x == null || x.isDead() || x == me() || x == h
+                || x.isREF() || h.getStance(x) != Stance.WAR
+                || !me().hasContacted(x)) return EnvoyRules.Reason.NOT_NOW;
+            if (me().getStance(x) == Stance.ALLIANCE) {
+                return EnvoyRules.Reason.FRIENDS;
+            }
+            return null;
+        }
+        case ENVOY_LEAVE: {
+            final Coalition c = AlliancePlanner.coalitionOf(ai,
+                h.getNationId(), me().getNationId());
+            if (c == null) return EnvoyRules.Reason.NO_COALITION;
+            if (c.members.get(0).equals(me().getNationId())) {
+                return EnvoyRules.Reason.LEADER;
+            }
+            return null;
+        }
+        default:
+            return null;
         }
     }
 
@@ -130,6 +172,21 @@ public final class EnvoyDesk {
      */
     public String send(ServerPlayer human, Offer.Kind kind, int gold,
                        ChangeSet cs) {
+        return send(human, kind, gold, null, cs);
+    }
+
+    /**
+     * The player sends an envoy to us.  His gold goes with it.
+     *
+     * @param human The player.
+     * @param kind The envoy kind.
+     * @param gold The gold he sends.
+     * @param against The enemy for {@code ENVOY_WAR}, else null.
+     * @param cs A {@code ChangeSet} to update.
+     * @return Null if sent, else why not (a message key).
+     */
+    public String send(ServerPlayer human, Offer.Kind kind, int gold,
+                       String against, ChangeSet cs) {
         if (kind == null || !kind.envoy()) return "envoy.error.kind";
         if (me().isREF() || !me().isEuropean() || human.isAI()) {
             return "envoy.error.nation";
@@ -139,6 +196,15 @@ public final class EnvoyDesk {
             return "envoy.error.wait";
         }
         if (!fits(kind, me().getStance(human))) return "envoy.error.fits";
+        if (kind == Offer.Kind.ENVOY_WAR
+            && misfit(kind, human, against) == EnvoyRules.Reason.NOT_NOW) {
+            return "envoy.error.enemy";
+        }
+        if (kind == Offer.Kind.ENVOY_LEAVE) {
+            final EnvoyRules.Reason r = misfit(kind, human, null);
+            if (r == EnvoyRules.Reason.NO_COALITION) return "envoy.error.coalition";
+            if (r == EnvoyRules.Reason.LEADER) return "envoy.error.leader";
+        }
         if (gold < 0 || gold > human.getGold()
             || (kind == Offer.Kind.ENVOY_GIFT && gold <= 0)) {
             return "envoy.error.gold";
@@ -146,6 +212,7 @@ public final class EnvoyDesk {
         final Offer o = new Offer("envoy:" + human.getNationId() + ":"
             + me().getNationId() + ":" + now(), kind, human.getNationId(),
             null, 0, gold, null, "", now(), 0);
+        o.against = (kind == Offer.Kind.ENVOY_WAR) ? against : null;
         o.audience.add(me().getNationId());
         ai.getOffers().add(o);
         gold(human, -gold, cs);
@@ -190,6 +257,10 @@ public final class EnvoyDesk {
         in.gold = o.gold;
         final Stance stance = me().getStance(h);
         in.fits = fits(o.kind, stance);
+        if (in.fits) {
+            in.misfit = misfit(o.kind, h, o.against);
+            in.fits = in.misfit == null;
+        }
         final NationView v = outlook.view.others.get(h.getNationId());
         if (v != null) {
             in.trust = v.trust;
@@ -204,6 +275,17 @@ public final class EnvoyDesk {
             in.value = DealValue.stance(outlook.ranked, h.getNationId(),
                                         Stance.ALLIANCE, stance);
             break;
+        case ENVOY_WAR:
+            if (!in.fits) break;
+            in.value = warValue(o.against, h, outlook);
+            break;
+        case ENVOY_LEAVE: {
+            final Coalition co = AlliancePlanner.coalitionOf(ai,
+                h.getNationId(), me().getNationId());
+            in.value = (co == null) ? DealValue.NO_OPINION
+                : -AlliancePlanner.buyoutPrice(ai, co, me());
+            break;
+        }
         default:
             in.value = 0;
             break;
@@ -212,6 +294,29 @@ public final class EnvoyDesk {
         in.committed = c != null && c.kind == Action.Kind.DECLARE_WAR
             && now() - c.turn < Commitments.HOLD;
         return in;
+    }
+
+    /**
+     * What joining the player's war on a nation is worth to us: our own
+     * diplomat's score of that war, or, if it has none, a price that
+     * falls the more we dislike the enemy.  Twice the price if we are
+     * not his ally.
+     *
+     * @param against The enemy.
+     * @param h The player.
+     * @param outlook Our outlook.
+     * @return The worth in gold.
+     */
+    int warValue(String against, Player h, Outlook outlook) {
+        if (me().getStance(ai.getGame().getPlayerByNationId(against))
+            == Stance.WAR) return 0; // fighting it already
+        int v = DealValue.war(outlook.ranked, against);
+        if (v == DealValue.NO_OPINION) {
+            final NationView ev = outlook.view.others.get(against);
+            v = EnvoyRules.warWithoutReason((ev == null) ? 0 : ev.opinion);
+        }
+        if (v < 0 && me().getStance(h) != Stance.ALLIANCE) v *= 2;
+        return v;
     }
 
     private void answer(Offer o, ServerPlayer h, Outlook outlook,
@@ -225,7 +330,7 @@ public final class EnvoyDesk {
             o.state = Offer.State.DONE;
             o.paid = o.gold;
             gold(me(), o.gold, cs);
-            carryOut(o.kind, h, o.gold, cs);
+            carryOut(o.kind, h, o.gold, o.against, cs);
             break;
         case COUNTER:
             o.state = Offer.State.DECLINED;
@@ -234,14 +339,17 @@ public final class EnvoyDesk {
                 + h.getNationId() + ":" + now(), Offer.Kind.TERMS,
                 me().getNationId(), o.kind.name(), 0, a.price, null, "",
                 now(), 0);
+            t.against = o.against;
             t.audience.add(h.getNationId());
             ai.getOffers().add(t); // told by OfferPlanner.tell
-            message(cs, h, "envoy.counter." + o.kind.name(), a.price);
+            message(cs, h, "envoy.counter." + o.kind.name(), a.price,
+                    o.against);
             break;
         default:
             o.state = Offer.State.DECLINED;
             gold(h, o.gold, cs);
-            message(cs, h, "envoy.refused." + a.reason.name(), o.gold);
+            message(cs, h, "envoy.refused." + a.reason.name(), o.gold,
+                    o.against);
             break;
         }
     }
@@ -254,7 +362,8 @@ public final class EnvoyDesk {
      * @param gold The gold paid.
      * @param cs A {@code ChangeSet} to update.
      */
-    void carryOut(Offer.Kind kind, ServerPlayer h, int gold, ChangeSet cs) {
+    void carryOut(Offer.Kind kind, ServerPlayer h, int gold, String against,
+                  ChangeSet cs) {
         final ServerPlayer me = (ServerPlayer)me();
         switch (kind) {
         case ENVOY_PEACE:
@@ -276,6 +385,27 @@ public final class EnvoyDesk {
                                             h.getNationId(), now(), 1));
             message(cs, h, "envoy.accepted.ENVOY_GIFT", gold);
             break;
+        case ENVOY_WAR: {
+            final Player x = (against == null) ? null
+                : ai.getGame().getPlayerByNationId(against);
+            if (x == null || x.isDead()) break;
+            if (me.getStance(x) != Stance.WAR) {
+                me.csChangeStance(Stance.WAR, x, true, cs);
+                // Hold the war like one of our own choosing.
+                final ScoredAction sa = new ScoredAction(Action.war(against));
+                sa.total = net.sf.freecol.common.diplomacy.Diplomat.THRESHOLD;
+                ai.getCommitments().chose(against, sa, now());
+            }
+            message(cs, h, "envoy.accepted.ENVOY_WAR", gold, against);
+            break;
+        }
+        case ENVOY_LEAVE: {
+            final Coalition c = AlliancePlanner.coalitionOf(ai,
+                h.getNationId(), me.getNationId());
+            if (c != null) AlliancePlanner.of(ai, c).leave(c, me, cs);
+            message(cs, h, "envoy.accepted.ENVOY_LEAVE", gold);
+            break;
+        }
         default:
             break;
         }
@@ -303,7 +433,8 @@ public final class EnvoyDesk {
             o.state = Offer.State.DECLINED;
             return true;
         }
-        if (!fits(kind, me().getStance(h))) {
+        if (!fits(kind, me().getStance(h))
+            || misfit(kind, h, o.against) != null) {
             o.state = Offer.State.EXPIRED;
             message(cs, h, "envoy.terms.over", o.gold);
             return true;
@@ -319,7 +450,7 @@ public final class EnvoyDesk {
         o.paid = o.gold;
         gold(h, -o.gold, cs);
         gold(me(), o.gold, cs);
-        carryOut(kind, h, o.gold, cs);
+        carryOut(kind, h, o.gold, o.against, cs);
         return true;
     }
 
@@ -334,10 +465,19 @@ public final class EnvoyDesk {
     }
 
     private void message(ChangeSet cs, Player to, String key, int gold) {
-        cs.addMessage(to, new ModelMessage(
+        message(cs, to, key, gold, null);
+    }
+
+    private void message(ChangeSet cs, Player to, String key, int gold,
+                         String against) {
+        final ModelMessage m = new ModelMessage(
             ModelMessage.MessageType.FOREIGN_DIPLOMACY, key, me())
             .addStringTemplate("%nation%", me().getNationLabel())
-            .addAmount("%gold%", gold));
+            .addAmount("%gold%", gold);
+        final Player x = (against == null) ? null
+            : ai.getGame().getPlayerByNationId(against);
+        if (x != null) m.addStringTemplate("%enemy%", x.getNationLabel());
+        cs.addMessage(to, m);
     }
 
     /**
@@ -346,7 +486,9 @@ public final class EnvoyDesk {
      *
      * @param human The player.
      * @param ais The computer nations.
-     * @return Lines "nation:wait:readyTurn".
+     * @return Lines "nation:wait:readyTurn:coalition", coalition 0 when
+     *     the nation is in no coalition against him, 1 a member, 2 the
+     *     leader (8.2).
      */
     public static List<String> status(Player human,
         List<? extends net.sf.freecol.server.ai.AIPlayer> ais) {
@@ -362,8 +504,16 @@ public final class EnvoyDesk {
             if (book == null) continue;
             final int now = a.getGame().getTurn().getNumber();
             final int last = lastSent(book, human.getNationId());
+            int co = 0;
+            if (a instanceof EuropeanAIPlayer) {
+                final Coalition c = AlliancePlanner.coalitionOf(
+                    (EuropeanAIPlayer)a, human.getNationId(), p.getNationId());
+                co = (c == null) ? 0
+                    : (c.members.get(0).equals(p.getNationId())) ? 2 : 1;
+            }
             ret.add(p.getNationId() + ":" + EnvoyRules.waitLeft(last, now)
-                    + ":" + ((last < 0) ? -1 : last + EnvoyRules.WAIT));
+                    + ":" + ((last < 0) ? -1 : last + EnvoyRules.WAIT)
+                    + ":" + co);
         }
         return ret;
     }
