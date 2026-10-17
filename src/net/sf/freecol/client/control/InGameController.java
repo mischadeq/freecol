@@ -1530,6 +1530,7 @@ public final class InGameController extends FreeColClientHolder {
             break;
         case MOVE_NO_ACCESS_SETTLEMENT:
             if (deliverAt(unit, direction)) break; // an empty carrier fetching (mod)
+            if (nothingToDeliver(unit, direction, interactive || destinationImminent)) break;
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -1553,6 +1554,7 @@ public final class InGameController extends FreeColClientHolder {
             // Mod: moving into their colony hands over a notice-board
             // deal taken there (no Jan de Witt needed for that).
             if (deliverAt(unit, direction)) break;
+            if (nothingToDeliver(unit, direction, interactive || destinationImminent)) break;
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -4323,10 +4325,33 @@ public final class InGameController extends FreeColClientHolder {
         if (unit.getMovesLeft() <= 0) return true; // waits next to it
         final Direction d = unit.getTile().getDirection(tile);
         if (d != null && !deliverAt(unit, d)) {
+            nothingToDeliver(unit, d, true);
+        }
+        return true;
+    }
+
+    /**
+     * Say so when a carrier moves into another nation's colony with no
+     * deal to hand over (mod): plainer than the game's "no trading
+     * rights" message, which suggested the deal itself needs them.
+     *
+     * @param unit The carrier.
+     * @param direction The direction of the colony.
+     * @param show Show the message.
+     * @return True if it was such a colony (message shown).
+     */
+    private boolean nothingToDeliver(Unit unit, Direction direction,
+                                     boolean show) {
+        final Tile t = (unit.getTile() == null) ? null
+            : unit.getTile().getNeighbourOrNull(direction);
+        if (!isDeliveryTarget(unit, t)) return false;
+        if (show) {
+            sound("sound.event.illegalMove");
             showInformationPanel(unit, StringTemplate
-                .template("move.noAccessTrade")
+                .template("deliver.nothing")
                 .addStringTemplate("%nation%",
-                    tile.getSettlement().getOwner().getNationLabel()));
+                    t.getSettlement().getOwner().getNationLabel())
+                .addName("%colony%", t.getSettlement().getName()));
         }
         return true;
     }

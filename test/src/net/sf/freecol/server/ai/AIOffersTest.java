@@ -198,6 +198,27 @@ public class AIOffersTest extends FreeColTestCase {
             planner.deliverNow(english, jamestown, new ChangeSet()));
     }
 
+    /** A notice still open is taken and completed on the spot by
+        moving in with the goods; without them it stays open (mod). */
+    public void testOpenNoticeTakenByMovingIn() {
+        setUpGame();
+        dutch.modifyGold(1000 - dutch.getGold());
+        final int englishGold = english.getGold();
+        Offer o = want(8);
+        OfferPlanner planner = new OfferPlanner(ai);
+        Unit ship = shipNextToHavana(0);
+        assertEquals("none", planner.deliverNow(english, havana,
+                                                new ChangeSet()));
+        assertEquals("still open", Offer.State.OPEN, o.state);
+        assertNull(o.takenBy);
+        ship.addGoods(muskets, 100);
+        assertEquals("done", planner.deliverNow(english, havana,
+                                                new ChangeSet()));
+        assertEquals(Offer.State.DONE, o.state);
+        assertEquals(ENGLISH, o.takenBy);
+        assertEquals(englishGold + 600, english.getGold());
+    }
+
     /** A wagon train next to the colony delivers too (mod). */
     public void testWagonDelivers() {
         setUpGame();

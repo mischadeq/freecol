@@ -2141,3 +2141,26 @@ top, so the (modal) dialog was hidden but blocked every click.
   part, the rest, done and remembered, not at another colony),
   `testWagonDelivers`. All 753 tests green. **Not checked:** in the
   game.
+
+### Wagon trains and price agreements; open notices on the spot (2026-10-18)
+- **Why:** Mischa's wagon trains at Unalashka got the game's "no trading
+  rights" message. His save: the lumber notice was already done; what
+  ran was a *price agreement* for lumber, which only asked "how many?"
+  for a *ship* next to a *coastal* colony; the two fur notices were
+  still open (never taken), and moving in only handled taken deals.
+- **Now:**
+  - Price agreements work with wagon trains too, at any of their
+    colonies (coastal or not), on their turn when the carrier waits next
+    to it, or at once when it moves into the colony: the "how many do
+    you sell?" question comes straight away.
+  - A notice still open to you (wanted or for sale) is taken and
+    completed on the spot when you move in with the goods (or the room
+    and the gold); if you can not complete it, it stays open.
+  - With nothing to hand over, a plain message says so ("take their
+    offer first"), instead of the game's "no trading rights", which
+    suggested deals need Jan de Witt.
+- **Tested:** `AIAgreementsTest.testWagonSellsUnderAgreement` (asked at
+  once on moving in, sold, asked again on their turn),
+  `AIOffersTest.testOpenNoticeTakenByMovingIn` (no goods: stays open;
+  with goods: taken and done). All 755 tests green. **Not checked:** in
+  the game.
