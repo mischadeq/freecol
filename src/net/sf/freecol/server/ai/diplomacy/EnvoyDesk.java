@@ -79,8 +79,19 @@ public final class EnvoyDesk {
      * @return The turn.
      */
     public static int lastSent(EuropeanAIPlayer ai, String human) {
+        return lastSent(ai.getOffers(), human);
+    }
+
+    /**
+     * The turn the player last sent an envoy, in an offer book.
+     *
+     * @param book The offer book.
+     * @param human The player's nation id.
+     * @return The turn, -1 never.
+     */
+    public static int lastSent(List<Offer> book, String human) {
         int last = -1;
-        for (Offer o : ai.getOffers()) {
+        for (Offer o : book) {
             if (o.kind.envoy() && human.equals(o.from)) {
                 last = Math.max(last, o.posted);
             }
@@ -338,13 +349,19 @@ public final class EnvoyDesk {
      * @return Lines "nation:wait:readyTurn".
      */
     public static List<String> status(Player human,
-                                      List<EuropeanAIPlayer> ais) {
+        List<? extends net.sf.freecol.server.ai.AIPlayer> ais) {
         final List<String> ret = new ArrayList<>();
-        for (EuropeanAIPlayer a : ais) {
+        for (net.sf.freecol.server.ai.AIPlayer a : ais) {
             final Player p = a.getPlayer();
             if (p.isREF() || !p.hasContacted(human)) continue;
+            final List<Offer> book = (a instanceof EuropeanAIPlayer)
+                ? ((EuropeanAIPlayer)a).getOffers()
+                : (a instanceof net.sf.freecol.server.ai.NativeAIPlayer)
+                ? ((net.sf.freecol.server.ai.NativeAIPlayer)a).getOffers()
+                : null;
+            if (book == null) continue;
             final int now = a.getGame().getTurn().getNumber();
-            final int last = lastSent(a, human.getNationId());
+            final int last = lastSent(book, human.getNationId());
             ret.add(p.getNationId() + ":" + EnvoyRules.waitLeft(last, now)
                     + ":" + ((last < 0) ? -1 : last + EnvoyRules.WAIT));
         }

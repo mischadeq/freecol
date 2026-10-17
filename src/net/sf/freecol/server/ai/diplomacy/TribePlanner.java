@@ -128,6 +128,8 @@ public final class TribePlanner {
         pickRival();
         remember();
         landTaken();
+        // The players' envoys get their answer (step 8.3b).
+        new TribeEnvoyDesk(ai).answerAll(cs, lb);
         rub();
         tribeStances(lb);
         answerCalls(lb);
@@ -934,6 +936,7 @@ public final class TribePlanner {
         case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
         case DEFEND_SETTLEMENT: return "offer.postedDefendSettlement";
         case CALL_TO_ARMS: return "offer.postedTribeCall";
+        case TERMS: return "offer.postedTribeTerms";
         default: return "offer.postedTribeAlliance";
         }
     }
@@ -987,6 +990,8 @@ public final class TribePlanner {
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         switch (o.kind) {
+        case TERMS:
+            return new TribeEnvoyDesk(ai).answerTerms(o, human, accept, cs);
         case SETTLEMENT_JOINS:
             final IndianSettlement is = game().getFreeColGameObject(o.place,
                 IndianSettlement.class);

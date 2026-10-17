@@ -1782,6 +1782,38 @@ top, so the (modal) dialog was hidden but blocked every click.
   colony angers nobody; a colony on taken land angers; claims made by
   the game are recorded, stolen and free). All 726 tests green.
 
+### Step 8.3b built: envoys to tribes (2026-10-17)
+- **Tribes are in the envoy window** (Diplomacy > Send an Envoy): peace
+  when at war, a gift any time; one envoy per tribe every 5 turns,
+  answered on the tribe's turn (`TribeEnvoyDesk`, from
+  `TribePlanner.plan`).
+- **Survival first** (`TribeEnvoyRules`): the tribe weighs its braves
+  against your soldiers within 4 tiles of its villages, and a village
+  lost to you in the last 20 turns. Losing (2 braves per 3 soldiers or
+  fewer, or a village lost): peace at once, humbly. Even: peace for
+  gold, half the anger above 300 (900 anger: 300 gold). Strong (1.5
+  braves per soldier or more): twice the gold, and if it dislikes you,
+  conditions: give back the land you took (the tiles become theirs
+  again, workers on them step out), abandon a colony standing on taken
+  land (disbanded, its colonists leave as free units, the land is
+  theirs), pull your soldiers out of their land (peace begins the turn
+  none is inside; 10 turns, or the deal is off). Strong and full of
+  hatred (opinion -90 or lower): no, they want revenge.
+- **Peace** brings the tribe's and its villages' anger down to 300. A
+  gift: anger down by a tenth of the gold, and remembered.
+- **The terms** come in the usual offer popup, with the conditions in
+  words; the companion page lists them too.
+- **Tested:** `TribeEnvoyRulesTest` (standing, losing takes peace, even
+  wants gold, strong sets conditions or takes gold when there is
+  nothing to ask back, revenge, a losing tribe still takes peace,
+  gifts, fit), `AITribeEnvoyTest` (a losing tribe makes peace at once;
+  a strong tribe's terms with a colony and a gun in its land: gold
+  back, accepted, colony disbanded, land theirs, colonists free, peace
+  only once the gun leaves; a gift cools anger, the wait, no
+  alliances). All 735 tests green. **Not checked:** in the game.
+- **Next:** 8.2 (joint wars, leaving a coalition), asking a tribe to
+  fight for you, 8.4 (trade in the same window).
+
 ## Ideas, not started
 
 ### Unit groups, next steps

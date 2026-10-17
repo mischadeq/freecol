@@ -3997,7 +3997,9 @@ public final class InGameController extends FreeColClientHolder {
             key = "offer.buyout";
             break;
         case TERMS:
-            key = "offer.terms." + o.goods;
+            key = (from.isIndian()) ? ((o.amount == 0) ? "offer.tribeTerms"
+                                       : "offer.tribeTermsConditions")
+                : "offer.terms." + o.goods;
             break;
         case WANT:
             key = "offer.want";
@@ -4016,6 +4018,24 @@ public final class InGameController extends FreeColClientHolder {
         final Player enemy = (o.against == null) ? null
             : getGame().getPlayerByNationId(o.against);
         if (enemy != null) t.addStringTemplate("%enemy%", enemy.getNationLabel());
+        if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.TERMS
+            && from.isIndian()) {
+            // The tribe's conditions, in words (8.3b).
+            final java.util.List<String> cond = new java.util.ArrayList<>();
+            final int c = o.amount;
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.LAND) != 0) {
+                cond.add(Messages.message("envoy.tribe.cond.land"));
+            }
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.COLONY) != 0) {
+                cond.add(Messages.message(StringTemplate
+                    .template("envoy.tribe.cond.colony")
+                    .addName("%colony%", o.placeName)));
+            }
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.TROOPS) != 0) {
+                cond.add(Messages.message("envoy.tribe.cond.troops"));
+            }
+            t.addName("%conditions%", String.join("; ", cond));
+        }
         return t;
     }
 
@@ -4265,7 +4285,10 @@ public final class InGameController extends FreeColClientHolder {
         final GUI gui = getGUI();
         final java.util.Map<String, int[]> status = envoyStatus();
         java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
-        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+        final java.util.List<Player> others
+            = new java.util.ArrayList<>(getGame().getLiveEuropeanPlayerList());
+        others.addAll(getGame().getLiveNativePlayerList()); // tribes (8.3b)
+        for (Player p : others) {
             final int[] st = status.get(p.getNationId());
             if (st == null) continue;
             final String text = Messages.message(StringTemplate
@@ -4291,7 +4314,7 @@ public final class InGameController extends FreeColClientHolder {
             kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_PEACE"),
                 net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_PEACE));
         }
-        if (stance == Stance.PEACE) {
+        if (stance == Stance.PEACE && !to.isIndian()) {
             kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_ALLIANCE"),
                 net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_ALLIANCE));
         }

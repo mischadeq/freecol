@@ -1975,10 +1975,22 @@ public final class InGameController extends Controller {
                 ais.add((net.sf.freecol.server.ai.EuropeanAIPlayer)ai);
             }
         }
+        // The tribes too (step 8.3b).
+        final List<net.sf.freecol.server.ai.NativeAIPlayer> tribes
+            = new ArrayList<>();
+        for (Player p : getGame().getLiveNativePlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.NativeAIPlayer) {
+                tribes.add((net.sf.freecol.server.ai.NativeAIPlayer)ai);
+            }
+        }
         String error = null;
         if (to != null && kind != null) {
-            net.sf.freecol.server.ai.EuropeanAIPlayer target = null;
+            net.sf.freecol.server.ai.AIPlayer target = null;
             for (net.sf.freecol.server.ai.EuropeanAIPlayer a : ais) {
+                if (a.getPlayer().getNationId().equals(to)) target = a;
+            }
+            for (net.sf.freecol.server.ai.NativeAIPlayer a : tribes) {
                 if (a.getPlayer().getNationId().equals(to)) target = a;
             }
             net.sf.freecol.common.diplomacy.Offer.Kind k = null;
@@ -1987,9 +1999,15 @@ public final class InGameController extends Controller {
             } catch (IllegalArgumentException e) {
                 k = null;
             }
-            error = (target == null) ? "envoy.error.nation"
-                : new net.sf.freecol.server.ai.diplomacy.EnvoyDesk(target)
-                    .send(serverPlayer, k, gold, cs);
+            error = (target instanceof net.sf.freecol.server.ai.EuropeanAIPlayer)
+                ? new net.sf.freecol.server.ai.diplomacy.EnvoyDesk(
+                    (net.sf.freecol.server.ai.EuropeanAIPlayer)target)
+                    .send(serverPlayer, k, gold, cs)
+                : (target instanceof net.sf.freecol.server.ai.NativeAIPlayer)
+                ? new net.sf.freecol.server.ai.diplomacy.TribeEnvoyDesk(
+                    (net.sf.freecol.server.ai.NativeAIPlayer)target)
+                    .send(serverPlayer, k, gold, cs)
+                : "envoy.error.nation";
             if (error == null) {
                 cs.addMessage(serverPlayer, new ModelMessage(
                     ModelMessage.MessageType.FOREIGN_DIPLOMACY, "envoy.sent",
@@ -1998,10 +2016,12 @@ public final class InGameController extends Controller {
                         target.getPlayer().getNationLabel()));
             }
         }
+        final List<net.sf.freecol.server.ai.AIPlayer> all = new ArrayList<>(ais);
+        all.addAll(tribes);
         cs.add(See.only(serverPlayer),
             new net.sf.freecol.common.networking.EnvoyMessage(
                 String.join(";", net.sf.freecol.server.ai.diplomacy.EnvoyDesk
-                    .status(serverPlayer, ais)), error));
+                    .status(serverPlayer, all)), error));
         return cs;
     }
 
