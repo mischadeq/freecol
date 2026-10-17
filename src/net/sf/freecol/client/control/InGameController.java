@@ -3996,6 +3996,9 @@ public final class InGameController extends FreeColClientHolder {
         case BUYOUT:
             key = "offer.buyout";
             break;
+        case TERMS:
+            key = "offer.terms." + o.goods;
+            break;
         case WANT:
             key = "offer.want";
             break;
@@ -4187,6 +4190,143 @@ public final class InGameController extends FreeColClientHolder {
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
      */
+    // The player's envoys (step 8, mod).
+
+    /** The envoy status from the server: nation id to {wait, readyTurn}. */
+    private final java.util.Map<String, int[]> envoyStatus
+        = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Why the last envoy could not go (a message key), or null. */
+    private volatile String envoyError = null;
+
+    /**
+     * The server's word on the envoys.
+     *
+     * Called from EnvoyMessage.
+     *
+     * @param status Lines "nation:wait:readyTurn" joined by ';'.
+     * @param error Why the envoy could not go, or null.
+     */
+    public void envoyHandler(String status, String error) {
+        this.envoyStatus.clear();
+        if (status != null && !status.isEmpty()) {
+            for (String line : status.split(";")) {
+                final String[] f = line.split(":");
+                if (f.length != 3) continue;
+                try {
+                    this.envoyStatus.put(f[0], new int[] {
+                            Integer.parseInt(f[1]), Integer.parseInt(f[2]) });
+                } catch (NumberFormatException e) {
+                    // skip
+                }
+            }
+        }
+        this.envoyError = error;
+    }
+
+    /**
+     * Ask the server how the envoys stand.
+     *
+     * @return Nation id to {turns to wait, turn the wait ends (-1 never
+     *     sent)}.
+     */
+    public java.util.Map<String, int[]> envoyStatus() {
+        askServer().envoy(null, null, 0);
+        return new java.util.HashMap<>(this.envoyStatus);
+    }
+
+    /**
+     * At the start of the turn: tell the player which nations an envoy
+     * can go to again (their wait ended this turn).
+     *
+     * @param player The player.
+     */
+    private void envoyAlerts(Player player) {
+        final int now = getGame().getTurn().getNumber();
+        for (java.util.Map.Entry<String, int[]> e : envoyStatus().entrySet()) {
+            if (e.getValue()[1] != now) continue;
+            final Player p = getGame().getPlayerByNationId(e.getKey());
+            if (p == null) continue;
+            player.addModelMessage(new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY, "envoy.ready",
+                player).addStringTemplate("%nation%", p.getNationLabel()));
+        }
+    }
+
+    /**
+     * Send an envoy to another nation (step 8): pick the nation, what
+     * to propose, and the gold to send with it.  The answer comes at
+     * the start of the next turn.
+     *
+     * Called from SendEnvoyAction.
+     */
+    public void sendEnvoy() {
+        final Player player = getMyPlayer();
+        if (!requireOurTurn() || player == null) return;
+        final GUI gui = getGUI();
+        final java.util.Map<String, int[]> status = envoyStatus();
+        java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            final int[] st = status.get(p.getNationId());
+            if (st == null) continue;
+            final String text = Messages.message(StringTemplate
+                .template((st[0] <= 0) ? "envoy.choose.ready"
+                          : "envoy.choose.wait")
+                .addStringTemplate("%nation%", p.getNationLabel())
+                .addStringTemplate("%stance%", StringTemplate.key(
+                    "model." + player.getStance(p).getKey() + ".name"))
+                .addAmount("%turns%", st[0]));
+            nations.add(new ChoiceItem<>(text, p, st[0] <= 0));
+        }
+        if (nations.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("envoy.none"));
+            return;
+        }
+        final Player to = gui.modalChoiceDialog(
+            StringTemplate.template("envoy.choose"), "cancel", nations);
+        if (to == null) return;
+        final Stance stance = player.getStance(to);
+        java.util.List<ChoiceItem<net.sf.freecol.common.diplomacy.Offer.Kind>> kinds
+            = new java.util.ArrayList<>();
+        if (stance == Stance.WAR || stance == Stance.CEASE_FIRE) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_PEACE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_PEACE));
+        }
+        if (stance == Stance.PEACE) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_ALLIANCE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_ALLIANCE));
+        }
+        kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_GIFT"),
+            net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT));
+        final net.sf.freecol.common.diplomacy.Offer.Kind kind
+            = gui.modalChoiceDialog(StringTemplate.template("envoy.kind")
+                .addStringTemplate("%nation%", to.getNationLabel()),
+                "cancel", kinds);
+        if (kind == null) return;
+        final boolean gift = kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT;
+        final String g = gui.modalInputDialog(null,
+            StringTemplate.template((gift) ? "envoy.gold.gift" : "envoy.gold")
+                .addAmount("%have%", Math.max(0, player.getGold())),
+            (gift) ? "100" : "0", "ok", "cancel");
+        if (g == null) return;
+        int gold;
+        try {
+            gold = Integer.parseInt(g.trim());
+        } catch (RuntimeException e) {
+            return;
+        }
+        gold = Math.max(0, Math.min(Math.max(0, player.getGold()), gold));
+        if (gift && gold <= 0) return;
+        this.envoyError = null;
+        askServer().envoy(to.getNationId(), kind.name(), gold);
+        if (this.envoyError != null) {
+            showInformationPanel(null, StringTemplate.template(this.envoyError)
+                .addStringTemplate("%nation%", to.getNationLabel()));
+        } else {
+            invokeLater(() -> displayModelMessages(false, false));
+        }
+        updateGUI(null, false);
+    }
+
     /** The last sale terms heard, by colony id (mod). */
     private final java.util.Map<String,
         List<net.sf.freecol.common.diplomacy.SaleTerms.Line>> saleTerms
@@ -6173,6 +6313,12 @@ public final class InGameController extends FreeColClientHolder {
                 }
             } catch (RuntimeException re) {
                 logger.log(Level.WARNING, "Supply watch failed", re);
+            }
+            // Envoys that can go again (step 8, mod).
+            try {
+                envoyAlerts(player);
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Envoy alerts failed", re);
             }
             displayModelMessages(true, true);
 

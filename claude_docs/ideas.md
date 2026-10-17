@@ -636,12 +636,12 @@ Known limits of the supply warnings (by design, not bugs):
 
 ## Planned (designed, not built)
 
-### New steps, to discuss when we start on them (2026-10-16)
-- **Making offers as the player:** the player proposes deals to
-  computer nations (not only answering theirs). To discuss.
-- **Peace with tribes, instant diplomats:** a way to ask a tribe for
-  peace; sending a diplomat straight to a nation or a tribe without
-  sailing a unit there. To discuss.
+### Step 8: the player's envoys (plan: `plans/step8-envoys.md`)
+- Discussed 2026-10-17: one envoy per nation every 5 turns, with an
+  alert when one can go again; the answer next turn, free; a price when
+  trusted, a plain no with a reason when not; tribes put survival
+  first. Steps: 1 nations (peace, alliance, gift), 2 joint war and
+  leaving a coalition, 3 tribes, 4 trade in the same window.
 
 ### Living diplomacy and native tribes (2026-10-13)
 Full plan: `claude_docs/plans/ai-diplomacy-and-natives.md` (snapshot of
@@ -1734,6 +1734,35 @@ top, so the (modal) dialog was hidden but blocked every click.
   a grudge; fading in peace, not at war, never below 0). All 707 tests
   green. **Not done:** the King still declares wars at random (the
   idea of a nation paying to stay out of the King's war stays open).
+
+### Step 8.1 built: envoys to nations (2026-10-17)
+- **Diplomacy > Send an Envoy:** pick a nation (each shows its stance
+  and "envoy ready" or "next envoy in 3 turns"), what to propose
+  (peace when at war, an alliance when at peace, a gift any time) and
+  the gold that goes with it. The envoy leaves now; the gold travels
+  with him (back if they say no).
+- **Answered on their turn**, so it reaches you at the start of your
+  next turn (`EnvoyDesk`, run from `OfferPlanner.plan`): the same
+  diplomat that makes their own offers scores the move
+  (`DealValue.stance`), your gold is added. Worth it: yes (peace or
+  alliance made, they keep the gold). A war they chose themselves less
+  than 10 turns ago: "not yet". Too little trust (or, for an alliance,
+  too little liking): no, with the reason. Otherwise they name their
+  price (rounded up to 50, at most 5000) as terms in the usual offer
+  popup; accept and pay, and it is done. A gift is always taken: a
+  memory of the gift and tension down by a tenth of the gold.
+- **One envoy per nation every 5 turns**; at the start of the turn the
+  wait is over: "An envoy can go to France again." Envoys and terms are
+  in the companion page's offer list.
+- **Rules:** `EnvoyRules` (pure). Peace looks only at trust, not at
+  liking: a fresh war always leaves the opinion of the enemy low, and
+  the diplomat's peace score weighs it already.
+- **Tested:** `EnvoyRulesTest` (waiting, yes, the price, distrust, too
+  dear, not yet, alliance never, gifts, rounding), `AIEnvoyTest` (gift
+  round trip with the gold held, the wait and the status, wrong
+  proposals refused at once with no gold lost, a peace envoy answered
+  with gold back on a no, terms accepted and paid, terms that no longer
+  fit). All 721 tests green. **Not checked:** the dialogs in the game.
 
 ## Ideas, not started
 

@@ -82,7 +82,23 @@ public final class Offer {
         AGREEMENT,
         /** A ship came under an agreement: how many to sell here
             ({@code amount} is the most we take, at {@code place}). */
-        SALE;
+        SALE,
+        /** The player's envoy (step 8): peace, with {@code gold} from
+            him if any. In the target's book, {@code from} the player. */
+        ENVOY_PEACE,
+        /** The player's envoy: an alliance (a defensive pact). */
+        ENVOY_ALLIANCE,
+        /** The player's envoy: a gift of {@code gold}. */
+        ENVOY_GIFT,
+        /** Our answer to an envoy: we agree for {@code gold} in all;
+            {@code goods} holds the envoy's kind. */
+        TERMS;
+
+        /** One of the player's envoys (answered on our next turn). */
+        public boolean envoy() {
+            return this == ENVOY_PEACE || this == ENVOY_ALLIANCE
+                || this == ENVOY_GIFT;
+        }
 
         /** Answered at once, by one nation (not a public notice). */
         public boolean direct() {
@@ -90,7 +106,7 @@ public final class Offer {
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
                 || this == SETTLEMENT_JOINS || this == ULTIMATUM
                 || this == DEFEND_SETTLEMENT || this == AGREEMENT
-                || this == SALE;
+                || this == SALE || this == TERMS;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

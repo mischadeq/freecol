@@ -1951,6 +1951,61 @@ public final class InGameController extends Controller {
     }
 
     /**
+     * The player sends an envoy, or asks how his envoys stand (step 8,
+     * mod).  The answer carries the status of every computer nation he
+     * knows (turns to wait), and why an envoy could not go, if so.
+     *
+     * @param serverPlayer The {@code ServerPlayer} sending.
+     * @param to The nation id, or null just to ask.
+     * @param kind The envoy kind name, or null.
+     * @param gold The gold sent with it.
+     * @return A {@code ChangeSet} with the answer.
+     */
+    public ChangeSet envoy(ServerPlayer serverPlayer, String to, String kind,
+                           int gold) {
+        final ChangeSet cs = new ChangeSet();
+        final net.sf.freecol.server.ai.AIMain aiMain
+            = getFreeColServer().getAIMain();
+        final List<net.sf.freecol.server.ai.EuropeanAIPlayer> ais
+            = new ArrayList<>();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer
+                && p != serverPlayer) {
+                ais.add((net.sf.freecol.server.ai.EuropeanAIPlayer)ai);
+            }
+        }
+        String error = null;
+        if (to != null && kind != null) {
+            net.sf.freecol.server.ai.EuropeanAIPlayer target = null;
+            for (net.sf.freecol.server.ai.EuropeanAIPlayer a : ais) {
+                if (a.getPlayer().getNationId().equals(to)) target = a;
+            }
+            net.sf.freecol.common.diplomacy.Offer.Kind k = null;
+            try {
+                k = net.sf.freecol.common.diplomacy.Offer.Kind.valueOf(kind);
+            } catch (IllegalArgumentException e) {
+                k = null;
+            }
+            error = (target == null) ? "envoy.error.nation"
+                : new net.sf.freecol.server.ai.diplomacy.EnvoyDesk(target)
+                    .send(serverPlayer, k, gold, cs);
+            if (error == null) {
+                cs.addMessage(serverPlayer, new ModelMessage(
+                    ModelMessage.MessageType.FOREIGN_DIPLOMACY, "envoy.sent",
+                    serverPlayer)
+                    .addStringTemplate("%nation%",
+                        target.getPlayer().getNationLabel()));
+            }
+        }
+        cs.add(See.only(serverPlayer),
+            new net.sf.freecol.common.networking.EnvoyMessage(
+                String.join(";", net.sf.freecol.server.ai.diplomacy.EnvoyDesk
+                    .status(serverPlayer, ais)), error));
+        return cs;
+    }
+
+    /**
      * A player answers an offer of a computer nation (mod).
      *
      * @param serverPlayer The {@code ServerPlayer} answering.

@@ -477,6 +477,20 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Send an envoy, or with a null nation just ask how the envoys
+     * stand (step 8, mod).  The answer arrives before this returns.
+     *
+     * @param to The nation id, or null.
+     * @param kind The envoy kind name, or null.
+     * @param gold The gold sent with it.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean envoy(String to, String kind, int gold) {
+        return ask((to == null) ? new EnvoyMessage()
+                   : new EnvoyMessage(to, kind, gold));
+    }
+
+    /**
      * Ask what another nation sells at one of its colonies (mod).  The
      * answer arrives before this returns.
      *

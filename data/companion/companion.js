@@ -2332,7 +2332,12 @@
       const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
         : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
-      if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      const DEAL = { envoy_peace: "peace", envoy_alliance: "an alliance", envoy_gift: "a gift" };
+      if (o.kind === "envoy_gift") what = "Your envoy to <b>" + esc(o.to) + "</b>: a gift of <b>" + num(o.gold) + "</b> gold";
+      else if (o.kind === "envoy_peace" || o.kind === "envoy_alliance") what = "Your envoy to <b>" + esc(o.to) + "</b>: " + DEAL[o.kind] +
+        (o.gold ? ", with <b>" + num(o.gold) + "</b> gold" : "") + (o.state === "open" ? ' <span class="m">(answer next turn)</span>' : "");
+      else if (o.kind === "terms") what = "Their terms for " + (DEAL[o.deal] || "your envoy's offer") + ": <b>" + num(o.gold) + "</b> gold";
+      else if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
       else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";

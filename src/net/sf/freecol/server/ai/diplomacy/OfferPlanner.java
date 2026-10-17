@@ -128,6 +128,8 @@ public final class OfferPlanner {
             final Offer o = it.next();
             if (o.state.over() && now - o.posted > KEEP) it.remove();
         }
+        // The players' envoys get their answer (step 8).
+        new EnvoyDesk(ai).answerAll(outlook, cs, lb);
         for (Offer o : book) {
             if (!me.getNationId().equals(o.from)) {
                 if (o.stale(now)) o.state = Offer.State.EXPIRED;
@@ -291,6 +293,7 @@ public final class OfferPlanner {
         case ULTIMATUM: return "offer.postedUltimatum";
         case AGREEMENT: return "offer.postedAgreement";
         case SALE: return "offer.postedSale";
+        case TERMS: return "offer.postedTerms";
         default: return "offer.postedSell";
         }
     }
@@ -580,7 +583,8 @@ public final class OfferPlanner {
      */
     private void considerPosted(Outlook outlook, ChangeSet cs, LogBuilder lb) {
         for (Offer o : new ArrayList<>(ai.getOffers())) {
-            if (me().getNationId().equals(o.from) || o.state != Offer.State.OPEN) {
+            if (me().getNationId().equals(o.from) || o.state != Offer.State.OPEN
+                || o.kind.envoy()) {
                 continue;
             }
             final Player h = game().getPlayerByNationId(o.from);
@@ -940,6 +944,9 @@ public final class OfferPlanner {
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         if (o.kind == Offer.Kind.SALE) return sell(o, human, accept, amount, cs);
+        if (o.kind == Offer.Kind.TERMS) {
+            return new EnvoyDesk(ai).answerTerms(o, human, accept, cs);
+        }
         if (o.kind == Offer.Kind.AGREEMENT) {
             if (accept) {
                 o.state = Offer.State.TAKEN;

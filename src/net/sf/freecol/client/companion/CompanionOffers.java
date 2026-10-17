@@ -123,6 +123,13 @@ final class CompanionOffers {
                 .put("goodsName", (gt == null) ? "" : Messages.getName(gt))
                 .put("amount", o.amount)
                 .put("gold", o.gold)
+                // Envoys (step 8): who it went to; our terms: for what.
+                .put("to", (o.audience.isEmpty()
+                        || game.getPlayerByNationId(o.audience.get(0)) == null) ? ""
+                    : Messages.message(game.getPlayerByNationId(o.audience.get(0))
+                        .getNationLabel()))
+                .put("deal", (o.kind == Offer.Kind.TERMS && o.goods != null)
+                    ? o.goods.toLowerCase() : "")
                 .put("place", o.placeName)
                 .put("state", o.state.name().toLowerCase())
                 .put("mine", mine)
