@@ -700,13 +700,69 @@ public class ServerGame extends Game implements TurnTaker {
 
         final Specification spec = getSpecification();
         Event succession = spec.getEvent("model.event.spanishSuccession");
-        if (succession != null && !getSpanishSuccession()) {
-            @SuppressWarnings("unused")
-            ServerPlayer loser = csSpanishSuccession(cs, lb, succession);
-            // TODO: send update to loser.  It will not see anything
-            // because it is no longer a live player.
-            // if (loser != null) sendElement(loser, cs);
+        if (succession != null && !getSpanishSuccession()
+            && successionOn(spec)) {
+            // Mod: a war in Europe first, a partial cession later
+            // (see SuccessionRules), not the old all-at-once handover.
+            csSuccession(cs, lb, succession);
         }
+    }
+
+    /** Is the War of Spanish Succession switched on (mod)? */
+    private static boolean successionOn(Specification spec) {
+        return !spec.hasOption(GameOptions.SPANISH_SUCCESSION,
+                net.sf.freecol.common.option.BooleanOption.class)
+            || spec.getBoolean(GameOptions.SPANISH_SUCCESSION);
+    }
+
+    /**
+     * The War of Spanish Succession (mod): announce the war in Europe
+     * once a nation passes the line, settle it a few turns later.
+     *
+     * @param cs A {@code ChangeSet} to update.
+     * @param lb A {@code LogBuilder} to log to.
+     * @param event The Spanish Succession {@code Event}.
+     */
+    private void csSuccession(ChangeSet cs, LogBuilder lb, Event event) {
+        final int now = getTurn().getNumber();
+        final String[] pending = net.sf.freecol.common.diplomacy
+            .SuccessionRules.parse(getSuccessionPending());
+        if (pending == null) {
+            List<Player> ail = new ArrayList<>();
+            if (!spanishSuccessionReady(event, ail, lb)) return;
+            final Player strong = ail.get(0), weak = ail.get(1);
+            if (weak == null || strong == null || weak == strong) return;
+            final int turns = net.sf.freecol.common.diplomacy
+                .SuccessionRules.TREATY_TURNS;
+            setSuccessionPending(net.sf.freecol.common.diplomacy
+                .SuccessionRules.pending(weak.getNationId(),
+                    strong.getNationId(), now + turns));
+            lb.add(" War of Spanish Succession: ", weak.getName(), " vs ",
+                   strong.getName());
+            cs.addGlobalMessage(this, null,
+                new ModelMessage(MessageType.FOREIGN_DIPLOMACY,
+                                 "model.game.successionWar", strong)
+                    .addStringTemplate("%loserNation%", weak.getNationLabel())
+                    .addStringTemplate("%nation%", strong.getNationLabel())
+                    .addAmount("%turns%", turns));
+            return;
+        }
+        if (now < Integer.parseInt(pending[2])) return;
+        setSuccessionPending(null);
+        setSpanishSuccession(true);
+        cs.addPartial(See.all(), this,
+            "spanishSuccession", Boolean.TRUE.toString());
+        final Player weak = getPlayerByNationId(pending[0]);
+        final Player strong = getPlayerByNationId(pending[1]);
+        if (!(weak instanceof ServerPlayer) || !(strong instanceof ServerPlayer)
+            || weak.isDead() || strong.isDead()) {
+            cs.addGlobalMessage(this, null,
+                new ModelMessage(MessageType.FOREIGN_DIPLOMACY,
+                                 "model.game.successionNone", (Player)null));
+            return;
+        }
+        new Succession((ServerPlayer)weak, (ServerPlayer)strong)
+            .csTreaty(cs, lb);
     }
 
     // Override Object

@@ -100,6 +100,10 @@ public class GameOptions {
     public static final String TELEPORT_REF
         = "model.option.teleportREF";
 
+    /** The War of Spanish Succession happens (mod). */
+    public static final String SPANISH_SUCCESSION
+        = "model.option.spanishSuccession";
+
     /**
      * Use map defined starting positions (if available).
      */

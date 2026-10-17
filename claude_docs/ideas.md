@@ -1883,7 +1883,43 @@ top, so the (modal) dialog was hidden but blocked every click.
   live page. **Not done:** a history chart for the tribes (the nations'
   chart reads old saves; tribes start from now if wanted).
 
+### War of Spanish Succession, closer to Utrecht (2026-10-17)
+- **Why**: in Mischa's game France handed all 7 colonies, units and
+  missions to England in one turn and left the game ("sudden, not
+  realistic"). That is the old event: once any nation passes 50%
+  rebels, the weakest computer nation (by score) gives everything to
+  the strongest. History: at Utrecht (1713) France ceded Newfoundland,
+  Acadia and Hudson Bay but kept Canada and Louisiana; small outposts
+  emptied (Plaisance), most settlers of the big places stayed.
+- **Now**: when the line is passed, a war breaks out in Europe between
+  the two (everyone gets the news). 6 turns later the treaty: the loser
+  cedes about 2 in 5 of its colonies, the ones nearest the winner's
+  colonies, and always keeps one. Colonies under 3 colonists are
+  abandoned (the settlers sail home, the colony disappears). From the
+  others a tenth of the people sail home (Mischa chose 10%; the skilled
+  go first: officials, officers, merchants), and so do the garrison and
+  ships in port. Ceded colonies start at 0% rebels (their bells were for
+  the old crown, so the winner gets no free score and big ones may
+  suffer the tory penalty). The loser stays in the game, at peace with
+  the winner. Still once a game.
+- **Game option** "War of Spanish Succession" (on by default) switches
+  it off (`model.option.spanishSuccession`; old saves: on).
+- Code: `common/diplomacy/SuccessionRules` (pure), `server/model/
+  Succession` (the treaty), `ServerGame.csSuccession` (war, then
+  treaty; the pending war is saved on the game as `successionPending`).
+- **Tested:** `SuccessionTest` (the rules; the treaty: nearest colony
+  ceded, a small one abandoned, a tenth sails home, no rebels left,
+  garrison home, the loser alive and at peace; war first, treaty
+  later). All 749 tests green. **Not checked:** in a game.
+
 ## Ideas, not started
+
+### Nations' economies (Mischa, 2026-10-17, for later)
+- Nations specialise (one makes coats, another sugar), and the
+  computer players build fewer, bigger colonies that produce more.
+- Europe's prices react to every nation's sales: if Spain and France
+  sell tons of coats, the coat price drops for everyone.
+- First: Mischa starts a new game to see how the AI builds now.
 
 ### Unit groups, next steps
 - Choose which units on a tile join a group, instead of all of them.

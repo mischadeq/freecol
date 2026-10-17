@@ -4687,6 +4687,10 @@
              sail in? -->
         <booleanOption id="model.option.teleportREF"
                        defaultValue="true"/>
+        <!-- The War of Spanish Succession (mod): a war in Europe ends
+             with the weakest computer nation ceding some colonies. -->
+        <booleanOption id="model.option.spanishSuccession"
+                       defaultValue="true"/>
                        
         <!-- Use map defined starting positions (if available). -->
         <booleanOption id="model.option.mapDefinedStartingPositions" defaultValue="true" />
