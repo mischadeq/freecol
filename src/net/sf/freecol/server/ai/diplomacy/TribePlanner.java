@@ -279,14 +279,19 @@ public final class TribePlanner {
         ai.getMemories().fade(now());
     }
 
-    /** New colonies on our lands are remembered. */
+    /**
+     * Colonies on land taken from us are remembered: land they took
+     * without paying (or, from before the record, land inside one of
+     * our villages' own land). A colony that only shares a border with
+     * us is not (mod, step 8.3).
+     */
     private void landTaken() {
         final Set<String> near = new HashSet<>();
         final Map<String, String> owner = new java.util.HashMap<>();
         for (Player p : game().getLiveEuropeanPlayerList()) {
             for (Colony c : p.getColonyList()) {
-                for (IndianSettlement is : me().getIndianSettlementList()) {
-                    if (c.getTile().getDistanceTo(is.getTile()) <= LAND_RADIUS) {
+                for (net.sf.freecol.common.model.Tile t : c.getOwnedTiles()) {
+                    if (net.sf.freecol.server.model.LandClaims.taken(me(), t, p)) {
                         near.add(c.getId());
                         owner.put(c.getId(), p.getNationId());
                         break;

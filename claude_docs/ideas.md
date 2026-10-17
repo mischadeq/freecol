@@ -1764,6 +1764,24 @@ top, so the (modal) dialog was hidden but blocked every click.
   with gold back on a no, terms accepted and paid, terms that no longer
   fit). All 721 tests green. **Not checked:** the dialogs in the game.
 
+### Step 8.3a built: encroaching means taking their land (2026-10-17)
+- **Discussed with Mischa:** sharing a border is not encroaching (Cuper's
+  Cove next to the Arawak). The game's old rule angered a village at
+  every colony, used tile and armed unit within its land plus 2 tiles,
+  paid for or not; our "land taken" memory counted any colony within
+  2 tiles of a village.
+- **Now:** land got from a tribe is recorded (`LandClaims`, saved with
+  the tribe): bought (or given) or taken without paying. Each turn a
+  village is angered only by colonies and used tiles on land taken from
+  it, and by armed units inside the tribe's borders or right next to
+  the village. The tribe's "land taken" memory comes from taken land
+  too. Land got before the record counts as taken when it lies inside
+  a village's own land (its radius).
+- **Tested:** `LandClaimsTest` (recorded, saved and read back,
+  forgotten; old land inside a village counts, outside not; a border
+  colony angers nobody; a colony on taken land angers; claims made by
+  the game are recorded, stolen and free). All 726 tests green.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

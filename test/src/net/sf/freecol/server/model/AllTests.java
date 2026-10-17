@@ -34,6 +34,7 @@ public class AllTests {
         suite.addTestSuite(ServerPlayerTest.class);
         suite.addTestSuite(ServerUnitTest.class);
         suite.addTestSuite(KingsWarTest.class);
+        suite.addTestSuite(LandClaimsTest.class);
         //$JUnit-END$
         return suite;
     }

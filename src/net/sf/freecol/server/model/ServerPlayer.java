@@ -1918,12 +1918,17 @@ outer:  for (Effect effect : effects) {
                 }
 
                 // Look at the uses of tiles surrounding the settlement.
+                // Only land taken from us counts, and soldiers inside our
+                // borders or at the village's gate; a colony that just
+                // shares a border does not (mod, step 8.3).
                 int alarmRadius = is.getRadius() + ALARM_RADIUS;
                 for (Tile tile : is.getTile().getSurroundingTiles(alarmRadius)) {
                     Colony colony = tile.getColony();
                     if (tile.getFirstUnit() != null) { // Military units
                         Player enemy =  tile.getFirstUnit().getOwner();
-                        if (enemy.isEuropean()) {
+                        if (enemy.isEuropean()
+                            && (tile.getOwner() == this
+                                || tile.getDistanceTo(is.getTile()) <= 1)) {
                             Integer alarm = extra.get(enemy);
                             if (alarm == null) continue;
                             alarm += (int)sumDouble(tile.getUnits(),
@@ -1933,12 +1938,17 @@ outer:  for (Effect effect : effects) {
                         }
                     } else if (colony != null) { // Colonies
                         Player enemy = colony.getOwner();
-                        extra.put(enemy, extra.get(enemy)
-                                  + ALARM_TILE_IN_USE
-                                  + colony.getUnitCount());
+                        if (extra.containsKey(enemy)
+                            && LandClaims.taken(this, tile, enemy)) {
+                            extra.put(enemy, extra.get(enemy)
+                                      + ALARM_TILE_IN_USE
+                                      + colony.getUnitCount());
+                        }
                     } else if (tile.getOwningSettlement() != null) { // Control
                         Player enemy = tile.getOwningSettlement().getOwner();
-                        if (enemy != null && enemy.isEuropean()) {
+                        if (enemy != null && enemy.isEuropean()
+                            && extra.containsKey(enemy)
+                            && LandClaims.taken(this, tile, enemy)) {
                             extra.put(enemy, extra.get(enemy)
                                       + ALARM_TILE_IN_USE);
                         }
@@ -2206,6 +2216,10 @@ outer:  for (Effect effect : effects) {
                             ChangeSet cs) {
         final Player owner = tile.getOwner();
         Settlement ownerSettlement = tile.getOwningSettlement();
+        // Land got from a tribe: bought (or free) or taken (mod).
+        if (owner != null && owner.isIndian() && isEuropean()) {
+            LandClaims.record(owner, tile, this, price < 0);
+        }
         tile.cacheUnseen();//+til
         tile.changeOwnership(this, settlement);//-vis(?),-til
 
