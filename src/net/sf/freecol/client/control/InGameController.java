@@ -4266,6 +4266,72 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * Is a tile another European nation's colony a carrier could deliver
+     * a notice-board deal to (mod)?
+     *
+     * @param unit The {@code Unit}.
+     * @param tile The {@code Tile}.
+     * @return True if so.
+     */
+    public boolean isDeliveryTarget(Unit unit, Tile tile) {
+        if (unit == null || tile == null || !unit.canCarryGoods()) return false;
+        final Settlement s = tile.getSettlement();
+        return s instanceof Colony && s.getOwner() != unit.getOwner()
+            && s.getOwner().isEuropean();
+    }
+
+    /**
+     * The quickest path to a tile next to another nation's colony, for
+     * a carrier going there to deliver (mod: the map's goto can not end
+     * in a foreign colony).
+     *
+     * @param unit The carrier.
+     * @param tile The colony tile.
+     * @return The path, or null if none (or the unit is next to it).
+     */
+    public PathNode pathNextTo(Unit unit, Tile tile) {
+        if (!isDeliveryTarget(unit, tile) || unit.getTile() == null
+            || unit.getTile().isAdjacent(tile)) return null;
+        PathNode best = null;
+        for (Tile t : tile.getSurroundingTiles(1)) {
+            if (t.hasSettlement() || t.isLand() != !unit.isNaval()) continue;
+            final PathNode p = unit.findPath(t);
+            if (p == null) continue;
+            if (best == null || p.getTotalTurns() < best.getTotalTurns()
+                || (p.getTotalTurns() == best.getTotalTurns()
+                    && p.getLength() < best.getLength())) best = p;
+        }
+        return best;
+    }
+
+    /**
+     * The player sent a carrier (map goto) to another nation's colony
+     * (mod): go next to it, and if it gets there with moves left, hand
+     * over the notice-board deal taken there; else it waits there and the
+     * deal is done at the start of their turn.
+     *
+     * @param unit The carrier.
+     * @param tile The colony tile.
+     * @param path The path next to it, or null if already there.
+     * @return True if this was a delivery goto (handled here).
+     */
+    public boolean deliverTo(Unit unit, Tile tile, PathNode path) {
+        if (!isDeliveryTarget(unit, tile)) return false;
+        if (path != null) goToTile(unit, path);
+        if (unit.isDisposed() || unit.getTile() == null
+            || !unit.getTile().isAdjacent(tile)) return true;
+        if (unit.getMovesLeft() <= 0) return true; // waits next to it
+        final Direction d = unit.getTile().getDirection(tile);
+        if (d != null && !deliverAt(unit, d)) {
+            showInformationPanel(unit, StringTemplate
+                .template("move.noAccessTrade")
+                .addStringTemplate("%nation%",
+                    tile.getSettlement().getOwner().getNationLabel()));
+        }
+        return true;
+    }
+
+    /**
      * A ship or wagon train moves into another European nation's colony:
      * if the player took a notice-board deal there, hand it over now
      * (mod). Otherwise nothing happens here.

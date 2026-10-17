@@ -2126,6 +2126,17 @@ top, so the (modal) dialog was hidden but blocked every click.
 - Code: `DeliverMessage`, `InGameController.deliver` (server),
   `OfferPlanner.deliverNow` / `complete`, client
   `InGameController.deliverAt` (from the "no access" and trade moves).
+- **Fix the same night (Mischa: "still doesn't work"):** he moved the
+  ship with the mouse. The map's goto never finds a path *into* a
+  foreign colony, so dragging or clicking onto Unalashka did nothing
+  (the arrow-key move worked; checked by loading his save in a headless
+  client). Now dragging or clicking a ship or wagon train onto another
+  nation's colony goes to the nearest tile next to it (the path shows
+  while dragging); if it gets there with moves left the deal is handed
+  over at once, else it waits there and the deal is done on their turn.
+  With no deal there: the usual "no access" message.
+  (`SwingGUI.updateGotoTile` / `traverseGotoPath`,
+  `InGameController.isDeliveryTarget` / `pathNextTo` / `deliverTo`.)
 - **Tested:** `AIOffersTest.testDeliverNowByMovingIn` (nobody there,
   part, the rest, done and remembered, not at another colony),
   `testWagonDelivers`. All 753 tests green. **Not checked:** in the

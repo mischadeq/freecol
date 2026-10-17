@@ -590,6 +590,9 @@ public class SwingGUI extends GUI {
         setUnitPath(path);
     }
 
+    /** The tile the current goto points at (mod). */
+    private Tile gotoTarget = null;
+
     /**
      * Starts a goto operation.
      */
@@ -638,6 +641,13 @@ public class SwingGUI extends GUI {
                 || !tile.isExplored()
                 || !unit.getSimpleMoveType(tile).isLegal()) ? null
                 : unit.findPath(tile);
+            // Mod: a carrier dragged onto another nation's colony goes
+            // next to it (to deliver a notice-board deal).
+            this.gotoTarget = tile;
+            if (newPath == null && tile.isExplored()
+                && igc().isDeliveryTarget(unit, tile)) {
+                newPath = igc().pathNextTo(unit, tile);
+            }
             if (this.mapViewer.getMapViewerState().changeGotoPath(newPath)) {
                 repaint();
             }
@@ -1288,8 +1298,12 @@ public class SwingGUI extends GUI {
         
         setUnitPath(null);
 
+        final Tile target = this.gotoTarget;
+        this.gotoTarget = null;
         final PathNode path = stopGoto();
-        if (path == null) {
+        if (target != null && igc().isDeliveryTarget(unit, target)) {
+            igc().deliverTo(unit, target, path); // mod
+        } else if (path == null) {
             igc().clearGotoOrders(unit);
         } else {
             igc().goToTile(unit, path);
