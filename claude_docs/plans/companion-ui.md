@@ -16,9 +16,9 @@ Colopedia drawer.
 | 1 | Overview | Your own mix | Any widgets you pick (Widgets button) | as below | yes |
 | 2 | Colonies | Running your colonies | Colony cards with advice chips, empire goods | your colonies | yes (your own) |
 | 3 | Trade | Moving goods | Map, offers, supply network, route charts, Europe prices | your units, routes, market; offers you were shown | yes |
-| 4 | Nations | How you compare | Cards (figures, mood chips, wants, remembers, feels), ranking table, chart back to the start | the Foreign Affairs report, colonies you have seen, your own fights; moods from the computer nations (single player) | yes, see notes |
+| 4 | Nations | How you compare | Cards (figures, mood chips, wants, remembers, feels), tribe cards (settlements, braves, army), ranking table, chart back to the start | the Foreign Affairs report, the Native Affairs report, colonies you have seen, your own fights; moods from the computer nations (single player) | yes, see notes |
 | 5 | Diplomacy | Who stands where | You and each nation (stance, mood, trust, notes), wars and alliances between the others, coalitions, offers, the tribes, what is coming | public stances, the computer nations' moods and memories of you, the tribes you met | yes |
-| 6 | Military | Forces | Soldiers and frigates per nation (estimates), sea fights | Foreign Affairs strength, combat messages | yes |
+| 6 | Military | Forces | Soldiers and frigates per nation, tribes' armies (estimates), sea fights | Foreign Affairs strength, Native Affairs settlements and the rules, combat messages | yes |
 | 7 | Independence | The war with the King | Your army against the King's, rebels per colony, help after declaring | your units, the King's army (the game shows it), game options | yes |
 | 8 | History | The game so far | Map replay of land and colonies, land chart | turns recorded while the page runs, and your old autosaves | yes: only what you had seen then |
 
@@ -86,8 +86,9 @@ Checked every place the page reads another nation's data.
 
 ## Not yet implemented (shown greyed on the Diplomacy tab)
 
-| Feature | Step | Where it will show |
-| --- | --- | --- |
+Nothing any more. The last greyed box, "Trade agreements (step 4)", was
+removed on 2026-10-17: price agreements are built and show in the
+Offers list (Trade and Diplomacy tabs).
 
 Built in step 7 (2026-10-15), on the tribe cards of the Diplomacy tab:
 character, mood and trust meters, unrest meter (turns before they may

@@ -2195,8 +2195,9 @@
       : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
 
     renderGraph();
-    $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
+    // Everything once marked "coming later" is built (price agreements
+    // are in the Offers list), so the box stays empty.
+    $("dipSoon").innerHTML = "";
     $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +
       "Their plans stay secret: you see only what they make known, such as goods they want to trade or that they want peace.";
 
