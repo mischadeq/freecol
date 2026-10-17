@@ -1845,6 +1845,21 @@ top, so the (modal) dialog was hidden but blocked every click.
   checked:** in the game.
 - **Next:** 8.4 (trade in the same window).
 
+### Step 8.4 built: trade in the envoy window (2026-10-17)
+- **One window for diplomacy and trade**: after picking a nation in
+  Send an Envoy, the list also has "Trade: a price agreement" (straight
+  to the goods and price for that nation) and the notice board ("goods
+  I want", "goods I sell", seen by all nations).
+- **Trade needs no envoy**: a nation whose envoy is still waiting can be
+  picked for trade (only the trade lines show); a tribe that is waiting
+  stays greyed out.
+- The old Post a Trade Offer menu item still works the same.
+- **Tested:** the window is client wiring only, around the existing
+  agreement and notice-board code (their tests unchanged and green).
+  All 744 tests green. **Not checked:** in the game.
+- **Step 8 is done.** Not built from the plan: a button by each nation
+  in Foreign Affairs; goods (not just gold) in envoy deals.
+
 ## Ideas, not started
 
 ### Unit groups, next steps

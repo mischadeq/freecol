@@ -3804,18 +3804,40 @@ public final class InGameController extends FreeColClientHolder {
      * @param gui The {@code GUI}.
      */
     private void proposeAgreement(Player player, GUI gui) {
+        proposeAgreement(player, gui, null);
+    }
+
+    /**
+     * Can we propose a price agreement to a nation?
+     *
+     * @param player Our {@code Player}.
+     * @param p The other nation.
+     * @return True if so.
+     */
+    private static boolean agreementPartner(Player player, Player p) {
+        return p != player && !p.isREF() && p.isAI() && p.isEuropean()
+            && player.hasContacted(p) && player.getStance(p) != Stance.WAR;
+    }
+
+    /**
+     * Propose a price agreement, to a nation already chosen (from the
+     * envoy window, 8.4) or chosen here.
+     *
+     * @param player Our {@code Player}.
+     * @param gui The {@code GUI}.
+     * @param preset The nation, or null to choose.
+     */
+    private void proposeAgreement(Player player, GUI gui, Player preset) {
         java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
         for (Player p : getGame().getLiveEuropeanPlayerList()) {
-            if (p == player || p.isREF() || !p.isAI()
-                || !player.hasContacted(p)
-                || player.getStance(p) == Stance.WAR) continue;
+            if (!agreementPartner(player, p)) continue;
             nations.add(new ChoiceItem<>(Messages.message(p.getNationLabel()), p));
         }
-        if (nations.isEmpty()) {
+        if (preset == null && nations.isEmpty()) {
             showInformationPanel(null, StringTemplate.template("offer.post.noNation"));
             return;
         }
-        final Player to = gui.modalChoiceDialog(
+        final Player to = (preset != null) ? preset : gui.modalChoiceDialog(
             StringTemplate.template("offer.post.nation"), "cancel", nations);
         if (to == null) return;
         final net.sf.freecol.common.model.Market market = player.getMarket();
@@ -3862,6 +3884,16 @@ public final class InGameController extends FreeColClientHolder {
      * Called from PostOfferAction.
      */
     public void postOffer() {
+        postOffer(null);
+    }
+
+    /**
+     * Post a trade offer on the notice board, of a kind already chosen
+     * (from the envoy window, 8.4) or chosen here.
+     *
+     * @param preset {@code WANT}, {@code SELL}, or null to choose.
+     */
+    private void postOffer(net.sf.freecol.common.diplomacy.Offer.Kind preset) {
         final Player player = getMyPlayer();
         if (!requireOurTurn() || player == null) return;
         final GUI gui = getGUI();
@@ -3881,7 +3913,8 @@ public final class InGameController extends FreeColClientHolder {
             net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
         kinds.add(new ChoiceItem<>(Messages.message("offer.post.agreement"),
             net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT));
-        final net.sf.freecol.common.diplomacy.Offer.Kind kind = gui
+        final net.sf.freecol.common.diplomacy.Offer.Kind kind
+            = (preset != null) ? preset : gui
             .modalChoiceDialog(StringTemplate.template("offer.post.kind"),
                                "cancel", kinds);
         if (kind == null) return;
@@ -4303,7 +4336,9 @@ public final class InGameController extends FreeColClientHolder {
                 .addStringTemplate("%stance%", StringTemplate.key(
                     "model." + player.getStance(p).getKey() + ".name"))
                 .addAmount("%turns%", st[0]));
-            nations.add(new ChoiceItem<>(text, p, st[0] <= 0));
+            // Waiting nations stay selectable: trade needs no envoy (8.4).
+            nations.add(new ChoiceItem<>(text, p,
+                st[0] <= 0 || agreementPartner(player, p)));
         }
         if (nations.isEmpty()) {
             showInformationPanel(null, StringTemplate.template("envoy.none"));
@@ -4313,6 +4348,8 @@ public final class InGameController extends FreeColClientHolder {
             StringTemplate.template("envoy.choose"), "cancel", nations);
         if (to == null) return;
         final Stance stance = player.getStance(to);
+        final int[] toStatus = status.get(to.getNationId());
+        final boolean ready = toStatus == null || toStatus[0] <= 0;
         java.util.List<ChoiceItem<net.sf.freecol.common.diplomacy.Offer.Kind>> kinds
             = new java.util.ArrayList<>();
         if (stance == Stance.WAR || stance == Stance.CEASE_FIRE) {
@@ -4343,18 +4380,47 @@ public final class InGameController extends FreeColClientHolder {
             kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_WAR"),
                 net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR));
         }
-        final int[] toStatus = status.get(to.getNationId());
         if (!to.isIndian() && toStatus != null && toStatus[2] == 1) {
             kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_LEAVE"),
                 net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_LEAVE));
         }
         kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_GIFT"),
             net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT));
+        if (!ready) { // only trade while the envoy waits
+            kinds.clear();
+        }
+        // Trade (8.4): a price agreement with this nation; the notice
+        // board (seen by all nations).  Neither needs an envoy.
+        if (agreementPartner(player, to)) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.AGREEMENT"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT));
+        }
+        if (!to.isIndian()) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.WANT"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.WANT));
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.SELL"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
+        }
+        if (kinds.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("envoy.error.wait")
+                .addStringTemplate("%nation%", to.getNationLabel()));
+            return;
+        }
         final net.sf.freecol.common.diplomacy.Offer.Kind kind
             = gui.modalChoiceDialog(StringTemplate.template("envoy.kind")
                 .addStringTemplate("%nation%", to.getNationLabel()),
                 "cancel", kinds);
         if (kind == null) return;
+        switch (kind) {
+        case AGREEMENT:
+            proposeAgreement(player, gui, to);
+            return;
+        case WANT: case SELL:
+            postOffer(kind);
+            return;
+        default:
+            break;
+        }
         Player against = null;
         if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR) {
             against = (enemies.size() == 1) ? enemies.get(0).getObject()
