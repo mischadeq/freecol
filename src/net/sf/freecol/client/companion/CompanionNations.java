@@ -70,6 +70,8 @@ final class CompanionNations {
 
     /** The turn the nation summaries were last refreshed. */
     private static int refreshedTurn = -1;
+    /** ... and the tribes' (mod). */
+    private static int tribesRefreshedTurn = -1;
 
 
     private CompanionNations() {}
@@ -509,6 +511,23 @@ final class CompanionNations {
             j.end();
         }
         j.endArr();
+        // The tribes next to them (mod): settlements from the Native
+        // Affairs report, asked afresh once a turn.
+        final int[] ours = mine(rows, me);
+        final boolean refreshTribes = turn != tribesRefreshedTurn;
+        tribesRefreshedTurn = turn;
+        CompanionTribeStrength.put(j, game, me,
+            (ours == null) ? 0 : ours[mi("military")], p -> {
+                if (fcc == null) return -1;
+                if (refreshTribes) me.clearNationSummary(p);
+                try {
+                    final NationSummary ns
+                        = fcc.getInGameController().nationSummary(p);
+                    return (ns == null) ? -1 : ns.getNumberOfSettlements();
+                } catch (RuntimeException re) {
+                    return -1;
+                }
+            });
         j.put("soldierPower", Math.round(NationEstimate.soldierPower(game.getSpecification())))
             .put("frigatePower", Math.round(NationEstimate.frigatePower(game.getSpecification())))
             .put("perColonist", Math.round(NationEstimate.valuePerColonist(me)));

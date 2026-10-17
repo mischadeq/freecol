@@ -75,6 +75,12 @@ Checked every place the page reads another nation's data.
 - **Coalition buy-out price:** a member's asking price to leave is
   shown only on coalitions against you: the member lets the target
   know its price, nobody else.
+- **Tribes' strength (2026-10-17):** the Nations cards and the
+  Military army bars show the tribes you met. Settlements: the number
+  the game's Native Affairs report shows. Braves: estimated from the
+  rules (each settlement at the middle of its sizes, the capital
+  bigger). Braves in sight count as they are (armed, mounted); braves
+  inside settlements are never counted from hidden data.
 - **Removed:** a developer file name ("claude_docs/tribes.md") in the
   Relations drawer.
 

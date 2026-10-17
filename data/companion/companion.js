@@ -1868,9 +1868,10 @@
     soldier: ["soldier", "soldiers"], dragoon: ["dragoon", "dragoons"],
     artillery: ["artillery", "artillery"], warship: ["warship", "warships"],
     merchant: ["merchant ship", "merchant ships"], wagon: ["wagon train", "wagon trains"],
-    colonist: ["colonist outside", "colonists outside"], other: ["other", "others"]
+    colonist: ["colonist outside", "colonists outside"], other: ["other", "others"],
+    brave: ["brave", "braves"], armed: ["armed brave", "armed braves"], mounted: ["mounted brave", "mounted braves"]
   };
-  const KIND_ORDER = ["soldier", "dragoon", "artillery", "warship", "merchant", "wagon", "colonist", "other"];
+  const KIND_ORDER = ["soldier", "dragoon", "artillery", "armed", "mounted", "brave", "warship", "merchant", "wagon", "colonist", "other"];
 
   function kindList(units, only) {
     const parts = [];
@@ -2012,8 +2013,9 @@
 
   function renderNatCards() {
     const N = nations.nations.slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
+    const T = (nations.tribes || []).slice().sort((a, b) => b.soldiers - a.soldiers);
     const me = N.find((n) => n.me);
-    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0), ...T.map((t) => t.soldiers || 0));
     const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
     const maxOut = Math.max(1, ...N.map((n) => n.output || 0));
     const per = nations.perColonist, sp = nations.soldierPower, fp = nations.frigatePower;
@@ -2087,8 +2089,33 @@
         moodChips(n) + verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
-    }).join("");
+    }).join("") + T.map((t) => tribeCard(t, me, maxSol, sp)).join("");
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
+  }
+
+  // A tribe's card next to the nations: settlements, braves, army.
+  function tribeCard(t, me, maxSol, sp) {
+    const sz = t.sizes || [];
+    const sizes = sz.length >= 2 ? " (the rules give a settlement " + sz[0] + "–" + sz[1] + " braves" +
+      (sz.length >= 4 ? ", the capital " + sz[2] + "–" + sz[3] : "") + ")" : "";
+    const rows = [
+      ["Settlements", "<b>" + t.settlements + "</b> · " + t.known + " seen on the map",
+        "How many settlements they have, as the game's Native Affairs report shows; and how many of them you have seen."],
+      ["Braves", "<b>≈ " + num(t.braves) + "</b> braves",
+        "Estimate: their settlements at the middle of their sizes" + sizes + ". Braves you see now: " + t.seen + "."],
+      ["Army", "<b>≈ " + tenth(t.soldiers) + "</b> soldiers " + bar(t.soldiers, maxSol, t.color),
+        "Attack strength as soldiers' worth (a soldier attacks with " + sp + ", a plain brave with 1.5). Armed and mounted braves you see count as they are, the others as plain braves. Your army: " +
+        (me ? tenth(me.soldiers) : "?") + " soldiers."]
+    ];
+    const seen = kindList(t.units);
+    if (seen) rows.push(["Seen now", esc(seen), "Their braves on the map that you can see right now (not those inside their settlements)."]);
+    const w = t.verdict;
+    const chip = w ? '<div class="nverd"><span class="tag ' + VERDICT_CLASS[w] + '" title="Their army against yours: ≈ ' + tenth(t.soldiers) +
+      " vs your " + (me ? tenth(me.soldiers) : "?") + ' soldiers">Army: ' + VERDICT_WORDS.military[w] + "</span></div>" : "";
+    return '<div class="ncard tribe"><div class="nhead"><i class="sw" style="background:' + esc(t.color) + '"></i>' +
+      "<b>" + esc(t.name) + '</b> <span class="tag m">tribe</span>' +
+      (t.stance && t.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[t.stance] || "m") + '">' + esc(cap(t.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
+      chip + '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl></div>";
   }
 
   // ---------------------------------------------------------------- diplomacy
@@ -2633,11 +2660,13 @@
     const me = N.find((n) => n.me);
     if (!me) return;
     const sp = nations.soldierPower;
-    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const T = nations.tribes || [];
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0), ...T.map((t) => t.soldiers || 0));
     const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
-    const sorted = (key) => N.slice().filter((n) => n[key] != null && n[key] >= 0).sort((a, b) => b[key] - a[key]);
+    const sorted = (key) => (key === "soldiers" ? N.concat(T) : N).filter((n) => n[key] != null && n[key] >= 0).sort((a, b) => b[key] - a[key]);
     const rows = (key, unit) => sorted(key).map((n) =>
-      '<div class="mrow' + (n.me ? " me" : "") + '"><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
+      '<div class="mrow' + (n.me ? " me" : "") + (n.tribe ? " tribe" : "") + '"' + (n.tribe ? ' title="A tribe: ≈ ' + num(n.braves) + " braves in " + n.settlements + ' settlements"' : "") +
+      '><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
       bar(n[key], key === "soldiers" ? maxSol : maxFri, n.color) + '<span class="mval">' + (n.me ? "" : "≈ ") + tenth(n[key]) + " " + unit + "</span></div>").join("");
     const fights = N.filter((n) => n.raids).map((n) => {
       const r = n.raids;
@@ -2653,9 +2682,9 @@
           (me.units && me.units.merchant ? " (and " + kindList(me.units, ["merchant"]) + ")" : "") + "</div>" +
         '<div class="mline m" title="50 muskets arm one soldier; 50 horses more make a dragoon">In store: ' + gi("model.goods.muskets") + " " + num(me.muskets || 0) +
           " muskets = " + extraSoldiers + " more soldiers · " + gi("model.goods.horses") + " " + num(me.horses || 0) + " horses</div>" +
-        '<div class="mline m">Strength counts only armed units: a soldier attacks with ' + sp + ", a dragoon with 4.5, artillery with 10.5, a frigate with " + nations.frigatePower + ".</div>" +
+        '<div class="mline m">Strength counts only armed units: a soldier attacks with ' + sp + ", a dragoon with 4.5, artillery with 10.5, a frigate with " + nations.frigatePower + ", a brave with 1.5 (tribes: estimated from their settlements).</div>" +
       "</div>" +
-      '<div class="mbox"><h3>Army <span class="sub">in soldiers</span></h3>' + rows("soldiers", "") + "</div>" +
+      '<div class="mbox"><h3>Army <span class="sub">in soldiers · tribes in italics</span></h3>' + rows("soldiers", "") + "</div>" +
       '<div class="mbox"><h3>Navy <span class="sub">in frigates</span></h3>' + rows("frigates", "") + "</div>" +
       '<div class="mbox"><h3>Sea fights <span class="sub">last 10 turns</span></h3>' + (fights || '<div class="m">None recorded yet (counted from now on).</div>') + "</div>" +
       "</div>";

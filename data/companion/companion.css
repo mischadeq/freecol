@@ -526,3 +526,7 @@ input[type=range], input[type=checkbox] { accent-color: var(--gold); }
 .hb { font-weight: 700; color: #fff7ea; }
 .hgood { color: var(--ok); font-weight: 600; }
 .hbad { color: var(--alarm); font-weight: 600; }
+
+/* Tribes next to the nations (mod) */
+.ncard.tribe { border-style: dashed; }
+.mrow.tribe .mname { font-style: italic; }

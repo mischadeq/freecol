@@ -30,6 +30,7 @@ public class AllTests {
         suite.addTestSuite(HighlightTest.class);
         suite.addTestSuite(IndependenceTest.class);
         suite.addTestSuite(NationEstimateTest.class);
+        suite.addTestSuite(TribeStrengthTest.class);
         suite.addTestSuite(MoodsTest.class);
         suite.addTestSuite(GraphTest.class);
         suite.addTestSuite(ArchiveTest.class);

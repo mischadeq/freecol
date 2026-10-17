@@ -1863,6 +1863,26 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Step 8 is done.** Not built from the plan: a button by each nation
   in Foreign Affairs; goods (not just gold) in envoy deals.
 
+### Tribes on the Nations and Military tabs (2026-10-17)
+- **Tribe cards next to the nations** (Nations tab, dashed border, a
+  "tribe" tag): settlements (and how many you have seen), about how
+  many braves, their army in soldiers' worth with the same bar as the
+  nations, an Army chip (weaker / about even / stronger than you), the
+  stance, and their braves in sight (plain, armed, mounted, dragoons).
+- **Military tab**: the tribes join the Army bars (in italics), so you
+  see the Iroquois next to France in one list.
+- **Honest**: the settlement count is what the game's Native Affairs
+  report shows; braves per settlement are the middle of the sizes the
+  rules give (the capital bigger); braves in sight count as they are
+  (an armed brave hits harder), the rest as plain braves (1.5, a
+  soldier 3). Only tribes you met (`CompanionTribeStrength`,
+  `Estimates.tribeBraves` / `tribeStrength`).
+- **Tested:** `NationEstimateTest.testTribeEstimates`,
+  `TribeStrengthTest` (settlements, the estimate, a brave in sight,
+  unmet tribes left out). All 746 tests green. **Not checked:** on the
+  live page. **Not done:** a history chart for the tribes (the nations'
+  chart reads old saves; tribes start from now if wanted).
+
 ## Ideas, not started
 
 ### Unit groups, next steps
