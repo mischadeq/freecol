@@ -40,6 +40,15 @@ import net.sf.freecol.util.test.FreeColTestUtils;
  */
 public class SuccessionTest extends FreeColTestCase {
 
+    /** A random source with fixed rolls. */
+    private static final class Fixed extends java.util.Random {
+        private final double[] v;
+        private int i = 0;
+        Fixed(double... v) { this.v = v; }
+        @Override
+        public double nextDouble() { return v[i++ % v.length]; }
+    }
+
     private static final TileType plains = spec().getTileType("model.tile.plains");
 
     private ServerGame game;
@@ -75,11 +84,27 @@ public class SuccessionTest extends FreeColTestCase {
         assertEquals(3, SuccessionRules.ceded(7));
         assertTrue(SuccessionRules.abandoned(2));
         assertFalse(SuccessionRules.abandoned(3));
-        assertEquals(0, SuccessionRules.leaving(4));
-        assertEquals(1, SuccessionRules.leaving(6));
-        assertEquals(1, SuccessionRules.leaving(12));
-        assertEquals(2, SuccessionRules.leaving(16));
-        assertEquals(2, SuccessionRules.leaving(2));
+        // Each colonist leaves with a one in ten chance; one stays.
+        final java.util.Random r = new java.util.Random(7);
+        int sum = 0, max = 0, zero = 0;
+        for (int i = 0; i < 2000; i++) {
+            final int n = SuccessionRules.leaving(4, r);
+            sum += n;
+            max = Math.max(max, n);
+            if (n == 0) zero++;
+        }
+        assertEquals("about 0.4 of 4 on average", 0.4, sum / 2000.0, 0.06);
+        assertTrue("sometimes several leave", max >= 2);
+        assertTrue("never all", max <= 3);
+        assertTrue("often nobody", zero > 1000);
+        assertEquals(3, SuccessionRules.leaving(4, new Fixed(0.0)));
+        assertEquals(2, SuccessionRules.leaving(2, r)); // abandoned
+        // The stronger more likely wins, never sure.
+        assertEquals(0.5, SuccessionRules.winChance(10, 10), 0.001);
+        assertEquals(0.5, SuccessionRules.winChance(0, 0), 0.001);
+        assertTrue(SuccessionRules.winChance(30, 10) > 0.7);
+        assertTrue(SuccessionRules.winChance(30, 10) < 1.0);
+        assertTrue(SuccessionRules.winChance(0, 100) > 0);
         String[] f = SuccessionRules.parse(SuccessionRules.pending(
             "model.nation.french", "model.nation.english", 12));
         assertEquals("model.nation.french", f[0]);
@@ -101,14 +126,16 @@ public class SuccessionTest extends FreeColTestCase {
         final int inEurope = french.getEurope().getUnitCount();
         final String nearName = near.getName(), smallName = small.getName();
 
-        final Succession s = new Succession(french, english);
+        // The first colonist rolls under one in ten, the others not.
+        final Succession s = new Succession(french, english,
+                                            new Fixed(0.05, 0.5, 0.5, 0.5, 0.5, 0.5));
         s.csTreaty(new ChangeSet(), new LogBuilder(0));
 
         assertEquals("the nearest one ceded", 1, s.ceded.size());
         assertEquals(nearName, s.ceded.get(0));
         assertEquals("the small one abandoned", smallName, s.abandoned.get(0));
         assertEquals(english, near.getOwner());
-        assertEquals("a tenth sails home", 5, near.getUnitCount());
+        assertEquals("one sails home", 5, near.getUnitCount());
         assertEquals("their bells were for France", 0, near.getLiberty());
         assertEquals(3, french.getColonyList().size());
         assertFalse("France stays in the game", french.isDead());
@@ -119,9 +146,10 @@ public class SuccessionTest extends FreeColTestCase {
         assertEquals(Stance.PEACE, french.getStance(english));
     }
 
-    /** Announced first; the treaty comes later. */
+    /** Announced first; the treaty comes later, either may win. */
     public void testWarThenTreaty() {
         setUpGame();
+        colony(english, 4, 16, 4);
         colony(french, 8, 10, 6);
         colony(french, 26, 10, 4);
         final int now = game.getTurn().getNumber();
@@ -129,12 +157,15 @@ public class SuccessionTest extends FreeColTestCase {
             french.getNationId(), english.getNationId(), now + 2));
         ServerTestHelper.newTurn();
         assertEquals("not yet", 2, french.getColonyList().size());
+        assertEquals(2, english.getColonyList().size());
         assertFalse(game.getSpanishSuccession());
         game.setTurn(new net.sf.freecol.common.model.Turn(now + 2));
         ServerTestHelper.newTurn();
         assertTrue(game.getSpanishSuccession());
         assertNull(game.getSuccessionPending());
-        assertEquals(1, french.getColonyList().size());
-        assertEquals(2, english.getColonyList().size());
+        final int f = french.getColonyList().size();
+        final int e = english.getColonyList().size();
+        assertEquals("one colony changed hands", 4, f + e);
+        assertTrue(f + " / " + e, (f == 1 && e == 3) || (f == 3 && e == 1));
     }
 }

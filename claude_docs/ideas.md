@@ -153,7 +153,8 @@ Short list of what has not been seen working yet, newest first.
   a price only when trusted; tribes put survival first; an abandoned
   colony is disbanded; a shared border is not encroaching.
 - **Spanish Succession:** partial cession, small colonies abandoned,
-  10% of the bigger ones leave.
+  each colonist of the bigger ones leaves with a 1 in 10 chance; two
+  computer nations picked at random, the stronger more likely wins.
 
 ## Ideas, not started
 
@@ -2164,3 +2165,21 @@ top, so the (modal) dialog was hidden but blocked every click.
   `AIOffersTest.testOpenNoticeTakenByMovingIn` (no goods: stays open;
   with goods: taken and done). All 755 tests green. **Not checked:** in
   the game.
+
+### War of Spanish Succession: random pair, chance of leaving (2026-10-18)
+- **Why (Mischa, after the first one in his game: Russia ceded 2
+  colonies of 4 to Denmark, nobody left):** "10% should be a
+  distribution, not a hard number: 0 or 3 out of 4 can happen"; "why
+  does the weakest always fight the strongest? More fun random." Not
+  wanted: the nearest nation as winner.
+- **Now:** when the line is passed, two computer nations (with
+  colonies) are picked at random and go to war in Europe; the news
+  names both, not who will lose. At the treaty, 6 turns later, the war
+  is decided: the stronger (army and navy) more likely wins, never sure
+  (strength + 1 over both + 2: equal 50%, three times stronger about
+  75%). Each colonist of a ceded colony sails home with a 1 in 10
+  chance (the most skilled go first), at least one stays.
+- **Tested:** `SuccessionTest` (leaving over 2000 rolls: about 0.4 of 4,
+  sometimes 2 or 3, never all, often nobody; win chances; the treaty
+  with fixed rolls; war then treaty with either side winning). All 755
+  tests green.

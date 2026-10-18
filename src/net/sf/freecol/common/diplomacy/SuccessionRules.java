@@ -23,13 +23,14 @@ package net.sf.freecol.common.diplomacy;
 /**
  * The War of Spanish Succession, closer to Utrecht (mod).  The game's
  * old event gave every colony of the weakest computer nation to the
- * strongest at once.  Now a war in Europe is announced first; a few
- * turns later the loser cedes only its colonies nearest the winner
- * (as France ceded Newfoundland and Acadia but kept Canada); small
- * settlements are abandoned (as Plaisance was), and a tenth of the
- * people of the bigger ones sail home rather than live under the new
- * flag (officials, officers, merchants: the skilled first).  The loser
- * stays in the game.
+ * strongest at once.  Now two computer nations picked at random go to
+ * war in Europe (announced first); a few turns later the war is
+ * decided, the stronger more likely to win but never sure, and the
+ * loser cedes only its colonies nearest the winner (as France ceded
+ * Newfoundland and Acadia but kept Canada); small settlements are
+ * abandoned (as Plaisance was), and each colonist of the bigger ones
+ * sails home with a one in ten chance rather than live under the new
+ * flag (the skilled first).  The loser stays in the game.
  *
  * Pure rules, no game objects.
  */
@@ -71,14 +72,34 @@ public final class SuccessionRules {
     }
 
     /**
-     * How many colonists of a ceded colony sail home.
+     * How many colonists of a ceded colony sail home: each one with a
+     * {@link #LEAVING} chance (Mischa: a distribution, not a fixed
+     * number, so 0 or 3 of 4 can happen), at least one stays.
      *
      * @param size Its colonists.
+     * @param random A random source.
      * @return The number leaving (always fewer than the colony has).
      */
-    public static int leaving(int size) {
+    public static int leaving(int size, java.util.Random random) {
         if (abandoned(size)) return size;
-        return Math.min(size - 1, (int)Math.round(size * LEAVING));
+        int n = 0;
+        for (int i = 0; i < size; i++) {
+            if (random.nextDouble() < LEAVING) n++;
+        }
+        return Math.min(size - 1, n);
+    }
+
+    /**
+     * The chance the first of two nations wins the war: by strength,
+     * the stronger more likely, never sure.
+     *
+     * @param first The first nation's strength (its army and navy).
+     * @param second The second's.
+     * @return The chance, 0..1.
+     */
+    public static double winChance(double first, double second) {
+        return (Math.max(0, first) + 1)
+            / (Math.max(0, first) + Math.max(0, second) + 2);
     }
 
     /**

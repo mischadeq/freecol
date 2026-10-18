@@ -51,15 +51,18 @@ public final class Succession {
     private static final Logger logger = Logger.getLogger(Succession.class.getName());
 
     private final ServerPlayer loser, winner;
+    private final java.util.Random random;
 
     /** What happened, for the message and the tests. */
     final List<String> ceded = new ArrayList<>(), abandoned = new ArrayList<>();
     int left = 0;
 
 
-    public Succession(ServerPlayer loser, ServerPlayer winner) {
+    public Succession(ServerPlayer loser, ServerPlayer winner,
+                      java.util.Random random) {
         this.loser = loser;
         this.winner = winner;
+        this.random = random;
     }
 
     /** Tiles from a colony to the winner's nearest colony. */
@@ -118,7 +121,7 @@ public final class Succession {
             // The skilled leave first: officials, officers, merchants.
             people.sort(Comparator.comparingInt(Unit::getSkillLevel)
                         .reversed().thenComparing(Unit::getId));
-            final int n = SuccessionRules.leaving(size);
+            final int n = SuccessionRules.leaving(size, random);
             for (int i = 0; i < n; i++) {
                 if (sailHome(people.get(i))) left++;
             }
