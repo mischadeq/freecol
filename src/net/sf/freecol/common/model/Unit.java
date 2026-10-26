@@ -3655,7 +3655,8 @@ public class Unit extends GoodsLocation
      * @return The amount of goods that could be loaded onto this unit.
      */
     public int getLoadableAmount(GoodsType type) {
-        if (!canCarryGoods()) return 0;
+        // A wagon train on a ship stays empty (mod).
+        if (!canCarryGoods() || isOnCarrier()) return 0;
         int result = getSpaceLeft() * GoodsContainer.CARGO_SIZE;
         int count = getGoodsCount(type) % GoodsContainer.CARGO_SIZE;
         if (count != 0) result += GoodsContainer.CARGO_SIZE - count;
@@ -4402,7 +4403,24 @@ public class Unit extends GoodsLocation
     public int getSpaceTaken() {
         // We do not have to consider what this unit is carrying
         // because carriers can not be put onto carriers.  Yet.
-        return this.type.getSpaceTaken();
+        // Mod: an empty wagon train of a player boards a ship.
+        return (isShippableWagon()) ? SHIPPED_WAGON_SPACE
+            : this.type.getSpaceTaken();
+    }
+
+    /** The space an empty wagon train takes on a ship (mod). */
+    public static final int SHIPPED_WAGON_SPACE = 1;
+
+    /**
+     * Is this an empty wagon train of a player (not a computer player),
+     * which a ship can carry (mod)?  With goods it is too big.
+     *
+     * @return True if so.
+     */
+    public boolean isShippableWagon() {
+        return !isNaval() && !isPerson() && canCarryGoods()
+            && !hasGoodsCargo() && getUnitCount() == 0
+            && getOwner() != null && !getOwner().isAI();
     }
 
     /**

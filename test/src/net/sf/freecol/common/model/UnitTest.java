@@ -98,13 +98,18 @@ public class UnitTest extends FreeColTestCase {
         assertTrue(galleon.canAdd(colonist));
         assertTrue(galleon.canAdd(treasureTrain));
 
+        // Mod: an empty wagon train of a player boards a ship, a
+        // computer player's does not.
+        assertTrue(galleon.canAdd(wagonTrain));
+        dutch.setAI(true);
         assertFalse(galleon.canAdd(wagonTrain));
+        dutch.setAI(false);
         assertFalse(galleon.canAdd(caravel));
         assertFalse(galleon.canAdd(galleon));
 
         assertTrue(caravel.canAdd(colonist));
 
-        assertFalse(caravel.canAdd(wagonTrain));
+        assertTrue(caravel.canAdd(wagonTrain)); // mod, see above
         assertFalse(caravel.canAdd(treasureTrain));
         assertFalse(caravel.canAdd(caravel));
         assertFalse(caravel.canAdd(galleon));

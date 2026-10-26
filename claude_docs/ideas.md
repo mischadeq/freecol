@@ -54,6 +54,7 @@ Aim: release the mod once Mischa is content with it.
 | A new game starts with the game and map options chosen last time | new game screen | to check |
 | Notice-board deals: move a ship or wagon train into their colony to deliver or fetch at once | map | to check |
 | Indian converts as soldiers, dragoons, scouts, pioneers; own pictures | colony, Europe | to check |
+| Empty wagon trains on ships (1 slot each: a caravel takes 2), yours only | map, colony | to check |
 
 ### Companion page (http://localhost:8765, View > Open Companion Page)
 
@@ -94,6 +95,10 @@ Aim: release the mod once Mischa is content with it.
 ## To check in the game
 
 Short list of what has not been seen working yet, newest first.
+
+- **Wagons on ships:** move an empty wagon train onto your ship (at sea
+  next to it, or in a colony); sail; move it ashore elsewhere. A loaded
+  wagon does not fit; a wagon aboard can not be loaded.
 
 - **Armed converts:** give a convert muskets and horses (in a colony):
   the new pictures, dragoons beating colonist dragoons, musket-only
@@ -2354,3 +2359,18 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   ratios exactly 0.75, 1.25 and 2 against colonists). All 790 tests
   green. **Not checked:** in the game (pictures on the map, the AI
   arming its converts).
+
+### Empty wagon trains on ships (2026-10-26)
+- **Why (Mischa):** carry empty wagon trains by ship to another part of
+  the coast; a caravel takes two. Player only.
+- **Now:** an empty wagon train of a player takes one cargo slot (a
+  caravel 2, a merchantman 4, a galleon 6). With goods it takes 12, as
+  before, so it can not board; aboard, it can not be loaded. Computer
+  players' wagons stay ashore (their transport planning is not built
+  for it). `Unit.getSpaceTaken` / `isShippableWagon`,
+  `Unit.getLoadableAmount`.
+- **Tested:** `WagonOnShipTest` (two on a caravel, not three; six on a
+  galleon; the embark move; loaded does not fit; aboard stays empty;
+  computer wagons stay ashore); the upstream `UnitTest.testCanAdd`
+  now expects the new rule. All 793 tests green. **Not checked:** in
+  the game (moving on and off, the Europe dock, the colony screen).
