@@ -276,6 +276,35 @@ public class AIOffersTest extends FreeColTestCase {
         assertEquals(700, english.getGold());
     }
 
+    /** Fetching a deal we took without the gold or the room: the
+        answer says which (mod; it used to say "no deal"). */
+    public void testFetchSaysWhatIsMissing() {
+        setUpGame();
+        havana.addGoods(muskets, 200);
+        english.modifyGold(17 - english.getGold());
+        final int now = game.getTurn().getNumber();
+        Offer o = new Offer("offer:sell", Offer.Kind.SELL, DUTCH,
+            muskets.getId(), 100, 300, havana.getId(), havana.getName(),
+            now, 8);
+        o.audience.add(ENGLISH);
+        ai.getOffers().add(o);
+        OfferPlanner planner = new OfferPlanner(ai);
+        o.state = Offer.State.TAKEN;
+        o.takenBy = ENGLISH;
+        o.takenTurn = now;
+        Unit ship = shipNextToHavana(0);
+        assertEquals("nogold:300", planner.deliverNow(english, havana,
+                                                      new ChangeSet()));
+        assertEquals(Offer.State.TAKEN, o.state);
+        english.modifyGold(1000);
+        ship.addGoods(spec().getGoodsType("model.goods.furs"), 100);
+        ship.addGoods(spec().getGoodsType("model.goods.sugar"), 100);
+        ship.addGoods(spec().getGoodsType("model.goods.cotton"), 100);
+        ship.addGoods(spec().getGoodsType("model.goods.tobacco"), 100);
+        assertEquals("noroom:100:" + muskets.getId(),
+                     planner.deliverNow(english, havana, new ChangeSet()));
+    }
+
     public void testOffersAreSavedAndToldOnce() throws Exception {
         setUpGame();
         Offer o = want(8);

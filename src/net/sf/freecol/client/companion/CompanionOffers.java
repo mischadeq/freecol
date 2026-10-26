@@ -233,6 +233,23 @@ final class CompanionOffers {
                     .addStringTemplate("%nation%", from.getNationLabel())
                     .addAmount("%gold%", o.amount)) });
         }
+        // A deal we took to fetch goods, but we lack the gold (mod).
+        for (Offer o : known(fcc, me)) {
+            if (o.kind != Offer.Kind.SELL || o.state != Offer.State.TAKEN
+                || !me.getNationId().equals(o.takenBy)) continue;
+            final int price = o.priceAt(now);
+            if (price < 0 || me.getGold() >= price) continue;
+            final Player from = game.getPlayerByNationId(o.from);
+            if (from == null) continue;
+            out.add(new String[] { "warn", Messages.message(
+                net.sf.freecol.common.model.StringTemplate
+                    .template("companion.alert.fetchNoGold")
+                    .addStringTemplate("%nation%", from.getNationLabel())
+                    .addName("%colony%", o.placeName)
+                    .addAmount("%gold%", price)
+                    .addAmount("%have%", me.getGold())
+                    .addAmount("%turns%", Math.max(0, o.turnsLeft(now)))) });
+        }
         for (Object[] x : loans(fcc, me)) {
             final net.sf.freecol.common.diplomacy.Loan l
                 = (net.sf.freecol.common.diplomacy.Loan)x[0];

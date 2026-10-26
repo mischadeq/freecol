@@ -96,6 +96,10 @@ Aim: release the mod once Mischa is content with it.
 
 Short list of what has not been seen working yet, newest first.
 
+- **Alerts and fetching:** strike an alert (sweep, "Show done"); fix
+  something and watch its alert flash "Solved"; a wagon at a deal
+  colony without the gold says what is missing.
+
 - **The Log by turn:** turn cards, folding, filters, chips with goods
   and unit icons, route colours, a warning merged over turns.
 
@@ -2510,3 +2514,31 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   game (goods and unit icons, route colours come from the game).
   Messages without a short form keep their full sentence; more short
   forms can be added as `companion.chip.*` lines.
+
+### Strike alerts off; fetch deals say what is missing (2026-10-26)
+- **Why (Mischa):** he wanted to strike alerts off his list, and it
+  should feel good. And a wagon at Unalashka with a promised deal got
+  "Nothing to hand over: you have no deal", while the deal was there.
+- **Alerts:** click an alert and a green line sweeps through it, the
+  dot pops green, it slides into "Show done (n)" at the bottom; the
+  alert count in the header drops. Click a done one to bring it back.
+  A struck alert stays done while it lasts, up to 5 turns; its numbers
+  may change ("in 9 turns", "in 8 turns"), it stays the same alert,
+  but one that turns from warning to alarm comes back. An alert that
+  goes away in the game flashes green "Solved: ..." for a moment.
+  Clicking also asks the game again at once. Showing it on the map
+  moved to the pin button on the right. Remembered in the browser
+  (per screen), not in the save.
+- **Why the route alert stayed:** the page reads the routes live; in
+  his turn-209 autosave Utrecht still loaded cloth on the "New Trade
+  Route", so the change was made after it (or at another stop).
+- **Fetching a deal:** the real reason was gold: the coats cost 182,
+  he had 17. Now the game says so ("costs 182 gold, and you have 17"),
+  or that the unit has no room; and an alert warns while a deal you
+  took costs more than you have. `OfferPlanner.deliverNow` answers
+  "nogold:price" / "noroom:amount:goods"; `deliver.noGold`,
+  `deliver.noRoom`, `companion.alert.fetchNoGold`.
+- **Tested:** `AIOffersTest.testFetchSaysWhatIsMissing`; all 805
+  tests green. Strike, done list and un-strike tried on the live page
+  (turn 211) in a separate browser. **Not checked:** the "Solved"
+  flash in the game; the new fetch messages in the game.

@@ -158,9 +158,8 @@
     $("swatch").style.background = s.color;
     $("gold").textContent = s.gold.toLocaleString();
     $("tax").textContent = s.tax + "%";
-    const nAl = s.alerts.filter((a) => a.lvl !== "info").length;
-    $("nAlerts").textContent = nAl;
-    $("chipAlerts").classList.toggle("hot", nAl > 0);
+    lastAlerts = s.alerts;
+    showAlertCount();
     $("nPending").textContent = s.pending;
     $("chipPending").classList.toggle("hot", s.pending > 0);
     $("nIdle").textContent = s.idle;
@@ -193,36 +192,134 @@
 
   // ---------------------------------------------------------------- alerts
 
-  let showAllAlerts = false;
-  const ALERTS_SHOWN = 8;
+  // Alerts can be struck off (mod): click one and a line sweeps through
+  // it, then it drops into "Done". A struck alert stays done while it
+  // lasts, for up to STRIKE_TURNS turns; numbers in it may change ("in
+  // 9 turns", "in 8 turns"), it is the same alert. One that goes away
+  // in the game (you fixed it) flashes "solved" before it leaves.
+  // Clicking also asks the game again at once. The pin shows it on the map.
+  let showAllAlerts = false, showDone = false;
+  const ALERTS_SHOWN = 8, STRIKE_TURNS = 5, SOLVED_MS = 2500;
+  let struck = loadStruck();       // alert key -> turn struck
+  let shownOpen = new Map();       // key -> alert, open ones last drawn
+  let solved = [];                 // {k, a, until}
+  let lastAlerts = [];
+  let solvedTimer = null;
+
+  function alertText(a) { return String(a.text).replace(/\d+/g, "#"); }
+  function alertKey(a) { return a.lvl + "|" + alertText(a); }
+  function loadStruck() {
+    try { return JSON.parse(store.get("fc.struck") || "{}") || {}; } catch (e) { return {}; }
+  }
+  function saveStruck() { store.set("fc.struck", JSON.stringify(struck)); }
+  function isStruck(a) {
+    const t = struck[alertKey(a)];
+    return t != null && (!state || state.turn - t < STRIKE_TURNS);
+  }
+  function openAlertCount(alerts) {
+    return alerts.filter((a) => a.lvl !== "info" && !isStruck(a)).length;
+  }
+  function showAlertCount() {
+    const n = openAlertCount(lastAlerts);
+    $("nAlerts").textContent = n;
+    $("chipAlerts").classList.toggle("hot", n > 0);
+  }
+
+  const PIN = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/>' +
+    '<circle cx="8" cy="8" r="1.6" fill="currentColor"/><path d="M8 0v3M8 13v3M0 8h3M13 8h3" stroke="currentColor" stroke-width="1.5"/></svg>';
+
+  function alertItem(a, cls, i) {
+    return '<li class="' + a.lvl + " " + cls + '" data-i="' + i + '">' +
+      '<span class="dot ' + a.lvl + '"></span>' + (a.g ? gi(a.g) : "") +
+      '<span class="atw"><span class="at">' + esc(a.text) + "</span></span>" +
+      (a.x >= 0 ? '<button class="pin" title="Show on the map">' + PIN + "</button>" : "") + "</li>";
+  }
 
   function renderAlerts(alerts) {
+    lastAlerts = alerts;
     const ul = $("alerts");
-    if (!alerts.length) {
-      ul.innerHTML = '<li class="none">All quiet. Nothing needs your attention.</li>';
-      return;
+    const keys = new Set(alerts.map(alertKey));
+    // Gone in the game: solved (struck ones leave quietly). One that
+    // only got worse (warning to alarm) is not solved.
+    const texts = new Set(alerts.map(alertText));
+    const now = Date.now();
+    for (const [k, a] of shownOpen) {
+      if (!texts.has(alertText(a)) && !solved.some((x) => x.k === k)) solved.push({ k, a, until: now + SOLVED_MS });
     }
-    const list = showAllAlerts ? alerts : alerts.slice(0, ALERTS_SHOWN);
-    ul.innerHTML = list.map((a, i) =>
-      '<li class="' + a.lvl + (a.x >= 0 ? " link" : "") + '" data-i="' + i + '">' +
-      '<span class="dot ' + a.lvl + '"></span>' +
-      (a.g ? gi(a.g) : "") + '<span>' + esc(a.text) + '</span></li>').join("") +
-      (alerts.length > ALERTS_SHOWN
-        ? '<li class="none" style="border:0;background:none;padding:0"><button class="more" id="moreAlerts">' +
-          (showAllAlerts ? "Show fewer" : "Show all " + alerts.length) + '</button></li>'
-        : "");
-    ul.querySelectorAll("li.link").forEach((li) => {
-      li.addEventListener("click", () => {
-        const a = list[+li.dataset.i];
+    solved = solved.filter((x) => x.until > now && !texts.has(alertText(x.a)));
+    let forget = false;
+    for (const k of Object.keys(struck)) {
+      if (!keys.has(k) || (state && state.turn - struck[k] >= STRIKE_TURNS)) { delete struck[k]; forget = true; }
+    }
+    if (forget) saveStruck();
+    const open = alerts.filter((a) => !isStruck(a)), done = alerts.filter(isStruck);
+    shownOpen = new Map(open.map((a) => [alertKey(a), a]));
+    const items = [];       // the alert behind each data-i
+    let html = "";
+    for (const x of solved) {
+      items.push(x.a);
+      html += alertItem(Object.assign({}, x.a, { text: "Solved: " + x.a.text }), "solved", items.length - 1);
+    }
+    if (!open.length && !solved.length) {
+      html += '<li class="none">' + (done.length ? "All done. The rest is struck off." : "All quiet. Nothing needs your attention.") + "</li>";
+    }
+    const list = showAllAlerts ? open : open.slice(0, ALERTS_SHOWN);
+    for (const a of list) {
+      items.push(a);
+      html += alertItem(a, "open", items.length - 1);
+    }
+    if (open.length > ALERTS_SHOWN) {
+      html += '<li class="none bare"><button class="more" data-act="more">' +
+        (showAllAlerts ? "Show fewer" : "Show all " + open.length) + "</button></li>";
+    }
+    if (done.length) {
+      html += '<li class="none bare"><button class="more" data-act="done">' + (showDone ? "Hide" : "Show") +
+        " done (" + done.length + ")</button></li>";
+      if (showDone) {
+        for (const a of done) {
+          items.push(a);
+          html += alertItem(a, "done", items.length - 1);
+        }
+      }
+    }
+    ul.innerHTML = html;
+    ul.querySelectorAll("li[data-i]").forEach((li) => {
+      const a = items[+li.dataset.i];
+      const pin = li.querySelector(".pin");
+      if (pin) pin.addEventListener("click", (ev) => {
+        ev.stopPropagation();
         pulse(a.x, a.y);
         flashColonyAt(a.x, a.y);
       });
+      if (li.classList.contains("solved")) return;
+      li.addEventListener("click", () => {
+        const k = alertKey(a);
+        if (li.classList.contains("done")) {
+          delete struck[k];
+          saveStruck();
+          renderAlerts(lastAlerts);
+          showAlertCount();
+          return;
+        }
+        if (li.classList.contains("striking")) return;
+        li.classList.add("striking");
+        struck[k] = state ? state.turn : 0;
+        saveStruck();
+        showAlertCount();
+        if (pollTimer) schedule(0); // Fixed in the game? Ask now.
+        setTimeout(() => renderAlerts(lastAlerts), 750);
+      });
     });
-    const more = $("moreAlerts");
-    if (more) more.addEventListener("click", () => {
-      showAllAlerts = !showAllAlerts;
-      renderAlerts(alerts);
-    });
+    ul.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.act === "more") showAllAlerts = !showAllAlerts;
+      else showDone = !showDone;
+      renderAlerts(lastAlerts);
+    }));
+    if (solvedTimer) clearTimeout(solvedTimer);
+    if (solved.length) {
+      const next = Math.max(50, Math.min(...solved.map((x) => x.until)) - Date.now());
+      solvedTimer = setTimeout(() => renderAlerts(lastAlerts), next);
+    }
   }
 
   // ---------------------------------------------------------------- colonies

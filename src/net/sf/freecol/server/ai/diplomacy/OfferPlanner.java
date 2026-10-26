@@ -83,6 +83,9 @@ public final class OfferPlanner {
     public static final double POSTED_GAIN = 0.1;
 
     private final EuropeanAIPlayer ai;
+    /** Why the last fetch next to a colony could not be done (mod):
+        "nogold:price" or "noroom:amount:goods", or null. */
+    private String fetchWhy = null;
 
 
     public OfferPlanner(EuropeanAIPlayer ai) {
@@ -205,12 +208,14 @@ public final class OfferPlanner {
      * @param colony Our colony.
      * @param cs A {@code ChangeSet} to update.
      * @return "done" if a deal was completed, "part" if goods were
-     *     handed over but the deal is not complete, "none" otherwise.
+     *     handed over but the deal is not complete, "nogold:price" or
+     *     "noroom:amount:goods" when a deal he took can not be fetched
+     *     yet, "none" otherwise.
      */
     public String deliverNow(ServerPlayer taker, Colony colony,
                              ChangeSet cs) {
         if (colony == null || colony.getOwner() != me()) return "none";
-        String ret = "none";
+        String ret = "none", why = null;
         final int now = now();
         for (Offer o : new ArrayList<>(ai.getOffers())) {
             if ((o.kind != Offer.Kind.WANT && o.kind != Offer.Kind.SELL)
@@ -229,9 +234,12 @@ public final class OfferPlanner {
             }
             final int price = o.priceAt(now);
             final int before = o.delivered;
+            this.fetchWhy = null;
             if (price >= 0 && deliver(o, taker, colony, price, cs)) {
                 complete(o, taker, price, cs);
                 ret = "done";
+            } else if (!open && this.fetchWhy != null) {
+                why = this.fetchWhy; // A deal he took: say what is missing
             } else if (o.delivered > before) {
                 if (!"done".equals(ret)) ret = "part";
             } else if (open && o.state == Offer.State.TAKEN) {
@@ -259,7 +267,7 @@ public final class OfferPlanner {
                 }
             }
         }
-        return ret;
+        return ("none".equals(ret) && why != null) ? why : ret;
     }
 
     /**
@@ -297,8 +305,14 @@ public final class OfferPlanner {
                     }
                     return true;
                 } else {
-                    if (u.getSpaceLeft() * 100 < o.amount
-                        || taker.getGold() < price) continue;
+                    if (u.getSpaceLeft() * 100 < o.amount) {
+                        this.fetchWhy = "noroom:" + o.amount + ":" + o.goods;
+                        continue;
+                    }
+                    if (taker.getGold() < price) {
+                        this.fetchWhy = "nogold:" + price;
+                        continue;
+                    }
                     if (colony.getGoodsCount(gt) < o.amount) {
                         // We no longer have them: our failure.
                         o.state = Offer.State.CANCELLED;

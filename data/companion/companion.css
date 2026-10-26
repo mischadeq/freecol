@@ -112,6 +112,33 @@ h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 
 .alerts li .dot { margin-top: 6px; }
 .alerts .none { border-left-color: var(--ok); color: var(--muted); }
 .more { background: none; border: 0; color: var(--info); cursor: pointer; padding: 4px 10px; }
+/* Striking alerts off (mod) */
+.alerts li.open, .alerts li.done { cursor: pointer; }
+.alerts li.open:hover { background: var(--panel2); }
+.alerts li.bare { border: 0; background: none; padding: 0; }
+.alerts .atw { flex: 1; min-width: 0; }
+.alerts .at {
+  background: linear-gradient(var(--ok), var(--ok)) no-repeat 0 58% / 0% 2px;
+  transition: background-size .35s ease-out, color .35s;
+}
+.alerts li.striking .at, .alerts li.done .at, .alerts li.solved .at { background-size: 100% 2px; }
+.alerts li.striking .at, .alerts li.done .at { color: var(--muted); }
+.alerts li.striking .dot, .alerts li.done .dot, .alerts li.solved .dot {
+  background: var(--ok); animation: tick .35s ease-out;
+}
+@keyframes tick { 0% { transform: scale(1); } 50% { transform: scale(1.9); } 100% { transform: scale(1); } }
+.alerts li.striking { border-left-color: var(--ok); animation: struckOff .4s ease-in .4s forwards; }
+@keyframes struckOff { to { opacity: .3; transform: translateX(10px); } }
+.alerts li.done { opacity: .5; border-left-color: var(--ok); }
+.alerts li.done:hover { opacity: .8; }
+.alerts li.solved { border-left-color: var(--ok); background: rgba(73,196,135,.12); animation: solvedIn .4s ease-out; }
+@keyframes solvedIn { from { background: rgba(73,196,135,.35); } }
+.alerts .pin {
+  margin-left: auto; flex: none; background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--muted); cursor: pointer; padding: 2px 4px; line-height: 0;
+}
+.alerts .pin:hover { color: var(--gold); border-color: var(--line); }
+
 
 /* Colony cards */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }

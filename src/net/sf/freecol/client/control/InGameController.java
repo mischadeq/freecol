@@ -4457,6 +4457,29 @@ public final class InGameController extends FreeColClientHolder {
         askServer().deliver(s.getId());
         final String r = this.deliverResult;
         if (r == null || "none".equals(r)) return false;
+        if (r.startsWith("nogold:") || r.startsWith("noroom:")) {
+            // A deal he took, but something is missing (mod): say what.
+            final String[] f = r.split(":");
+            sound("sound.event.illegalMove");
+            if ("nogold".equals(f[0])) {
+                showInformationPanel(unit, StringTemplate
+                    .template("deliver.noGold")
+                    .addStringTemplate("%nation%", s.getOwner().getNationLabel())
+                    .addName("%colony%", s.getName())
+                    .addAmount("%gold%", Integer.parseInt(f[1]))
+                    .addAmount("%have%", unit.getOwner().getGold()));
+            } else {
+                final GoodsType gt = (f.length < 3) ? null
+                    : getSpecification().getGoodsType(f[2]);
+                showInformationPanel(unit, StringTemplate
+                    .template("deliver.noRoom")
+                    .addStringTemplate("%nation%", s.getOwner().getNationLabel())
+                    .addName("%colony%", s.getName())
+                    .addAmount("%amount%", Integer.parseInt(f[1]))
+                    .addName("%goods%", (gt == null) ? "" : Messages.getName(gt)));
+            }
+            return true;
+        }
         invokeLater(() -> displayModelMessages(false, false));
         updateGUI(null, false);
         return true;
