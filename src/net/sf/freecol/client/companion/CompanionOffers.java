@@ -89,6 +89,109 @@ final class CompanionOffers {
     }
 
     /**
+     * The ship loans the player made (mod), copied, with what is due
+     * next: [loan, next payment] pairs.
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param me The client {@code Player}.
+     * @return The loans.
+     */
+    static List<Object[]> loans(FreeColClient fcc, Player me) {
+        final List<Object[]> ret = new ArrayList<>();
+        if (fcc == null || !fcc.getSinglePlayer()) return ret;
+        final FreeColServer server = fcc.getFreeColServer();
+        if (server == null || server.getGame() == null
+            || server.getAIMain() == null) return ret;
+        try {
+            for (net.sf.freecol.common.diplomacy.Loan l
+                     : net.sf.freecol.server.ai.diplomacy.LoanDesk.all(
+                         server.getAIMain())) {
+                if (!me.getNationId().equals(l.lender)) continue;
+                final Player b = server.getGame().getPlayerByNationId(l.borrower);
+                final Player lp = server.getGame().getPlayerByNationId(l.lender);
+                final boolean war = b != null && lp != null
+                    && b.getStance(lp) == net.sf.freecol.common.model.Stance.WAR;
+                final net.sf.freecol.common.diplomacy.Loan c
+                    = net.sf.freecol.common.diplomacy.Loan.parse(l.serialize());
+                if (c != null) {
+                    ret.add(new Object[] { c, (l.collectible(war)) ? l.due() : 0 });
+                }
+            }
+        } catch (RuntimeException e) { // The server is busy with its turn
+            logger.log(Level.FINE, "Loans", e);
+        }
+        return ret;
+    }
+
+    /**
+     * A nation's public credit standing (mod), lower case, or null if
+     * not known (not a single player game).
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param nationId The nation.
+     * @return "good", "new", "wary", "bad", or null.
+     */
+    static String standing(FreeColClient fcc, String nationId) {
+        if (fcc == null || !fcc.getSinglePlayer()) return null;
+        final FreeColServer server = fcc.getFreeColServer();
+        if (server == null || server.getGame() == null) return null;
+        final Player p = server.getGame().getPlayerByNationId(nationId);
+        if (p == null || !p.isEuropean() || p.isREF() || !p.isAI()) return null;
+        try {
+            return net.sf.freecol.server.model.CreditRecords.standing(p)
+                .name().toLowerCase();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The offers and the player's loans as JSON.
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param offers The offers the player knows of.
+     * @param loans The player's loans ({@link #loans}).
+     * @param game The client {@code Game}.
+     * @param me The client {@code Player}.
+     * @return The JSON.
+     */
+    static String build(FreeColClient fcc, List<Offer> offers,
+                        List<Object[]> loans, Game game, Player me) {
+        final String o = build(offers, game, me);
+        final Json j = new Json().arr();
+        loans.sort((a, b) -> Boolean.compare(
+            ((net.sf.freecol.common.diplomacy.Loan)a[0]).over(),
+            ((net.sf.freecol.common.diplomacy.Loan)b[0]).over()));
+        for (Object[] x : loans) {
+            final net.sf.freecol.common.diplomacy.Loan l
+                = (net.sf.freecol.common.diplomacy.Loan)x[0];
+            final Player b = game.getPlayerByNationId(l.borrower);
+            final String st = standing(fcc, l.borrower);
+            j.obj().put("id", l.id)
+                .put("from", (b == null) ? l.borrower
+                    : Messages.message(b.getNationLabel()))
+                .put("color", (b == null) ? java.awt.Color.GRAY
+                    : b.getNationColor())
+                .put("state", l.state.name().toLowerCase())
+                .put("principal", l.principal)
+                .put("balance", l.claim())
+                .put("rent", l.rent)
+                .put("term", l.term)
+                .put("paidTurns", l.paidTurns)
+                .put("missed", l.missed)
+                .put("next", (Integer)x[1])
+                .put("over", l.over())
+                .put("credit", (st == null) ? "" : st)
+                .put("signed", Messages.message(
+                    new net.sf.freecol.common.model.Turn(l.signed).getLabel()))
+                .end();
+        }
+        j.endArr();
+        // {"turn":..,"offers":[..]} + "loans":[..]
+        return o.substring(0, o.length() - 1) + ",\"loans\":" + j + "}";
+    }
+
+    /**
      * The offers as JSON.
      *
      * @param offers The offers the player knows of.

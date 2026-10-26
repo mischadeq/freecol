@@ -496,6 +496,9 @@ final class CompanionNations {
             else {
                 final net.sf.freecol.common.model.Stance st = me.getStance(p);
                 if (st != null) j.put("stance", st.getKey().replace("stance.", ""));
+                // Public credit record (mod, ship loans).
+                final String credit = CompanionOffers.standing(fcc, p.getNationId());
+                if (credit != null) j.put("credit", credit);
             }
             j.key("sizes").arr();
             for (Object x : (List<?>)r[4]) j.val((Integer)x);

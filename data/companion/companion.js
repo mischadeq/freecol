@@ -2085,7 +2085,8 @@
         (cl.length > 6 ? '<span class="m"> +' + (cl.length - 6) + "</span>" : "");
       return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
         "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') +
-        (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
+        (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") +
+        (n.credit ? " " + creditChip(n.credit) : "") + "</div>" +
         moodChips(n) + verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
@@ -2343,7 +2344,7 @@
     try {
       const r = await fetch("/api/offers", { cache: "no-store" });
       const d = await r.json();
-      if (d.offers) { offTurn = turn; renderOffers(d.offers); }
+      if (d.offers) { offTurn = turn; renderOffers(d.offers, d.loans || []); }
     } catch (e) { /* Try again next poll */ }
   }
 
@@ -2351,12 +2352,42 @@
     open: ["info", "open"], sailing: ["info", "sailing"], taken: ["warn", "promised"], done: ["ok", "done"], late: ["warn", "done late"],
     failed: ["alarm", "failed"], declined: ["m", "declined"], expired: ["m", "expired"], cancelled: ["m", "called off"]
   };
-  function renderOffers(list) {
+  // Ship loans you made (mod): a balance bar, rent, next payment, chips.
+  const LOAN_STATE = {
+    active: ["ok", "running"], frozen: ["info", "frozen (war)"], paid: ["ok", "paid"], paid_early: ["ok", "paid early"],
+    default: ["alarm", "default"], waiting: ["warn", "waiting"], seizure_pending: ["alarm", "seizing"],
+    seized: ["alarm", "seized"], forgiven: ["m", "forgiven"], cancelled: ["m", "cancelled"], void: ["m", "void"]
+  };
+  const CREDIT = { good: ["ok", "good payer"], new: ["m", "new borrower"], wary: ["warn", "wary"], bad: ["alarm", "bad payer"] };
+  function creditChip(c) {
+    const k = CREDIT[c];
+    return k ? '<span class="tag ' + k[0] + '" title="Public credit record: loans repaid, defaults, ships seized">' + k[1] + "</span>" : "";
+  }
+  function pct(t) { return Math.floor(t / 10) + "." + (t % 10) + "%"; }
+  function loanCard(l) {
+    let st = LOAN_STATE[l.state] || ["m", l.state];
+    if (l.state === "active" && l.missed > 0) st = ["warn", "late"];
+    if (l.state === "seized" && l.over) st = ["m", "seized, closed"];
+    const left = l.principal ? Math.max(0, Math.min(1, l.balance / l.principal)) : 0;
+    const cls = st[0] === "alarm" ? "alarm" : st[0] === "warn" ? "warn" : "ok";
+    const late = l.missed > 0 ? ' <span class="tag warn" title="Payments missed in a row; 3 is a default">' + l.missed + " missed</span>" : "";
+    return '<div class="ocard loan"><div class="ohead"><i class="sw" style="background:' + esc(l.color) + '"></i><b>' + esc(l.from) + "</b>" +
+      '<span class="tag ' + st[0] + '">' + st[1] + "</span>" + late + creditChip(l.credit) + '<span class="m">' + esc(l.signed) + "</span></div>" +
+      '<div class="oclock" title="What they still owe you, of the ' + num(l.principal) + ' gold lent">' +
+      '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * left) + '%"></i></span> <b>' + num(l.balance) + "</b> / " + num(l.principal) + "</div>" +
+      '<div class="chips"><span class="tag info" title="Rent per turn on what they still owe">' + pct(l.rent) + " a turn</span>" +
+      (l.next ? '<span class="tag ok" title="Due on their next turn">next ' + num(l.next) + "</span>" : "") +
+      '<span class="tag m" title="Payments made of the term">' + l.paidTurns + " / " + l.term + " paid</span></div></div>";
+  }
+
+  function renderOffers(list, loans) {
+    loans = loans || [];
+    const lh = loans.length ? '<div class="k">Your ship loans</div>' + loans.map(loanCard).join("") : "";
     if (!list.length) {
-      $("offers").innerHTML = '<p class="m">No offers yet. Computer nations post them on the notice board (first to the nation they like most) and send peace terms when they want out of a war with you.</p>';
+      $("offers").innerHTML = lh || '<p class="m">No offers yet. Computer nations post them on the notice board (first to the nation they like most) and send peace terms when they want out of a war with you.</p>';
       return;
     }
-    $("offers").innerHTML = list.map((o) => {
+    $("offers").innerHTML = lh + list.map((o) => {
       const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
         : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
@@ -2368,7 +2399,11 @@
       else if (o.kind === "terms") what = "Their terms for " + (DEAL[o.deal] || "your envoy's offer") + ": <b>" + num(o.gold) + "</b> gold" +
         [[1, "give back the land you took"], [2, "abandon <b>" + esc(o.place) + "</b>"], [4, "pull your soldiers out of their land"], [8, "as your allies"]]
           .filter((c) => o.amount & c[0]).map((c) => ", " + c[1]).join("");
-      else if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else if (o.kind === "peace") what = "Peace" + (o.amount ? ", if you cancel the <b>" + num(o.amount) + "</b> gold they owe you" :
+        o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else if (o.kind === "loan") what = (o.id.endsWith(":counter") ? "Counter offer: " : "Asks for a ship loan: ") + "<b>" + num(o.amount) + "</b> gold at " +
+        pct(o.delivered) + " a turn for " + o.deadline + " turns";
+      else if (o.kind === "loan_default") what = "In default on your loan: <b>" + num(o.amount) + "</b> gold owed; their ship is worth <b>" + num(o.gold) + "</b>";
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
       else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";

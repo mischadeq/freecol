@@ -318,6 +318,9 @@ img.gi[data-g] { cursor: help; }
 .oclock i.ok { background: var(--ok); }
 .oclock i.warn { background: var(--warn); }
 .oclock i.alarm { background: var(--alarm); }
+.offers > .k { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.ocard.loan { border-color: #2e5c46; }
+.ocard.loan .chips { margin: 6px 0 0; }
 
 /* Expansion replay */
 .exptools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }

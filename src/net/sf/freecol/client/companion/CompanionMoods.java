@@ -225,6 +225,14 @@ final class CompanionMoods {
         case ARMED_RIVAL: return "you armed their old rival";
         case CAME_TO_HELP: return "you came to their aid";
         case LEFT_US_ALONE: return "you left them alone in their need";
+        case LOAN_GIVEN: return "you lent them a ship";
+        case LOAN_PAID: return "they paid you on time";
+        case LOAN_SQUEEZED: return "your rent squeezed them";
+        case LOAN_DEFAULT: return "they did not pay you";
+        case LOAN_SEIZED: return "you seized their ship";
+        case LOAN_FORGIVEN: return "you forgave their debt";
+        case BAD_PAYER: return "you did not pay a loan";
+        case GOOD_PAYER: return "you repaid a loan";
         default: return m.kind.name().toLowerCase();
         }
     }
