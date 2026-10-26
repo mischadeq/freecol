@@ -219,14 +219,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
     // These should be final, but need the spec.
 
-    /** Cheat chances. */
-    private static int liftBoycottCheatPercent;
-    private static int equipScoutCheatPercent;
-    private static int equipPioneerCheatPercent;
-    private static int landUnitCheatPercent;
-    private static int offensiveLandUnitCheatPercent;
-    private static int offensiveNavalUnitCheatPercent;
-    private static int transportNavalUnitCheatPercent;
     /** The pioneer role. */
     private static Role pioneerRole = null;
     /** The scouting role. */
@@ -413,20 +405,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (pioneerRole != null) return;
         pioneerRole = spec.getRoleWithAbility(Ability.IMPROVE_TERRAIN, null);
         scoutRole = spec.getRoleWithAbility(Ability.SPEAK_WITH_CHIEF, null);
-        liftBoycottCheatPercent
-            = spec.getInteger(GameOptions.LIFT_BOYCOTT_CHEAT);
-        equipScoutCheatPercent
-            = spec.getInteger(GameOptions.EQUIP_SCOUT_CHEAT);
-        equipPioneerCheatPercent
-            = spec.getInteger(GameOptions.EQUIP_PIONEER_CHEAT);
-        landUnitCheatPercent
-            = spec.getInteger(GameOptions.LAND_UNIT_CHEAT);
-        offensiveLandUnitCheatPercent
-            = spec.getInteger(GameOptions.OFFENSIVE_LAND_UNIT_CHEAT);
-        offensiveNavalUnitCheatPercent
-            = spec.getInteger(GameOptions.OFFENSIVE_NAVAL_UNIT_CHEAT);
-        transportNavalUnitCheatPercent
-            = spec.getInteger(GameOptions.TRANSPORT_NAVAL_UNIT_CHEAT);
     }
 
     /**
@@ -497,292 +475,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             if ((m = getSimpleMission(aiu)) != null) lb.add(m, ", ");
         }
         if (lb.grew("\n  Backup: ")) lb.shrink(", ");
-    }
-
-    /**
-     * Cheat by adding gold to guarantee the player has a minimum amount.
-     *
-     * @param amount The minimum amount of gold required.
-     * @param lb A {@code LogBuilder} to log to.
-     */
-    public void cheatGold(int amount, LogBuilder lb) {
-        final Player player = getPlayer();
-        // What it may spend: the treasury stays (mod).
-        int gold = spendable();
-        if (gold < amount) {
-            amount -= gold;
-            player.modifyGold(amount);
-            lb.add("added ", amount, " gold");
-        }
-        player.logCheat(amount + " gold");
-    }
-
-    /**
-     * Cheats for the AI.  Please try to centralize cheats here.
-     *
-     * FIXME: Remove when the AI is good enough.
-     *
-     * @param lb A {@code LogBuilder} to log to.
-     */
-    private void cheat(LogBuilder lb) {
-        final AIMain aiMain = getAIMain();
-        if (!aiMain.getFreeColServer().getSinglePlayer()) return;
-
-        final Player player = getPlayer();
-        if (player.getPlayerType() != PlayerType.COLONIAL) return;
-        lb.mark();
-
-        final Specification spec = getSpecification();
-        final Game game = getGame();
-        final Market market = player.getMarket();
-        final Europe europe = player.getEurope();
-        final Random air = getAIRandom();
-        final List<GoodsType> arrears = new ArrayList<>();
-        if (market != null) {
-            arrears.addAll(transform(spec.getGoodsTypeList(),
-                                     gt -> market.getArrears(gt) > 0));
-        }
-        final int nCheats = arrears.size() + 6; // 6 cheats + arrears
-        int[] randoms = randomInts(logger, "cheats", air, 100, nCheats);
-        int cheatIndex = 0;
-
-        for (GoodsType goodsType : arrears) {
-            if (randoms[cheatIndex++] < liftBoycottCheatPercent) {
-                market.setArrears(goodsType, 0);
-                // Just remove one goods party modifier (we can not
-                // currently identify which modifier applies to which
-                // goods type, but that is not worth fixing for the
-                // benefit of `temporary' cheat code).  If we do not
-                // do this, AI colonies accumulate heaps of party
-                // modifiers because of the cheat boycott removal.
-                final CachingFunction<Colony, Modifier> partyModifierMapper
-                    = new CachingFunction<>(c ->
-                        first(transform(c.getModifiers(), partyPred)));
-                Colony party = getRandomMember(logger, "end boycott",
-                    transform(player.getColonies(),
-                              isNotNull(c -> partyModifierMapper.apply(c))),
-                    air);
-                if (party != null) {
-                    party.removeModifier(partyModifierMapper.apply(party));
-                    lb.add("lift-boycott at ", party, ", ");
-                    player.logCheat("lift boycott at " + party.getName());
-                }
-            }
-        }
-    
-        if (!europe.isEmpty()
-            && scoutsNeeded() > 0
-            && randoms[cheatIndex++] < equipScoutCheatPercent) {
-            for (Unit u : transform(europe.getUnits(), equipPred)) {
-                try {
-                    int g = europe.priceGoods(u.getGoodsDifference(scoutRole, 1));
-                    cheatGold(g, lb);
-                } catch (FreeColException fce) {
-                    continue;
-                }
-                if (getAIUnit(u).equipForRole(spec.getRoleWithAbility(Ability.SPEAK_WITH_CHIEF, null))) {
-                    lb.add(" to equip scout ", u, ", ");
-                    player.logCheat("Equip scout " + u.toShortString());
-                    break;
-                }
-            }
-        }
-
-        if (!europe.isEmpty()
-            && pioneersNeeded() > 0
-            && randoms[cheatIndex++] < equipPioneerCheatPercent) {
-            for (Unit u : transform(europe.getUnits(), equipPred)) {
-                try {
-                    int g = europe.priceGoods(u.getGoodsDifference(pioneerRole, 1)); 
-                    cheatGold(g, lb);
-                } catch (FreeColException fce) {
-                    continue;
-                }
-                if (getAIUnit(u).equipForRole(spec.getRoleWithAbility(Ability.IMPROVE_TERRAIN, null))) {
-                    lb.add(" to equip pioneer ", u, ", ");
-                    player.logCheat("Equip pioneer " + u.toShortString());
-                    break;
-                }
-            }
-        }
-
-        if (randoms[cheatIndex++] < landUnitCheatPercent) {
-            final Predicate<Entry<UnitType, List<WorkerWish>>> bestWishPred = e -> {
-                UnitType ut = e.getKey();
-                return ut != null && ut.isAvailableTo(player)
-                    && europe.getUnitPrice(ut) != UNDEFINED
-                    && any(e.getValue());
-            };
-            WorkerWish bestWish = maximize(transform(workerWishes.entrySet(),
-                                                     bestWishPred,
-                                                     e -> first(e.getValue()),
-                                                     Collectors.toSet()),
-                ValuedAIObject.ascendingValueComparator);
-            int cost = (bestWish != null)
-                ? europe.getUnitPrice(bestWish.getUnitType())
-                : (player.getImmigration() < player.getImmigrationRequired() / 2)
-                ? player.getEuropeanRecruitPrice()
-                : INFINITY;
-            if (cost != INFINITY) {
-                cheatGold(cost, lb);
-                AIUnit aiu;
-                if (bestWish == null) {
-                    if ((aiu = recruitAIUnitInEurope(-1)) != null) {
-                        // let giveNormalMissions look after the mission
-                        lb.add(" to recruit ", aiu.getUnit(), ", ");
-                    }
-                } else {
-                    if ((aiu = trainAIUnitInEurope(bestWish.getUnitType())) != null) {
-                        Mission m = getWishRealizationMission(aiu, bestWish);
-                        if (m != null) {
-                            lb.add(" to train for ", m, ", ");
-                        } else {
-                            lb.add(" to train ", aiu.getUnit(), ", ");
-                        }
-                    }
-                }
-                if (aiu != null) player.logCheat("Make " + aiu.getUnit());
-            }
-        }
-
-        if (game.getTurn().getNumber() > 300
-            && player.isAtWar()
-            && randoms[cheatIndex++] < offensiveLandUnitCheatPercent) {
-            // - collect enemies, prefer not to antagonize the strong or
-            //   crush the weak
-            List<Player> wars = transform(game.getLivePlayers(player),
-                                          x -> player.atWarWith(x));
-            List<Player> preferred = new ArrayList<>(wars.size());
-            List<Player> enemies = new ArrayList<>(wars.size());
-            for (Player p : wars) {
-                enemies.add(p);
-                double strength = getStrengthRatio(p);
-                if (strength < 3.0/2.0 && strength > 2.0/3.0) {
-                    preferred.add(p);
-                }
-            }
-            if (!preferred.isEmpty()) {
-                enemies.clear();
-                enemies.addAll(preferred);
-            }
-            List<Colony> colonies = player.getColonyList();
-            // Find a target to attack.
-            Location target = null;
-            // Few colonies?  Attack the weakest European port
-            if (colonies.size() < 3) {
-                final Comparator<Colony> targetScore
-                    = cachingDoubleComparator(c -> {
-                            double score = 100000.0 / c.getUnitCount();
-                            Building stockade = c.getStockade();
-                            return (stockade == null) ? 1.0
-                                : score / (stockade.getLevel() + 1.5);
-                        });
-                target = maximize(flatten(enemies, Player::isEuropean,
-                                          Player::getConnectedPorts),
-                                  targetScore);
-            }
-            // Otherwise attack something near a weak colony
-            if (target == null && !colonies.isEmpty()) {
-                List<AIColony> bad = new ArrayList<>(getBadlyDefended());
-                if (bad.isEmpty()) bad.addAll(getAIColonies());
-                AIColony defend = getRandomMember(logger,
-                    "AIColony to defend", bad, air);
-                Tile center = defend.getColony().getTile();
-                Tile t = game.getMap().searchCircle(center,
-                    GoalDeciders.getEnemySettlementGoalDecider(enemies),
-                    30);
-                if (t != null) target = t.getSettlement();
-            }
-            if (target != null) {
-                List<AbstractUnit> aMercs = new ArrayList<>();
-                int aPrice = player.getMonarch().loadMercenaries(air, aMercs);
-                if (aPrice > 0) {
-                    List<Unit> mercs = ((ServerPlayer)player)
-                        .createUnits(aMercs, europe, air);
-                    for (Unit u : mercs) {
-                        AIUnit aiu = getAIUnit(u);
-                        if (aiu == null) continue; // Can not happen
-                        player.logCheat("Enlist " + aiu.getUnit());
-                        Mission m = getSeekAndDestroyMission(aiu, target);
-                        if (m != null) {
-                            lb.add("enlisted ", m, ", ");
-                        } else {
-                            lb.add("enlisted ", aiu.getUnit(), ", ");
-                        }
-                    }
-                }
-            }
-        }
-            
-        // Always cheat a new armed ship if the navy is destroyed,
-        // otherwise if the navy is below average the chance to cheat
-        // is proportional to how badly below average.
-        double naval = getNavalStrengthRatio();
-        int nNaval = (player.getUnitCount(true) == 0) ? 100
-            : (0.0f < naval && naval < 0.5f)
-            ? (int)(naval * offensiveNavalUnitCheatPercent)
-            : -1;
-        final Function<UnitType, RandomChoice<UnitType>> mapper = ut ->
-            new RandomChoice<>(ut, 100000 / europe.getUnitPrice(ut));
-        if (randoms[cheatIndex++] < nNaval) {
-            cheatUnit(transform(spec.getUnitTypeList(),
-                                ut -> ut.hasAbility(Ability.NAVAL_UNIT)
-                                    && ut.isAvailableTo(player)
-                                    && ut.hasPrice()
-                                    && ut.isOffensive(),
-                                mapper), "offensive-naval", lb);
-        }
-        // Only cheat carriers if they have work to do.
-        int nCarrier = (nNavalCarrier > 0) ? transportNavalUnitCheatPercent
-            : -1;
-        if (randoms[cheatIndex++] < nCarrier) {
-            cheatUnit(transform(spec.getUnitTypeList(),
-                                ut -> ut.hasAbility(Ability.NAVAL_UNIT)
-                                    && ut.isAvailableTo(player)
-                                    && ut.hasPrice()
-                                    && ut.getSpace() > 0,
-                                mapper), "transport-naval", lb);
-        }
-
-        if (lb.grew("\n  Cheats: ")) lb.shrink(", ");
-    }
-
-    /**
-     * Cheat-build a unit in Europe.
-     *
-     * @param rc A list of random choices to choose from.
-     * @param what A description of the unit.
-     * @param lb A {@code LogBuilder} to log to.
-     * @return The {@code AIUnit} built.
-     */
-    private AIUnit cheatUnit(List<RandomChoice<UnitType>> rc, String what,
-                             LogBuilder lb) {
-        UnitType unitToPurchase
-            = RandomChoice.getWeightedRandom(logger, "Cheat which unit",
-                                             rc, getAIRandom());
-        return (unitToPurchase == null) ? null
-            : cheatUnit(unitToPurchase, what, lb);
-    }
-
-    /**
-     * Cheat-build a unit in Europe.
-     *
-     * @param unitType The {@code UnitType} to build.
-     * @param what A description of the unit.
-     * @param lb A {@code LogBuilder} to log to.
-     * @return The {@code AIUnit} built.
-     */
-    private AIUnit cheatUnit(UnitType unitType, String what, LogBuilder lb) {
-        final Player player = getPlayer();
-        final Europe europe = player.getEurope();
-        int cost = europe.getUnitPrice(unitType);
-        cheatGold(cost, lb);
-        AIUnit result = trainAIUnitInEurope(unitType);
-        lb.add(" to build ", what, " ", unitType.getSuffix(),
-            ((result != null) ? "" : "(failed)"), ", ");
-        if (result == null) return null;
-        player.logCheat("Build " + result.getUnit());
-        return result;
     }
 
     /**
@@ -2787,7 +2479,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
         // Note call to getAIUnits().  This triggers
         // AIPlayer.createAIUnits which we want to do early, certainly
-        // before cheat() or other operations that might make new units
+        // before other operations that might make new units
         // happen.
         LogBuilder lb = new LogBuilder(1024);
         int colonyCount = getAIColonies().size();
@@ -2867,7 +2559,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             buildTipMap(lb);
             buildWishMaps(lb);
         }
-        cheat(lb);
         buyUnitsInEurope(lb);
 
         // Note order of operations below.  We allow rearrange et al to run

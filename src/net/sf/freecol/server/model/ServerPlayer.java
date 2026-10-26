@@ -1288,33 +1288,7 @@ public class ServerPlayer extends Player implements TurnTaker {
             int incomeBeforeTaxes = market.getSalePrice(type, a);
             int incomeAfterTaxes = ((100 - tax) * incomeBeforeTaxes) / 100;
             
-            if (isAI()) {
-                /*
-                 * TODO: The multiplier here should be a part of the difficulty setting.
-                 * 
-                 * Having a multiplier for the income is a great way of doing AI
-                 * cheating, since it feels natural and often not like cheating at
-                 * all.
-                 * 
-                 * For example, the human player can still actively reduce the amount of
-                 * money the AI gets by stopping cargo / capture colonies with custom houses.
-                 */
-                
-                final int tradeProfitMultiplierCheat = getSpecification().getInteger(GameOptions.TRADE_PROFIT_MULTIPLIER_CHEAT);
-                final int tradeProfitMultiplierCheatTurns = getSpecification().getInteger(GameOptions.TRADE_PROFIT_MULTIPLIER_CHEAT_TURNS);
-                
-                /*
-                 * Linear reduction of the tradeProfitMultiplierCheat from the first year
-                 * until turn number tradeProfitMultiplierCheatTurns.
-                 */
-                final double currentMultiplier = Math.max(1.0D,
-                        tradeProfitMultiplierCheat * ((double) tradeProfitMultiplierCheatTurns - getGame().getTurn().getNumber()) / tradeProfitMultiplierCheatTurns);
-                
-                final int adjustedGoldAfterCheating = (int) (incomeAfterTaxes * currentMultiplier);
-                modifyGold(adjustedGoldAfterCheating);
-            } else {
-                modifyGold(incomeAfterTaxes);
-            }
+            modifyGold(incomeAfterTaxes);
             
             market.modifySales(type, a);
             if (container != null) container.addGoods(type, -a);

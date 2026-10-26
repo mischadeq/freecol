@@ -483,13 +483,6 @@ public final class BuildColonyMission extends Mission {
                 // try to buy it or steal it.
                 int price = player.getLandPrice(tile);
                 boolean fail = price < 0;
-                if (price > 0 && !player.checkGold(price)) {
-                    if (randomInt(logger, "Land gold?", getAIRandom(), 4) == 0) {
-                        lb.add(", ");
-                        euaip.cheatGold(price, lb);
-                        lb.add(" to buy ", tile);
-                    }
-                }
                 if (price >= 0) {
                     fail = !AIMessage.askClaimLand(tile, aiUnit,
                         ((price == 0) ? 0 : (player.checkGold(price)) ? price
