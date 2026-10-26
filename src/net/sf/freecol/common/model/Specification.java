@@ -2502,7 +2502,46 @@ public final class Specification implements OptionContainer {
             }
         }
         // end @compat 0.11.6
+
+        ret |= fixArmedConverts();
         return ret;
+    }
+
+    /**
+     * Indian converts can be armed (mod): saves carry their rules, so
+     * a game begun before this gets them on load, as in the rules file.
+     *
+     * @return True if a fix was made.
+     */
+    private boolean fixArmedConverts() {
+        final UnitType convert = getUnitType("model.unit.indianConvert");
+        final Role soldier = getRole("model.role.soldier");
+        final Role dragoon = getRole("model.role.dragoon");
+        if (convert == null || soldier == null || dragoon == null
+            || convert.containsAbilityKey(Ability.CAN_BE_EQUIPPED)) {
+            return false;
+        }
+        convert.addAbility(new Ability(Ability.CAN_BE_EQUIPPED, convert, true));
+        convert.addModifier(new Modifier(Modifier.DEFENCE, 1,
+                Modifier.ModifierType.ADDITIVE, convert));
+        // A musket: 25% worse than a colonist; a horse: 25% better.
+        for (Object[] m : new Object[][] {
+                { soldier, Modifier.ModifierType.ADDITIVE, Modifier.DEFENCE, -1f },
+                { soldier, Modifier.ModifierType.PERCENTAGE, Modifier.OFFENCE, -25f },
+                { soldier, Modifier.ModifierType.PERCENTAGE, Modifier.DEFENCE, -25f },
+                { dragoon, Modifier.ModifierType.ADDITIVE, Modifier.DEFENCE, -1f },
+                { dragoon, Modifier.ModifierType.PERCENTAGE, Modifier.OFFENCE, 25f },
+                { dragoon, Modifier.ModifierType.PERCENTAGE, Modifier.DEFENCE, 25f } }) {
+            final Role role = (Role)m[0];
+            final Modifier mod = new Modifier((String)m[2], (Float)m[3],
+                (Modifier.ModifierType)m[1], role, Modifier.ROLE_COMBAT_INDEX);
+            final Scope scope = new Scope();
+            scope.setType(convert.getId());
+            scope.setMatchesNull(false);
+            mod.addScope(scope);
+            role.addModifier(mod);
+        }
+        return true;
     }
 
     /**

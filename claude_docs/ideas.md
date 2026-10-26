@@ -53,6 +53,7 @@ Aim: release the mod once Mischa is content with it.
 | War of Spanish Succession as a war, then a partial cession; game option | game options | to check (new game) |
 | A new game starts with the game and map options chosen last time | new game screen | to check |
 | Notice-board deals: move a ship or wagon train into their colony to deliver or fetch at once | map | to check |
+| Indian converts as soldiers, dragoons, scouts, pioneers; own pictures | colony, Europe | to check |
 
 ### Companion page (http://localhost:8765, View > Open Companion Page)
 
@@ -93,6 +94,10 @@ Aim: release the mod once Mischa is content with it.
 ## To check in the game
 
 Short list of what has not been seen working yet, newest first.
+
+- **Armed converts:** give a convert muskets and horses (in a colony):
+  the new pictures, dragoons beating colonist dragoons, musket-only
+  converts losing more often; your current save gets it on loading.
 
 - **Ship loans:** a computer nation that lost its ships asks for a
   loan (dialog with rent and term sliders), the ship in their Europe,
@@ -2325,3 +2330,27 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
 - **Tested:** `AILoansTest.testNoComputerLendersYet`, gold got back on
   an early payoff; all 788 tests green. The page itself not checked in
   the game.
+
+### Indian converts can be armed (2026-10-26)
+- **Why (Mischa):** converts as soldiers and dragoons: born horsemen,
+  little drill with muskets, better than a colonist hand to hand.
+- **Numbers (Mischa chose):** a convert with a musket is 25% worse than
+  a colonist soldier (attack and defence 1.5 instead of 2); on a horse
+  25% better than a colonist dragoon (3.75 instead of 3; a veteran
+  dragoon has 4.5); unarmed he defends at 2 instead of 1 (he still
+  cannot attack, and the AI does not count him as a defender). Converts
+  can also be scouts and pioneers (keeping the defence of 2), not
+  missionaries.
+- **How:** rules (`data/rules/classic/specification.xml`): the convert
+  can be equipped and has +1 defence; the soldier and dragoon roles
+  have modifiers only for the convert type (scope). Saves carry their
+  own rules, so `Specification.fixArmedConverts` adds the same on
+  loading an older game (checked against Mischa's autosave).
+- **Pictures:** soldier, dragoon and scout made from the armed and
+  mounted brave pictures with the convert's look (no feather, his blue
+  trousers), `images/units/convert/`; made by
+  `claude_docs/tools/convert_art.py` from the game's own images.
+- **Tested:** `ArmedConvertTest` (the equipment allowed; the strength
+  ratios exactly 0.75, 1.25 and 2 against colonists). All 790 tests
+  green. **Not checked:** in the game (pictures on the map, the AI
+  arming its converts).

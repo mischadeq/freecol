@@ -1011,6 +1011,21 @@
                 type="additive" value="1"/>
       <modifier id="model.modifier.offence" index="30"
                 type="additive" value="2"/>
+      <!-- Mod: an Indian convert with a musket is worse than a
+           colonist (no drill): his own +1 defence is not added, and
+           both are 25% lower. -->
+      <modifier id="model.modifier.defence" index="30"
+                type="additive" value="-1">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
+      <modifier id="model.modifier.offence" index="30"
+                type="percentage" value="-25">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
+      <modifier id="model.modifier.defence" index="30"
+                type="percentage" value="-25">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
     </role>
 
     <role id="model.role.dragoon" downgrade="model.role.soldier"
@@ -1042,6 +1057,21 @@
                 type="additive" value="3"/>
       <modifier id="model.modifier.movementBonus"
                 type="additive" value="9"/>
+      <!-- Mod: an Indian convert on a horse is better than a colonist
+           (born horsemen): his own +1 defence is not added, and both
+           are 25% higher. -->
+      <modifier id="model.modifier.defence" index="30"
+                type="additive" value="-1">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
+      <modifier id="model.modifier.offence" index="30"
+                type="percentage" value="25">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
+      <modifier id="model.modifier.defence" index="30"
+                type="percentage" value="25">
+        <scope type="model.unit.indianConvert" matches-null="false"/>
+      </modifier>
     </role>
 
     <role id="model.role.pioneer"
@@ -2006,6 +2036,11 @@
                value="true"/>
       <ability id="model.ability.foundColony"
                value="false"/>
+      <!-- Mod: converts can take muskets, horses and tools, and
+           defend better than a colonist when unarmed. -->
+      <ability id="model.ability.canBeEquipped"
+               value="true"/>
+      <modifier id="model.modifier.defence" type="additive" value="1"/>
       <modifier id="model.goods.grain"   index="30" type="additive" value="1"/>
       <modifier id="model.goods.sugar"   index="30" type="additive" value="1"/>
       <modifier id="model.goods.tobacco" index="30" type="additive" value="1"/>
