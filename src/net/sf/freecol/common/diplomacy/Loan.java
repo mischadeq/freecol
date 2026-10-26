@@ -368,6 +368,11 @@ public final class Loan {
         return closed >= 0 || state == State.VOID;
     }
 
+    /** A war loan (gold for soldiers, no ship as collateral). */
+    public boolean warLoan() {
+        return shipType == null;
+    }
+
     /** Is something owed on it (running, in default, or a claim)? */
     public boolean open() {
         return !over() && (balance > 0 || rentOwed > 0);

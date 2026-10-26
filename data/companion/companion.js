@@ -2375,7 +2375,9 @@
       '<span class="tag ' + st[0] + '">' + st[1] + "</span>" + late + creditChip(l.credit) + '<span class="m">' + esc(l.signed) + "</span></div>" +
       '<div class="oclock" title="What they still owe you, of the ' + num(l.principal) + ' gold lent">' +
       '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * left) + '%"></i></span> <b>' + num(l.balance) + "</b> / " + num(l.principal) + "</div>" +
-      '<div class="chips"><span class="tag info" title="Rent per turn on what they still owe">' + pct(l.rent) + " a turn</span>" +
+      '<div class="chips"><span class="tag m" title="' + (l.war ? "Gold for soldiers; on a default you take goods" : "Gold for a ship; the ship is the collateral") + '">' +
+      (l.war ? "war loan" : "ship loan") + "</span>" +
+      '<span class="tag info" title="Rent per turn on what they still owe">' + pct(l.rent) + " a turn</span>" +
       (l.next ? '<span class="tag ok" title="Due on their next turn">next ' + num(l.next) + "</span>" : "") +
       '<span class="tag m" title="Payments made of the term">' + l.paidTurns + " / " + l.term + " paid</span></div></div>";
   }
@@ -2401,9 +2403,11 @@
           .filter((c) => o.amount & c[0]).map((c) => ", " + c[1]).join("");
       else if (o.kind === "peace") what = "Peace" + (o.amount ? ", if you cancel the <b>" + num(o.amount) + "</b> gold they owe you" :
         o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
-      else if (o.kind === "loan") what = (o.id.endsWith(":counter") ? "Counter offer: " : "Asks for a ship loan: ") + "<b>" + num(o.amount) + "</b> gold at " +
-        pct(o.delivered) + " a turn for " + o.deadline + " turns";
-      else if (o.kind === "loan_default") what = "In default on your loan: <b>" + num(o.amount) + "</b> gold owed; their ship is worth <b>" + num(o.gold) + "</b>";
+      else if (o.kind === "loan") what = (o.id.endsWith(":counter") ? "Counter offer: " : o.ship ? "Asks for a ship loan: " : "Asks for a war loan: ") +
+        "<b>" + num(o.amount) + "</b> gold at " + pct(o.delivered) + " a turn for " + o.deadline + " turns" +
+        (o.against ? " (war on <b>" + esc(o.against) + "</b>)" : "");
+      else if (o.kind === "loan_default") what = "In default on your loan: <b>" + num(o.amount) + "</b> gold owed" +
+        (o.ship ? "; their ship is worth <b>" + num(o.gold) + "</b>" : "; you may take goods from their colonies");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
       else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";

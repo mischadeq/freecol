@@ -2796,6 +2796,57 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
     
     private Unit buyDragoon() {
+        return buyDragoon(spendable()); // keep the treasury (mod)
+    }
+
+    /**
+     * What a dragoon costs us in Europe (mod, war loans).
+     *
+     * @return The price, or -1 if we can not buy one.
+     */
+    public int dragoonPrice() {
+        final AbstractUnit au = dragoonToBuy();
+        if (au == null) return -1;
+        final int p = getPlayer().getEuropeanPurchasePrice(au);
+        return (p <= 0 || p == INFINITY) ? -1 : p;
+    }
+
+    /**
+     * Spend borrowed gold on soldiers (mod, war loans): dragoons in
+     * Europe, as many as the gold buys, the reserve not counted.
+     *
+     * @param budget The gold.
+     * @return The dragoons bought.
+     */
+    public int buySoldiers(int budget) {
+        int n = 0;
+        for (;;) {
+            final int before = getPlayer().getGold();
+            if (buyDragoon(Math.min(budget, before)) == null) break;
+            budget -= Math.max(1, before - getPlayer().getGold());
+            n++;
+        }
+        return n;
+    }
+
+    /** The cheapest unit trained in Europe, as a dragoon, or null. */
+    private AbstractUnit dragoonToBuy() {
+        final Role dragoonRole = getSpecification().getMilitaryRolesList().stream()
+                .filter(r -> r.hasAbility(Ability.ARMED) && r.hasAbility(Ability.MOUNTED))
+                .findFirst()
+                .orElse(null);
+        if (dragoonRole == null) return null;
+        final UnitType cheapestUnitType = getSpecification().getUnitTypesTrainedInEurope(getPlayer())
+            .stream()
+            .filter(ut -> ut.getPrice() > 0 && ut.getPrice() != INFINITY)
+            .sorted((a, b) -> Integer.compare(a.getPrice(), b.getPrice()))
+            .findFirst()
+            .orElse(null);
+        return (cheapestUnitType == null) ? null
+            : new AbstractUnit(cheapestUnitType, dragoonRole.getId(), 1);
+    }
+
+    private Unit buyDragoon(int budget) {
         final Player player = getPlayer();
         final Role dragoonRole = getSpecification().getMilitaryRolesList().stream()
                 .filter(r -> r.hasAbility(Ability.ARMED) && r.hasAbility(Ability.MOUNTED))
@@ -2822,7 +2873,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return null;
         }
-        if (purchasePrice > spendable()) { // keep the treasury (mod)
+        if (purchasePrice > budget) { // keep the treasury (mod)
             return null;
         }
         

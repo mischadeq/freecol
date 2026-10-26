@@ -34,13 +34,16 @@ import net.sf.freecol.common.diplomacy.Offer;
 import net.sf.freecol.common.diplomacy.Relations;
 import net.sf.freecol.common.model.Ability;
 import net.sf.freecol.common.model.AbstractUnit;
+import net.sf.freecol.common.model.Colony;
 import net.sf.freecol.common.model.Europe;
 import net.sf.freecol.common.model.FreeColGameObject;
 import net.sf.freecol.common.model.Game;
+import net.sf.freecol.common.model.GoodsType;
 import net.sf.freecol.common.model.ModelMessage;
 import net.sf.freecol.common.model.Player;
 import net.sf.freecol.common.model.Specification;
 import net.sf.freecol.common.model.Stance;
+import net.sf.freecol.common.model.StringTemplate;
 import net.sf.freecol.common.model.Unit;
 import net.sf.freecol.common.model.UnitType;
 import net.sf.freecol.common.networking.ChangeSet;
@@ -207,8 +210,7 @@ public final class LoanDesk {
                 l.waitFor(now);
                 message(cs, lender, "loan.waiting", l, l.claim());
             } else if (lender.isAI()) {
-                l.state = Loan.State.SEIZURE_PENDING;
-                trySeize(l, lender, cs);
+                lenderTakes(l, lender, cs);
                 return;
             }
             break;
@@ -288,12 +290,127 @@ public final class LoanDesk {
         CreditRecords.of(me()).defaulted(now(), l.lender);
         remember(lender, Memory.Kind.LOAN_DEFAULT, me(), 1);
         everyone(Memory.Kind.BAD_PAYER, lender);
-        if (lender.isAI()) { // no mercy this round: the ship
-            l.state = Loan.State.SEIZURE_PENDING;
-            trySeize(l, lender, cs);
+        if (lender.isAI()) { // no mercy this round: the ship or goods
+            lenderTakes(l, lender, cs);
         } else {
             askLender(l, lender, cs);
         }
+    }
+
+    /** A computer lender takes the ship, or for a war loan the goods
+        worth most to it. */
+    private void lenderTakes(Loan l, Player lender, ChangeSet cs) {
+        if (!l.warLoan()) {
+            l.state = Loan.State.SEIZURE_PENDING;
+            trySeize(l, lender, cs);
+            return;
+        }
+        while (l.claim() > 0) {
+            GoodsType best = null;
+            int bestValue = 0;
+            for (GoodsType gt : game().getSpecification().getStorableGoodsTypeList()) {
+                final int v = unitValue(lender, gt) * held(gt);
+                if (v > bestValue) {
+                    best = gt;
+                    bestValue = v;
+                }
+            }
+            if (best == null || takeGoods(l, lender, best, cs) <= 0) break;
+        }
+        finishGoods(l, lender, cs);
+    }
+
+    // War loans: goods instead of a ship (mod).
+
+    /** What one unit of goods brings the lender in its Europe, after
+        tax; 0 when boycotted for it. */
+    static int unitValue(Player lender, GoodsType gt) {
+        final net.sf.freecol.common.model.Market m = lender.getMarket();
+        if (m == null || !gt.isStorable() || !lender.canTrade(gt)) return 0;
+        return m.getPaidForSale(gt) * (100 - lender.getTax()) / 100;
+    }
+
+    /** Goods of a type in all our colonies. */
+    private int held(GoodsType gt) {
+        int n = 0;
+        for (Colony c : me().getColonyList()) n += c.getGoodsCount(gt);
+        return n;
+    }
+
+    /**
+     * What we have that the lender could take, for its dialog:
+     * "index:amount:worth:boycotted" per goods type, ',' separated
+     * (index in the specification's goods list).
+     */
+    private String goodsList(Player lender) {
+        final List<GoodsType> all = game().getSpecification().getGoodsTypeList();
+        final StringBuilder sb = new StringBuilder();
+        for (GoodsType gt : game().getSpecification().getStorableGoodsTypeList()) {
+            final int n = held(gt);
+            if (n <= 0) continue;
+            final boolean boycott = !lender.canTrade(gt);
+            final int worth = unitValue(lender, gt) * n;
+            if (worth <= 0 && !boycott) continue; // worthless in Europe
+            if (sb.length() > 0) sb.append(',');
+            sb.append(all.indexOf(gt)).append(':').append(n).append(':')
+                .append(worth).append(':').append((boycott) ? 1 : 0);
+        }
+        return sb.toString();
+    }
+
+    /** Do we have goods the lender could take (worth something to it)? */
+    private boolean canTake(Player lender) {
+        for (GoodsType gt : game().getSpecification().getStorableGoodsTypeList()) {
+            if (unitValue(lender, gt) > 0 && held(gt) > 0) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The lender takes goods of one type from our colonies, up to what
+     * we owe; it gets their worth in its Europe.
+     *
+     * @return The gold it got.
+     */
+    int takeGoods(Loan l, Player lender, GoodsType gt, ChangeSet cs) {
+        final int unit = unitValue(lender, gt);
+        if (unit <= 0 || l.claim() <= 0) return 0;
+        final int want = (l.claim() + unit - 1) / unit;
+        final List<Colony> colonies = new ArrayList<>(me().getColonyList());
+        colonies.sort((a, b) -> b.getGoodsCount(gt) - a.getGoodsCount(gt));
+        int taken = 0;
+        for (Colony c : colonies) {
+            final int n = Math.min(want - taken, c.getGoodsCount(gt));
+            if (n <= 0) continue;
+            c.removeGoods(gt, n);
+            taken += n;
+        }
+        if (taken <= 0) return 0;
+        final int got = Math.min(l.claim(), taken * unit);
+        gold(lender, got, cs);
+        l.balance = l.claim() - got;
+        l.rentOwed = 0;
+        if (!lender.isAI()) {
+            cs.addMessage(lender, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY, "loan.goodsTaken", me())
+                .addStringTemplate("%nation%", me().getNationLabel())
+                .addAmount("%amount%", taken)
+                .addNamed("%goods%", gt)
+                .addAmount("%gold%", got)
+                .addAmount("%balance%", l.claim()));
+        }
+        return got;
+    }
+
+    /** No more goods taken: what is left stays a claim. */
+    private void finishGoods(Loan l, Player lender, ChangeSet cs) {
+        final int now = now();
+        l.seize(0, now);
+        CreditRecords.of(me()).seized++;
+        ai.getMemories().add(new Memory(Memory.Kind.LOAN_SEIZED,
+            lender.getNationId(), now,
+            (ai.character() == NationCharacter.CONQUEROR) ? 2 : 1));
+        if (l.claim() > 0) message(cs, lender, "loan.claimLeft", l, l.claim());
     }
 
     /** Ask the player what to do about our default: a dialog. */
@@ -301,9 +418,14 @@ public final class LoanDesk {
         final int now = now();
         l.asked = now;
         final Unit ship = ship(l);
-        final Offer o = new Offer("loandefault:" + l.id + ":" + now,
+        int n = 0;
+        for (Offer x : ai.getOffers()) {
+            if (x.id.startsWith("loandefault:" + l.id + ":")) n++;
+        }
+        final Offer o = new Offer("loandefault:" + l.id + ":" + now + ":" + n,
             Offer.Kind.LOAN_DEFAULT, me().getNationId(), l.shipType,
-            l.claim(), shipWorth(l, ship), l.id, where(ship), now, 0);
+            l.claim(), shipWorth(l, ship), l.id,
+            (l.warLoan()) ? goodsList(lender) : where(ship), now, 0);
         o.delivered = l.missed;
         o.audience.add(lender.getNationId());
         o.told.add(lender.getNationId());
@@ -501,9 +623,11 @@ public final class LoanDesk {
         return true;
     }
 
-    /** No ship, a colony or a load waiting: the ceiling goes up. */
-    private boolean desperate() {
-        return noShips() && (!me().getColonyList().isEmpty() || waiting() > 0);
+    /** No ship, a colony or a load waiting (a war loan: losing the
+        war): the ceiling goes up. */
+    private boolean desperate(boolean war) {
+        return (war) ? ai.losingWar()
+            : noShips() && (!me().getColonyList().isEmpty() || waiting() > 0);
     }
 
     /**
@@ -513,18 +637,47 @@ public final class LoanDesk {
      */
     public UnitType needsLoan() {
         final Player me = me();
-        if (me.getPlayerType() != Player.PlayerType.COLONIAL
-            || me.getEurope() == null) return null;
+        if (!mayBorrow()) return null;
         if (me.getColonyList().isEmpty() && waiting() == 0) return null;
         if (!noTransport()) return null;
-        final int now = now();
-        for (Loan l : ai.getLoans()) {
-            if (!l.over()) return null;
-            if (now - l.closed < LoanRules.COOLDOWN) return null;
-        }
         final UnitType ut = cheapestShip();
         if (ut == null) return null;
         return (LoanRules.principal(price(ut), ai.spendable()) > 0) ? ut : null;
+    }
+
+    /** A colonial nation with no loan running, none closed lately. */
+    private boolean mayBorrow() {
+        if (me().getPlayerType() != Player.PlayerType.COLONIAL
+            || me().getEurope() == null) return false;
+        final int now = now();
+        for (Loan l : ai.getLoans()) {
+            if (!l.over() || now - l.closed < LoanRules.COOLDOWN) return false;
+        }
+        return true;
+    }
+
+    /** A European nation (not the King) we are at war with, or null. */
+    public Player warEnemy() {
+        for (Player p : game().getLiveEuropeanPlayerList()) {
+            if (p != me() && !p.isREF() && me().getStance(p) == Stance.WAR) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Do we need a war loan: at war, a ship to carry soldiers, and not
+     * the gold for {@link LoanRules#WAR_SOLDIERS} dragoons?
+     *
+     * @return The gold to borrow, 0 if none.
+     */
+    public int needsWarLoan() {
+        if (!mayBorrow() || warEnemy() == null || noTransport()) return 0;
+        final int price = ai.dragoonPrice();
+        if (price <= 0) return 0;
+        return Math.min(LoanRules.MAX_WAR_LOAN, LoanRules.principal(
+            LoanRules.WAR_SOLDIERS * price, ai.spendable()));
     }
 
     /** A lender said no: not asked again for a while. */
@@ -590,7 +743,7 @@ public final class LoanDesk {
     }
 
     /** Our gold, fleet and credit in a line for the player's dialog. */
-    private String info() {
+    private String info(boolean war) {
         final CreditRecord r = CreditRecords.of(me());
         final int now = now();
         final List<CreditRecord.Default> ds = r.recentDefaults(now);
@@ -602,7 +755,7 @@ public final class LoanDesk {
             + " last=" + ((ds.isEmpty()) ? -1
                           : now - ds.get(ds.size() - 1).turn)
             + " seized=" + r.seized
-            + " desperate=" + ((desperate()) ? 1 : 0);
+            + " desperate=" + ((desperate(war)) ? 1 : 0);
     }
 
     /** Ask for a loan if we need one: the best candidate first. */
@@ -615,10 +768,14 @@ public final class LoanDesk {
                 return; // the player has not answered yet
             }
         }
+        // A ship first; at war with a ship, gold for soldiers.
         final UnitType ut = needsLoan();
-        if (ut == null) return;
-        final int price = price(ut);
-        final int principal = LoanRules.principal(price, ai.spendable());
+        final boolean war = ut == null;
+        final int price = (war) ? 0 : price(ut);
+        final int principal = (war) ? needsWarLoan()
+            : LoanRules.principal(price, ai.spendable());
+        if (principal <= 0) return;
+        final Player enemy = (war) ? warEnemy() : null;
         final CreditRecord.Standing standing = CreditRecords.standing(me());
         final List<LoanRules.Lender> cands = LoanRules.candidates(lenders(),
             principal, standing, false);
@@ -637,14 +794,16 @@ public final class LoanDesk {
             if (c.human) {
                 final Offer o = new Offer("loan:" + me().getNationId() + ":"
                     + c.id + ":" + now, Offer.Kind.LOAN, me().getNationId(),
-                    ut.getId(), principal, price, null, info(), now,
-                    Loan.DEFAULT_TERM);
+                    (war) ? null : ut.getId(), principal, price, null,
+                    info(war), now, Loan.DEFAULT_TERM);
                 o.delivered = Loan.DEFAULT_RENT;
+                if (enemy != null) o.against = enemy.getNationId();
                 o.audience.add(c.id);
                 o.told.add(c.id);
                 ai.getOffers().add(o);
                 cs.add(See.only(p), new OfferMessage(o));
-                message(cs, p, "loan.request", null, principal);
+                message(cs, p, (war) ? "loan.requestWar" : "loan.request",
+                        null, principal);
                 lb.add("\n  Asks ", p.getDebugName(), " for a loan of ",
                        principal);
                 return;
@@ -653,8 +812,8 @@ public final class LoanDesk {
             final EuropeanAIPlayer la = (EuropeanAIPlayer)ai.getAIMain()
                 .getAIPlayer(p);
             final int rent = LoanRules.lenderRent(la.character(), standing);
-            final int ceiling = LoanRules.ceiling(ai.character(), desperate(),
-                                                  standing, false);
+            final int ceiling = LoanRules.ceiling(ai.character(),
+                desperate(war), standing, false);
             if (rent > ceiling) {
                 refused(c.id);
                 lb.add("\n  Loan from ", p.getDebugName(), " too dear: ", rent);
@@ -670,12 +829,14 @@ public final class LoanDesk {
 
     /**
      * Sign a loan: the lender's gold to us, and the ship bought in our
-     * Europe at once.  All or nothing.
+     * Europe at once (all or nothing); a war loan buys dragoons.
      *
+     * @param ut The ship type, null for a war loan.
      * @return The new {@code Loan}, or null if it fell through.
      */
     Loan sign(Player lender, int principal, int rent, int term, UnitType ut,
               ChangeSet cs) {
+        if (ut == null) return signWar(lender, principal, rent, term, cs);
         final Player me = me();
         final int now = now();
         final int price = price(ut);
@@ -685,7 +846,7 @@ public final class LoanDesk {
         if (price <= 0 || lenderGold < principal || me.getEurope() == null) {
             return null;
         }
-        final boolean desperate = desperate();
+        final boolean desperate = desperate(false);
         lender.modifyGold(-principal);
         me.modifyGold(principal);
         if (me.getGold() < price) {
@@ -707,9 +868,46 @@ public final class LoanDesk {
             + lender.getNationId() + ":" + now, lender.getNationId(),
             me.getNationId(), principal, rent, term, now, ut.getId());
         l.shipId = made.get(0).getId();
+        signed(l, lender, desperate);
+        message(cs, lender, "loan.signed", l, principal);
+        return l;
+    }
+
+    /** A war loan: the gold, spent on dragoons in Europe at once. */
+    private Loan signWar(Player lender, int principal, int rent, int term,
+                         ChangeSet cs) {
+        final Player me = me();
+        final int lenderGold = (lender.isAI())
+            ? ((EuropeanAIPlayer)ai.getAIMain().getAIPlayer(lender)).spendable()
+            : lender.getGold();
+        if (lenderGold < principal || me.getEurope() == null) return null;
+        final boolean desperate = desperate(true);
+        gold(lender, -principal, cs);
+        me.modifyGold(principal);
+        final int bought = ai.buySoldiers(principal);
+        final Loan l = new Loan("loan:" + me.getNationId() + ":"
+            + lender.getNationId() + ":" + now(), lender.getNationId(),
+            me.getNationId(), principal, rent, term, now(), null);
+        signed(l, lender, desperate);
+        if (!lender.isAI()) {
+            final Player enemy = warEnemy();
+            cs.addMessage(lender, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY, "loan.signedWar", me)
+                .addStringTemplate("%nation%", me.getNationLabel())
+                .addAmount("%gold%", principal)
+                .addName("%rent%", rentText(l.rent))
+                .addAmount("%amount%", bought)
+                .addStringTemplate("%enemy%", (enemy == null)
+                    ? StringTemplate.name("-") : enemy.getNationLabel()));
+        }
+        return l;
+    }
+
+    /** A loan signed: kept, and what it leaves with us. */
+    private void signed(Loan l, Player lender, boolean desperate) {
+        final int now = now();
         ai.getLoans().add(l);
         ai.getLoanAsks().remove(ALL);
-        // What it leaves with us.
         final String id = lender.getNationId();
         ai.getMemories().add(new Memory(Memory.Kind.LOAN_GIVEN, id, now,
                                         (desperate) ? 2 : 1));
@@ -720,8 +918,6 @@ public final class LoanDesk {
         } else if (l.rent < LoanRules.GIFT_RENT) {
             ai.getMemories().add(new Memory(Memory.Kind.GIFT, id, now, 1));
         }
-        message(cs, lender, "loan.signed", l, principal);
-        return l;
     }
 
 
@@ -735,7 +931,8 @@ public final class LoanDesk {
      * @param human The player.
      * @param accept True to accept.
      * @param amount For a request, rent * 100 + term; for a default, 0
-     *     seize, 1 forgive, 2 wait.
+     *     seize the ship, 1 forgive, 2 wait, 3 leave the rest owed, 100
+     *     plus a goods type's index to take those goods (war loans).
      * @param cs A {@code ChangeSet} to update.
      * @return True (the offer was ours).
      */
@@ -753,8 +950,10 @@ public final class LoanDesk {
             refused(human.getNationId());
             return true;
         }
-        final UnitType ut = game().getSpecification().getUnitType(o.goods);
-        if (ut == null || needsLoan() == null) {
+        final UnitType ut = (o.goods == null) ? null
+            : game().getSpecification().getUnitType(o.goods);
+        final boolean war = o.goods == null;
+        if ((war) ? needsWarLoan() <= 0 : (ut == null || needsLoan() == null)) {
             o.state = Offer.State.EXPIRED; // we found the gold meanwhile
             message(cs, human, "loan.noLonger", null, o.amount);
             return true;
@@ -764,7 +963,7 @@ public final class LoanDesk {
             : Loan.clampRent((amount < 0) ? Loan.DEFAULT_RENT : amount / 100);
         final int term = (counter) ? o.deadline
             : Loan.clampTerm((amount < 0) ? Loan.DEFAULT_TERM : amount % 100);
-        final int ceiling = LoanRules.ceiling(ai.character(), desperate(),
+        final int ceiling = LoanRules.ceiling(ai.character(), desperate(war),
             CreditRecords.standing(me()), true);
         if (!counter && rent > ceiling) {
             // Too dear: our highest rent, a dialog now.
@@ -773,6 +972,7 @@ public final class LoanDesk {
                 me().getNationId(), o.goods, o.amount, o.gold, null,
                 o.placeName, now, term);
             c.delivered = ceiling;
+            c.against = o.against;
             c.audience.add(human.getNationId());
             c.told.add(human.getNationId());
             ai.getOffers().add(c);
@@ -809,7 +1009,24 @@ public final class LoanDesk {
             l.waitFor(now);
             message(cs, human, "loan.waiting", l, l.claim());
             break;
-        default: // seize
+        case 3: // war loan: no more goods, the rest stays owed
+            finishGoods(l, human, cs);
+            break;
+        default:
+            if (l.warLoan()) { // the goods the player chose
+                final List<GoodsType> all
+                    = game().getSpecification().getGoodsTypeList();
+                final int i = choice - 100;
+                final GoodsType gt = (i >= 0 && i < all.size()) ? all.get(i)
+                    : null;
+                if (gt != null) takeGoods(l, human, gt, cs);
+                if (l.claim() > 0 && canTake(human)) {
+                    askLender(l, human, cs); // more to take
+                } else {
+                    finishGoods(l, human, cs);
+                }
+                break;
+            }
             l.state = Loan.State.SEIZURE_PENDING;
             if (ship(l) != null && !ship(l).isInEurope()) {
                 message(cs, human, "loan.seizePending", l, l.claim());

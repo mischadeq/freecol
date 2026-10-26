@@ -3767,11 +3767,18 @@ public final class InGameController extends FreeColClientHolder {
                 }
             } else if (o.kind
                        == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN_DEFAULT) {
-                // They defaulted: seize the ship, forgive, or wait (mod).
+                // They defaulted: seize the ship (a war loan: the goods
+                // the player picks), forgive, or wait (mod).
                 final java.util.List<ChoiceItem<Integer>> choices
                     = new java.util.ArrayList<>();
-                choices.add(new ChoiceItem<>(Messages.message("loan.choice.seize"),
-                                             0).defaultOption());
+                if (o.goods == null) {
+                    choices.addAll(loanGoodsChoices(o.placeName));
+                    choices.add(new ChoiceItem<>(Messages.message(
+                        "loan.choice.leave"), 3));
+                } else {
+                    choices.add(new ChoiceItem<>(Messages.message(
+                        "loan.choice.seize"), 0).defaultOption());
+                }
                 choices.add(new ChoiceItem<>(Messages.message("loan.choice.forgive"),
                                              1));
                 choices.add(new ChoiceItem<>(Messages.message("loan.choice.wait"),
@@ -4014,6 +4021,36 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * The goods a borrower in default on a war loan has, as choices:
+     * what each is worth to us; goods boycotted for us are shown but
+     * can not be taken (mod).
+     *
+     * @param list The offer's "index:amount:worth:boycotted" list.
+     * @return The choices (100 + goods index).
+     */
+    private java.util.List<ChoiceItem<Integer>> loanGoodsChoices(String list) {
+        final java.util.List<ChoiceItem<Integer>> ret = new java.util.ArrayList<>();
+        final java.util.List<GoodsType> all = getSpecification().getGoodsTypeList();
+        for (String rec : list.split(",")) {
+            final String[] f = rec.split(":");
+            if (f.length != 4) continue;
+            try {
+                final int i = Integer.parseInt(f[0]);
+                if (i < 0 || i >= all.size()) continue;
+                final boolean boycott = "1".equals(f[3]);
+                final String text = Messages.message(StringTemplate
+                    .template((boycott) ? "loan.choice.goodsBoycott"
+                        : "loan.choice.goods")
+                    .addAmount("%amount%", Integer.parseInt(f[1]))
+                    .addNamed("%goods%", all.get(i))
+                    .addAmount("%gold%", Integer.parseInt(f[2])));
+                ret.add(new ChoiceItem<>(text, 100 + i, !boycott));
+            } catch (NumberFormatException e) {} // skip
+        }
+        return ret;
+    }
+
+    /**
      * The question for an offer.
      *
      * @param o The {@code Offer}.
@@ -4031,10 +4068,12 @@ public final class InGameController extends FreeColClientHolder {
                 : (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
             break;
         case LOAN:
-            key = "offer.loanCounter";
+            key = (o.goods == null) ? "offer.loanCounterWar"
+                : "offer.loanCounter";
             break;
         case LOAN_DEFAULT:
-            key = "offer.loanDefault";
+            key = (o.goods == null) ? "offer.loanDefaultWar"
+                : "offer.loanDefault";
             break;
         case CALL_TO_ARMS:
             key = (from.isIndian()) ? "offer.tribeCall" : "offer.callToArms";

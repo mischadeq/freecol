@@ -173,6 +173,7 @@ final class CompanionOffers {
                 .put("color", (b == null) ? java.awt.Color.GRAY
                     : b.getNationColor())
                 .put("state", l.state.name().toLowerCase())
+                .put("war", l.warLoan())
                 .put("principal", l.principal)
                 .put("balance", l.claim())
                 .put("rent", l.rent)
@@ -224,6 +225,8 @@ final class CompanionOffers {
                         .getNationLabel()))
                 .put("goods", (gt == null) ? "" : gt.getId())
                 .put("goodsName", (gt == null) ? "" : Messages.getName(gt))
+                .put("ship", (o.kind == Offer.Kind.LOAN
+                              || o.kind == Offer.Kind.LOAN_DEFAULT) && o.goods != null)
                 .put("amount", o.amount)
                 .put("gold", o.gold)
                 // Envoys (step 8): who it went to; our terms: for what.

@@ -453,4 +453,122 @@ public class AILoansTest extends FreeColTestCase {
         assertNotNull(o);
         assertTrue(o.placeName.contains("standing=BAD"));
     }
+
+    // War loans: gold for soldiers, goods on a default.
+
+    private net.sf.freecol.common.model.Colony colony() {
+        return dutch.getColonyList().get(0);
+    }
+
+    private int dragoons(ServerPlayer p) {
+        int n = 0;
+        for (Unit u : p.getUnitSet()) if (u.isMounted() && u.isArmed()) n++;
+        return n;
+    }
+
+    /** The Dutch, with a ship, at war with the Spanish (not a lender). */
+    private void atWar() {
+        setUpGame();
+        new ServerUnit(game, dutch.getEurope(), dutch,
+                       spec().getUnitType("model.unit.caravel"));
+        final ServerPlayer spanish = getServerPlayer(game, SPANISH);
+        dutch.setStance(spanish, Stance.WAR);
+        spanish.setStance(dutch, Stance.WAR);
+        english.setGold(10000);
+    }
+
+    private Loan borrowForWar() {
+        plan();
+        final Offer o = open(ai, Offer.Kind.LOAN);
+        assertNotNull("asks for a war loan", o);
+        assertNull("no ship type", o.goods);
+        assertEquals(SPANISH, o.against);
+        final int gold = english.getGold();
+        final int before = dragoons(dutch);
+        assertTrue(answer(o, english, true, 20 * 100 + 30));
+        final Loan l = ai.getLoans().get(0);
+        assertTrue(l.warLoan());
+        assertEquals(gold - o.amount, english.getGold());
+        assertTrue("bought soldiers", dragoons(dutch) > before);
+        return l;
+    }
+
+    public void testWarLoan() {
+        atWar();
+        final Loan l = borrowForWar();
+        assertTrue(l.principal <= LoanRules.MAX_WAR_LOAN);
+    }
+
+    public void testNoWarLoanAtPeace() {
+        setUpGame();
+        new ServerUnit(game, dutch.getEurope(), dutch,
+                       spec().getUnitType("model.unit.caravel"));
+        plan();
+        assertNull(open(ai, Offer.Kind.LOAN));
+    }
+
+    public void testWarLoanDefaultPlayerPicksGoods() {
+        atWar();
+        final net.sf.freecol.common.model.GoodsType furs
+            = spec().getGoodsType("model.goods.furs");
+        final net.sf.freecol.common.model.GoodsType cigars
+            = spec().getGoodsType("model.goods.cigars");
+        final Loan l = borrowForWar();
+        dutch.setGold(0);
+        colony().addGoods(furs, 30);
+        colony().addGoods(cigars, 100);
+        english.getMarket().setArrears(cigars, 500); // boycotted for him
+        for (int i = 0; i < Loan.MISSES; i++) {
+            nextTurn();
+            plan();
+        }
+        assertEquals(Loan.State.DEFAULT, l.state);
+        Offer q = open(ai, Offer.Kind.LOAN_DEFAULT);
+        assertNull(q.goods);
+        final java.util.List<net.sf.freecol.common.model.GoodsType> all
+            = spec().getGoodsTypeList();
+        assertTrue(q.placeName, q.placeName.contains(all.indexOf(furs) + ":30:"));
+        assertTrue("boycotted goods are listed as such",
+            q.placeName.contains(all.indexOf(cigars) + ":100:0:1"));
+        // Boycotted goods bring nothing: not taken.
+        final int claim = l.claim();
+        assertTrue(answer(q, english, true, 100 + all.indexOf(cigars)));
+        assertEquals(100, colony().getGoodsCount(cigars));
+        assertEquals(claim, l.claim());
+        // Furs: all 30 taken, sold for him in his Europe.
+        q = open(ai, Offer.Kind.LOAN_DEFAULT);
+        assertNotNull("asked again: more to take", q);
+        final int gold = english.getGold();
+        assertTrue(answer(q, english, true, 100 + all.indexOf(furs)));
+        assertEquals(0, colony().getGoodsCount(furs));
+        assertTrue(english.getGold() > gold);
+        assertEquals(claim - (english.getGold() - gold), l.claim());
+        // Nothing he can take is left: the rest stays a claim.
+        assertEquals(Loan.State.SEIZED, l.state);
+        assertTrue(l.claim() > 0);
+        assertFalse(l.over());
+    }
+
+    public void testWarLoanComputerLenderTakesGoods() {
+        atWar();
+        english.setGold(0);
+        french.setGold(20000);
+        plan();
+        assertEquals(1, ai.getLoans().size());
+        final Loan l = ai.getLoans().get(0);
+        assertTrue(l.warLoan());
+        assertEquals(FRENCH, l.lender);
+        dutch.setGold(0);
+        final net.sf.freecol.common.model.GoodsType furs
+            = spec().getGoodsType("model.goods.furs");
+        colony().addGoods(furs, 100);
+        final int gold = french.getGold();
+        for (int i = 0; i < Loan.MISSES; i++) {
+            nextTurn();
+            plan();
+        }
+        assertEquals(Loan.State.SEIZED, l.state);
+        assertTrue("took goods", colony().getGoodsCount(furs) < 100);
+        assertTrue(french.getGold() > gold);
+    }
 }

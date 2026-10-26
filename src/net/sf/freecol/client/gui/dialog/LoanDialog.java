@@ -135,13 +135,21 @@ public final class LoanDialog {
             final Map<String, String> m = info(o.placeName);
             final JPanel content = new JPanel(new MigLayout("wrap 2, fillx",
                                                             "[][grow]", ""));
-            content.add(Utility.localizedTextArea(StringTemplate
-                .template("loan.dialog.ask")
-                .addStringTemplate("%nation%", from.getNationLabel())
-                .addAmount("%gold%", o.amount)
-                .addName("%ship%", (ut == null) ? o.goods
-                         : Messages.getName(ut))
-                .addAmount("%price%", o.gold)), "span, growx");
+            final boolean war = o.goods == null;
+            final Player enemy = (o.against == null) ? null
+                : freeColClient.getGame().getPlayerByNationId(o.against);
+            content.add(Utility.localizedTextArea((war)
+                ? StringTemplate.template("loan.dialog.askWar")
+                    .addStringTemplate("%nation%", from.getNationLabel())
+                    .addAmount("%gold%", o.amount)
+                    .addStringTemplate("%enemy%", (enemy == null)
+                        ? StringTemplate.name("?") : enemy.getNationLabel())
+                : StringTemplate.template("loan.dialog.ask")
+                    .addStringTemplate("%nation%", from.getNationLabel())
+                    .addAmount("%gold%", o.amount)
+                    .addName("%ship%", (ut == null) ? o.goods
+                             : Messages.getName(ut))
+                    .addAmount("%price%", o.gold)), "span, growx");
             final String st = m.getOrDefault("standing", "NEW");
             content.add(new JLabel(Messages.message("loan.dialog.credit")));
             final JPanel chips = new JPanel(new MigLayout("insets 0", "", ""));
@@ -157,7 +165,9 @@ public final class LoanDialog {
                 .addAmount("%gold%", num(m, "gold"))
                 .addAmount("%ships%", num(m, "ships")))));
             if (num(m, "desperate") > 0) {
-                content.add(chip(Messages.message("loan.dialog.desperate"),
+                content.add(chip(Messages.message((war)
+                                     ? "loan.dialog.losing"
+                                     : "loan.dialog.desperate"),
                                  new Color(0x6a1b9a)), "span");
             }
 

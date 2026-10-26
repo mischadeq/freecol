@@ -88,6 +88,7 @@ Aim: release the mod once Mischa is content with it.
 | - | The King's wars no longer poison relations; tension fades in peace | in use |
 | - | AI cheats removed (no free units, gold or sales multiplier) | to check |
 | - | Ship loans: a nation without ships borrows from you (or another nation); rent, default, seizure, public credit record | to check |
+| - | War loans: a nation at war borrows gold for soldiers; on a default you pick goods to take | to check |
 
 ## To check in the game
 
@@ -98,6 +99,9 @@ Short list of what has not been seen working yet, newest first.
   payments in the turn report, a default (seize / forgive / wait), the
   ship arriving in your Europe dock, the loans list and credit chips on
   the companion page.
+- **War loans:** an ally at war asks for gold and buys dragoons with
+  it; on a default you pick which goods to take (boycotted ones greyed
+  out).
 
 - **Envoys** (Report > Send an Envoy): a gift, a peace envoy with gold,
   terms in the popup, "join my war" with a nation and with a tribe
@@ -2272,3 +2276,32 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   but one ship; computer lenders forgiving or waiting; partial early
   payoff; your own peace envoy cannot offer to cancel their debt (only
   their peace terms ask for it); Europe price differences.
+
+### War loans (2026-10-26)
+- **Why (Mischa):** "my allies could use some gold". Mischa chose: only
+  they ask; on a default you take goods, and you pick which ("I don't
+  want only products that might be boycotted for me"); the gold goes to
+  the war first.
+- **What you see:** a nation at war (with a ship, short of the gold for
+  3 dragoons) asks: "Spain is at war with France and asks you for a
+  loan of 1,800 gold for soldiers", same sliders as ship loans, a
+  "losing the war" chip when it is. The report says how many dragoons
+  it bought with your gold. Payments, rent, early payoff, war freeze,
+  credit record: as ship loans.
+- **Default:** the question lists the goods in their colonies, each
+  with what it fetches in your Europe market after tax; goods boycotted
+  for you are shown greyed out. Pick one kind: as much is taken as
+  covers the debt, and you get its worth in gold. Asked again while
+  something is owed and something worth taking is left; or take nothing
+  more (the rest stays a claim), forgive, or wait.
+- **Computer lenders** lend for wars too and take the goods worth most
+  to them.
+- **Code:** `LoanDesk.needsWarLoan`, `signWar`, `takeGoods`,
+  `goodsList`; `EuropeanAIPlayer.buySoldiers` (dragoons with a budget,
+  the reserve not counted); a war loan is a `Loan` with no ship type.
+- **Tested:** `AILoansTest`: the request at war (not at peace), the gold
+  buys dragoons, the player picks goods (boycotted ones bring nothing,
+  asked again, the rest a claim), a computer lender takes goods. All
+  787 tests green.
+- **Not done:** the goods do not move the Europe market; the player
+  can not offer a loan himself.

@@ -64,6 +64,10 @@ public final class LoanRules {
     /** Rent from this on is a grudge (the squeeze counts double). */
     public static final int GRUDGE_RENT = 50;
 
+    /** War loans: dragoons a nation at war wants to afford, and the
+        most it borrows. */
+    public static final int WAR_SOLDIERS = 3, MAX_WAR_LOAN = 3000;
+
     /** The share of a debt a peace deal values it at. */
     public static final double DEBT_SHARE = 0.5;
 

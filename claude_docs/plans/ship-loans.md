@@ -135,9 +135,31 @@ Rent under 1.0% also gives a GIFT memory. LOAN_SEIZED is small because
 most nations find a seizure hard but fair; a proud nation (Conqueror)
 does not, so it remembers it twice as strongly.
 
+## War loans (added 2026-10-26, Mischa's choices)
+
+Gold for soldiers, no ship. Only they ask (the player does not offer).
+- **When:** a computer nation at war with a European nation (not the
+  King), with a transport ship (no ship: a ship loan comes first), no
+  loan running, 30 turns after its last, short of the gold for 3
+  dragoons. Principal = 3 dragoons' price minus `spendable()`, rounded
+  up to 50, at most 3000.
+- **Who:** the same candidates as ship loans (an enemy is never asked).
+  The dialog says "at war with X ... for soldiers", and the chip says
+  "losing the war" when it is (its ceiling then +1.0%).
+- **The gold:** spent at once on dragoons in its Europe (the reserve is
+  not counted for this), the rest stays in its treasury.
+- **Default:** no ship, so goods. The player picks: the question lists
+  the goods in all their colonies with what each fetches in the
+  player's Europe market after tax; goods boycotted for the player are
+  listed but can not be picked. One kind at a time, as much as covers
+  the debt; asked again while something is owed and something worth
+  taking is left; "take nothing more" leaves the rest as a claim. The
+  player gets the gold (the market itself is not moved). A computer
+  lender takes the goods worth most to it.
+
 ## Not in this round
 
-Players offering loans on their own; loans for anything but one ship;
+Players offering loans on their own; loans for other things (colonists);
 computer lenders forgiving or waiting; partial early payoff; price
 differences between Europes; a "cancel their debt" line in the
 player's own peace envoy.
