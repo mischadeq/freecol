@@ -96,6 +96,13 @@ Aim: release the mod once Mischa is content with it.
 
 Short list of what has not been seen working yet, newest first.
 
+- **The Log by turn:** turn cards, folding, filters, chips with goods
+  and unit icons, route colours, a warning merged over turns.
+
+- **Alliances (turn 202, edited save):** declare war on Russia: Denmark
+  stays out (message, peace with you), then leaves Russia; no
+  betrayer marks; the "Lately" row on the Danish and Russian cards.
+
 - **Wagons on ships:** move an empty wagon train onto your ship (at sea
   next to it, or in a colony); sail; move it ashore elsewhere. A loaded
   wagon does not fit; a wagon aboard can not be loaded.
@@ -179,6 +186,18 @@ Short list of what has not been seen working yet, newest first.
   computer nations picked at random, the stronger more likely wins.
 
 ## Ideas, not started
+
+### Local deals (Mischa, 2026-10-26, for later)
+- Notice-board deals and offers now say "fetch at" a nation's colony
+  that may be far away (the colony holding the most of the goods, or
+  the capital), with no idea where it is.
+- Idea: a nation sells (and buys) only from its colonies nearest to
+  you; it knows sailing 10 turns for 20 horses is pointless, so no
+  offer when nothing is near. Show where the colony is (direction and
+  turns away, a map pulse on the page).
+- Where: `OfferPlanner.notice` picks the colony with `biggest(...)`;
+  the deadline already uses `sailTurns`. Pick the nearest port with
+  enough goods instead, and skip when it is too far.
 
 ### Nations' economies (Mischa, 2026-10-17, for later)
 - Nations specialise (one makes coats, another sugar), and the
@@ -2461,3 +2480,33 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   `AIAlliancesTest.testHumanAlliedToBothStaysOut`, news in
   `testAlliedToBothStaysOut`. All 801 tests green. **Not checked:**
   the "Lately" row in the browser.
+
+### The Log by turn (2026-10-26)
+- **Why (Mischa):** the Log was a wall of text, even with bold words.
+- **Now:** one card per turn, newest on top and open, older turns
+  folded to a summary row ("News 4, Deals 1, Warnings 2, Routes 3,
+  Units 2"); click a turn to open or close it. Inside, the lines are
+  grouped: News, Deals, Warnings, Routes, Units. Filter buttons on top
+  (All / News / Deals / Warnings / Routes / Units, remembered).
+  - Short chips where the game has a short form (`companion.chip.` +
+    the message's template id: warehouse, shortages, Sons of Liberty,
+    education, congress, notice board, fetch, price agreements,
+    gifts); the full sentence on hover. A founding father's benefit
+    shows as a muted line under the chip.
+  - Route trips: one chip per route and stop, unloading and loading
+    together, in the route's colour from the map legend.
+  - Arrivals: the unit's icon, its name, "-> place".
+  - A warning that comes back turn after turn (same message about the
+    same thing, the numbers may change) shows once, on its latest
+    turn, with "x3 turns".
+  - Clicking a line or chip still centres the map on it.
+- **How:** `client/companion/LogDigest` (groups, repeat key; pure),
+  `CompanionState.messageFacts`, facts on `CompanionLog.Entry` (sent
+  with each entry), `drawLog` in `companion.js`.
+- **Tested:** `LogDigestTest` (groups, repeats ignore numbers, chip
+  texts, count on the chip); all 804 tests green. Checked in a browser
+  with a mock server and sample turns 200-202: folding, filters, the
+  merged warning, route and unit chips. **Not checked:** with the real
+  game (goods and unit icons, route colours come from the game).
+  Messages without a short form keep their full sentence; more short
+  forms can be added as `companion.chip.*` lines.

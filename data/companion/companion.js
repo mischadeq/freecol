@@ -98,7 +98,7 @@
         session = s.session;
         lastLogId = 0;
         seenLog.clear();
-        $("logList").innerHTML = "";
+        clearLog();
         if (state !== null) { schedule(0); return; }
       }
       online(s);
@@ -923,58 +923,196 @@
 
   // ---------------------------------------------------------------- log
 
-  function logClass(e) {
-    if (e.kind === "turn") return "turn";
-    if (e.kind === "load" || e.kind === "unload" || e.kind === "arrive") return e.kind;
-    if (e.kind === "natives") return "natives";
-    if (/missing_goods|warning|combat|unit_lost|demands|government_efficiency/.test(e.kind)) return "warn";
-    if (e.kind === "lost") return "alarm";
-    return "";
-  }
+  // The log (mod): one card per turn, newest on top and open, older
+  // turns folded to a summary row. Inside a turn the lines are grouped:
+  // news, deals, warnings, route trips, arrivals. Short chips where the
+  // game gives one; the full sentence on hover. A warning that comes
+  // back turn after turn shows once, on its latest turn, with a count.
+  const LOG_GROUPS = [["news", "News"], ["deal", "Deals"], ["warn", "Warnings"],
+    ["route", "Routes"], ["unit", "Units"]];
+  const logEntries = new Map();  // id -> entry
+  const logTurns = new Map();    // turn -> heading text
+  const openTurns = new Set(), closedTurns = new Set();
+  const newIds = new Set();
+  let logFilter = LOG_GROUPS.some((g) => g[0] === store.get("fc.logFilter")) ? store.get("fc.logFilter") : "all";
+  let logDrawn = false;
 
-  // The log is grouped by turn, newest turn first, each turn with its
-  // heading on top and its newest entry just below the heading.
-  function turnGroup(turn, text) {
-    const ol = $("logList");
-    let head = ol.querySelector('li.turn[data-turn="' + turn + '"]');
-    if (!head) {
-      head = document.createElement("li");
-      head.className = "turn";
-      head.dataset.turn = turn;
-      head.textContent = text || "Turn " + turn;
-      // Turns arrive in order, so a new turn goes on top.
-      ol.insertBefore(head, ol.firstChild);
-    } else if (text) {
-      head.textContent = text;
-    }
-    return head;
+  function logClass(e) {
+    if (e.kind === "lost" || /unit_lost|combat/.test(e.kind)) return "alarm";
+    if (/missing_goods|warning|demands|government_efficiency|warehouse/.test(e.kind)) return "warn";
+    return "";
   }
 
   function addLog(entries) {
     if (!entries.length) return;
-    const ol = $("logList");
     const open = !$("log").hidden && drawerTab === "log";
+    let added = false;
     for (const e of entries) {
       lastLogId = Math.max(lastLogId, e.id);
       if (seenLog.has(e.id)) continue;
       seenLog.add(e.id);
-      if (e.kind === "turn") { turnGroup(e.turn, e.text); continue; }
-      const head = turnGroup(e.turn, null);
-      const li = document.createElement("li");
-      li.className = logClass(e) + (e.x >= 0 ? " link" : "") + (state ? " new" : "");
-      let html = highlight(e.text, e.hl);
-      if (e.goods && e.goods.length) {
-        html += ' <span class="g">' + e.goods.map((g) =>
-          '<span class="' + (g[1] < 0 ? "neg" : "pos") + '">' + gi(g[0]) +
-          (g[1] === 0 ? "" : g[1] < 0 ? "−" + -g[1] : "+" + g[1]) + "</span>").join("") + "</span>";
-      }
-      li.innerHTML = html;
-      if (e.x >= 0) li.addEventListener("click", () => { pulse(e.x, e.y); centreOn(e.x, e.y); });
-      ol.insertBefore(li, head.nextSibling);
+      added = true;
+      if (e.kind === "turn") { logTurns.set(e.turn, e.text); continue; }
+      if (!logTurns.has(e.turn)) logTurns.set(e.turn, "Turn " + e.turn);
+      logEntries.set(e.id, e);
+      if (state) newIds.add(e.id);
       if (!open) unread++;
     }
-    while (ol.children.length > 500) ol.removeChild(ol.lastChild);
+    while (logEntries.size > 500) logEntries.delete(logEntries.keys().next().value);
+    if (added) drawLog();
     showUnread();
+    if (newIds.size) setTimeout(() => newIds.clear(), 2000);
+  }
+
+  function clearLog() {
+    logEntries.clear();
+    logTurns.clear();
+    openTurns.clear();
+    closedTurns.clear();
+    $("logList").innerHTML = "";
+  }
+
+  // A warning seen again later is shown only there: the turns of each
+  // repeating warning, to count how many in a row.
+  function repeats() {
+    const turnsOf = new Map();
+    for (const e of logEntries.values()) {
+      if (e.group !== "warn" || !e.repeat) continue;
+      if (!turnsOf.has(e.repeat)) turnsOf.set(e.repeat, new Set());
+      turnsOf.get(e.repeat).add(e.turn);
+    }
+    return turnsOf;
+  }
+
+  function streak(turns, t) {
+    let n = 1;
+    while (turns.has(t - n)) n++;
+    return n;
+  }
+
+  function logLink(e) {
+    return e.x >= 0 ? ' data-x="' + e.x + '" data-y="' + e.y + '"' : "";
+  }
+
+  function goodsChips(goods) {
+    return goods.map((g) => '<span class="' + (g[1] < 0 ? "neg" : "pos") + '">' + gi(g[0]) +
+      (g[1] === 0 ? "" : g[1] < 0 ? "−" + -g[1] : "+" + g[1]) + "</span>").join("");
+  }
+
+  // A line: a chip when the game gave a short text, else the sentence.
+  function logLine(e, extra) {
+    const cls = logClass(e) + (newIds.has(e.id) ? " new" : "") + (e.x >= 0 ? " link" : "");
+    const goods = e.goods && e.goods.length ? ' <span class="g">' + goodsChips(e.goods) + "</span>" : "";
+    if (e.chip) {
+      return '<span class="lchip ' + cls + '" title="' + esc(e.text) + '"' + logLink(e) + ">" +
+        esc(e.chip) + (extra || "") + goods + "</span>" +
+        (e.detail ? '<div class="ldetail">' + esc(e.detail) + "</div>" : "");
+    }
+    return '<div class="lline ' + cls + '"' + logLink(e) + ">" + highlight(e.text, e.hl) +
+      (extra || "") + goods + "</div>";
+  }
+
+  // Route trips: one chip per route and stop, unloading and loading
+  // together, in the route's colour from the map legend.
+  function routeChips(list) {
+    const stops = new Map();
+    for (const e of list) {
+      const k = (e.route || "") + "|" + (e.place || "");
+      if (!stops.has(k)) stops.set(k, { e, goods: [], text: [] });
+      const st = stops.get(k);
+      st.goods.push(...(e.goods || []));
+      st.text.push(e.text);
+    }
+    return [...stops.values()].map((st) => {
+      const r = state && state.routes ? state.routes.find((x) => x.name === st.e.route) : null;
+      return '<span class="lchip route' + (st.e.x >= 0 ? " link" : "") + '" title="' + esc(st.text.join("\n")) + '"' + logLink(st.e) + ">" +
+        (r ? '<i class="rsw" style="background:' + esc(r.color) + '"></i>' : "") +
+        esc(st.e.route || "Route") + ' <span class="m">' + esc(st.e.place || "") + "</span>" +
+        ' <span class="g">' + goodsChips(st.goods) + "</span></span>";
+    }).join("");
+  }
+
+  function unitChip(e) {
+    if (e.kind !== "arrive") return logLine(e);
+    return '<span class="lchip' + (e.x >= 0 ? " link" : "") + (newIds.has(e.id) ? " new" : "") + '" title="' + esc(e.text) + '"' + logLink(e) + ">" +
+      (e.icon ? '<img class="ui" src="' + unitUrl(e.icon) + '" alt="">' : "") +
+      esc(e.who || "") + ' <span class="m">→ ' + esc(e.place || "") + "</span></span>";
+  }
+
+  function drawLog() {
+    const ol = $("logList");
+    const turnsOf = repeats();
+    const byTurn = new Map();
+    for (const e of logEntries.values()) {
+      const g = e.group || "news";
+      if (g === "warn" && e.repeat) {
+        const ts = turnsOf.get(e.repeat);
+        if (ts && [...ts].some((t) => t > e.turn)) continue; // Shown later
+      }
+      if (!byTurn.has(e.turn)) byTurn.set(e.turn, []);
+      byTurn.get(e.turn).push(e);
+    }
+    const turns = [...new Set([...logTurns.keys(), ...byTurn.keys()])].sort((a, b) => b - a);
+    const newest = turns[0];
+    let html = '<li class="lfilter">' + [["all", "All"], ...LOG_GROUPS].map(([k, n]) =>
+      '<button class="lf' + (logFilter === k ? " on" : "") + '" data-f="' + k + '">' + n + "</button>").join("") + "</li>";
+    for (const t of turns) {
+      const list = (byTurn.get(t) || []).slice().reverse(); // newest first
+      const counts = {};
+      for (const e of list) counts[e.group || "news"] = (counts[e.group || "news"] || 0) + 1;
+      const shown = logFilter === "all" ? list : list.filter((e) => (e.group || "news") === logFilter);
+      if (logFilter !== "all" && !shown.length) continue;
+      const isOpen = (t === newest && !closedTurns.has(t)) || openTurns.has(t);
+      const sum = LOG_GROUPS.filter(([k]) => counts[k]).map(([k, n]) =>
+        '<span class="lcount ' + k + '">' + n + " " + counts[k] + "</span>").join("");
+      html += '<li class="lturn' + (isOpen ? " open" : "") + '" data-turn="' + t + '"><span class="lt">' +
+        '<i class="caret"></i>' + esc(logTurns.get(t) || "Turn " + t) + '</span><span class="lsum">' + sum + "</span></li>";
+      if (!isOpen) continue;
+      let body = "";
+      for (const [k, n] of LOG_GROUPS) {
+        const items = shown.filter((e) => (e.group || "news") === k);
+        if (!items.length) continue;
+        let row;
+        if (k === "route") row = routeChips(items);
+        else if (k === "unit") row = items.map(unitChip).join("");
+        else row = items.map((e) => {
+          const ts = k === "warn" && e.repeat ? turnsOf.get(e.repeat) : null;
+          const n2 = ts ? streak(ts, e.turn) : 1;
+          return logLine(e, n2 > 1 ? ' <span class="m">×' + n2 + " turns</span>" : "");
+        }).join("");
+        body += '<div class="lgroup ' + k + '"><span class="lgl">' + n + '</span><div class="lgi">' + row + "</div></div>";
+      }
+      html += '<li class="lbody">' + (body || '<span class="m">Nothing this turn</span>') + "</li>";
+    }
+    ol.innerHTML = html;
+    if (!logDrawn) {
+      logDrawn = true;
+      ol.addEventListener("click", (ev) => {
+        const f = ev.target.closest("[data-f]");
+        if (f) {
+          logFilter = f.dataset.f;
+          store.set("fc.logFilter", logFilter);
+          drawLog();
+          return;
+        }
+        const head = ev.target.closest("li.lturn");
+        if (head) {
+          const t = Number(head.dataset.turn);
+          const wasOpen = head.classList.contains("open");
+          openTurns.delete(t);
+          closedTurns.delete(t);
+          (wasOpen ? closedTurns : openTurns).add(t);
+          drawLog();
+          return;
+        }
+        const link = ev.target.closest("[data-x]");
+        if (link) {
+          const x = Number(link.dataset.x), y = Number(link.dataset.y);
+          pulse(x, y);
+          centreOn(x, y);
+        }
+      });
+    }
   }
 
   // The important words of a log line (mod): names and trouble in

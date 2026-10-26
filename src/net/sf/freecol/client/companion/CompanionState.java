@@ -278,9 +278,10 @@ final class CompanionState {
             final ModelMessage m = firsts.get(e.getKey());
             final String text = (e.getValue() > 1)
                 ? e.getKey() + " (\u00d7" + e.getValue() + ")" : e.getKey();
-            CompanionLog.post(turn, "msg-" + m.getMessageType().name()
-                    .toLowerCase(), text, sourceTile(game, m), null,
-                filledNames(m));
+            final String kind = "msg-" + m.getMessageType().name()
+                .toLowerCase();
+            CompanionLog.post(turn, kind, text, sourceTile(game, m), null,
+                filledNames(m), messageFacts(kind, m, e.getValue()));
             this.loggedTexts.add(e.getKey());
         }
         this.seenMessages = now;
@@ -314,12 +315,21 @@ final class CompanionState {
                     .addName("%group%", group)
                     .addAmount("%number%", list.size()))
                 : Messages.message(u.getLabel(Unit.UnitLabelType.PLAIN));
+            final String place = Messages.message(
+                u.getTile().getLocationLabelFor(player));
+            final Map<String, String> facts = new LinkedHashMap<>();
+            facts.put("group", LogDigest.UNIT);
+            facts.put("who", who);
+            facts.put("place", place);
+            final String icon = u.getType().getId() + "." + u.getRole().getId();
+            this.iconUnits.putIfAbsent(icon, u);
+            facts.put("icon", icon);
             CompanionLog.post(turn, "arrive", Messages.message(StringTemplate
                     .template("companion.log.arrive")
                     .addName("%unit%", who)
                     .addStringTemplate("%location%",
                         u.getTile().getLocationLabelFor(player))),
-                u.getTile(), null);
+                u.getTile(), null, null, facts);
         }
         this.lastDestinations.clear();
         this.lastDestinations.putAll(dests);
@@ -347,6 +357,39 @@ final class CompanionState {
         }
         this.lastColonies.clear();
         this.lastColonies.putAll(cols);
+    }
+
+    /**
+     * The facts of a game message for the page (mod): its group, a
+     * short chip text when there is one ("companion.chip." + its
+     * template id, with the same values), a detail line, and the key
+     * that tells the same message coming back next turn.
+     */
+    static Map<String, String> messageFacts(String kind, ModelMessage m,
+                                            int count) {
+        final Map<String, String> f = new LinkedHashMap<>();
+        final String id = m.getId();
+        f.put("group", LogDigest.group(kind, id));
+        final Map<String, String> values = new LinkedHashMap<>();
+        try {
+            for (java.util.AbstractMap.SimpleEntry<String, StringTemplate> e
+                     : m.entryList()) {
+                if (e.getValue() == null) continue;
+                values.put(e.getKey(), Messages.message(e.getValue()));
+            }
+            final String chip = "companion.chip." + id;
+            if (Messages.containsKey(chip)) {
+                String c = Messages.message(StringTemplate.copy(chip, m));
+                if (count > 1) c += " (×" + count + ")";
+                f.put("chip", c);
+            }
+            final String detail = values.get("%description%");
+            if (detail != null && !detail.isEmpty()) f.put("detail", detail);
+        } catch (RuntimeException re) {
+            // The full text will do.
+        }
+        f.put("repeat", LogDigest.repeatKey(id, m.getSourceId(), values));
+        return f;
     }
 
     private static Tile sourceTile(Game game, ModelMessage m) {
@@ -992,6 +1035,9 @@ final class CompanionState {
         for (CompanionLog.Entry e : CompanionLog.since(since)) {
             j.obj().put("id", e.id).put("turn", e.turn).put("kind", e.kind)
                 .put("text", e.text).put("x", e.x).put("y", e.y);
+            for (Map.Entry<String, String> f : e.facts.entrySet()) {
+                if (f.getValue() != null) j.put(f.getKey(), f.getValue());
+            }
             j.key("hl").arr();
             for (int[] r : e.runs) {
                 j.arr().val(r[0]).val(r[1]).val(r[2]).endArr();

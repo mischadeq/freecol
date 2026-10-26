@@ -34,6 +34,7 @@ public class AllTests {
         suite.addTestSuite(MoodsTest.class);
         suite.addTestSuite(GraphTest.class);
         suite.addTestSuite(ArchiveTest.class);
+        suite.addTestSuite(LogDigestTest.class);
         return suite;
     }
 }

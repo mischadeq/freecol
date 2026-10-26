@@ -65,10 +65,17 @@ public final class CompanionLog {
         final Map<String, Integer> goods;
         /** What to highlight: runs {start, end, flags} (mod). */
         final java.util.List<int[]> runs;
+        /** Facts for the page's chips (mod): "group", "chip", "detail",
+            "repeat", "route", "place", "who", "icon"; may be empty. */
+        final Map<String, String> facts;
 
         Entry(long id, int turn, String kind, String text, Tile tile,
               Map<String, Integer> goods,
-              java.util.Collection<String> names) {
+              java.util.Collection<String> names,
+              Map<String, String> facts) {
+            this.facts = new LinkedHashMap<>();
+            if (facts != null) this.facts.putAll(facts);
+            this.facts.putIfAbsent("group", LogDigest.group(kind, null));
             this.id = id;
             this.turn = turn;
             this.kind = kind;
@@ -103,7 +110,7 @@ public final class CompanionLog {
      */
     public static synchronized void post(int turn, String kind, String text,
                                          Tile tile, Map<String, Integer> goods) {
-        post(turn, kind, text, tile, goods, null);
+        post(turn, kind, text, tile, goods, null, null);
     }
 
     /**
@@ -121,8 +128,26 @@ public final class CompanionLog {
     public static synchronized void post(int turn, String kind, String text,
                                          Tile tile, Map<String, Integer> goods,
                                          java.util.Collection<String> names) {
+        post(turn, kind, text, tile, goods, names, null);
+    }
+
+    /**
+     * Add an entry with facts for the page's chips (mod).
+     *
+     * @param turn The turn number.
+     * @param kind The kind of event.
+     * @param text The full text (shown on hover when a chip is short).
+     * @param tile Where it happened, or null.
+     * @param goods Goods involved, or null.
+     * @param names The names in the text, or null.
+     * @param facts The facts ({@link Entry#facts}), or null.
+     */
+    public static synchronized void post(int turn, String kind, String text,
+                                         Tile tile, Map<String, Integer> goods,
+                                         java.util.Collection<String> names,
+                                         Map<String, String> facts) {
         entries.addLast(new Entry(nextId++, turn, kind, text, tile, goods,
-                                  names));
+                                  names, facts));
         while (entries.size() > MAX) entries.removeFirst();
     }
 
@@ -196,7 +221,7 @@ public final class CompanionLog {
                         .addName("%unit%", who)
                         .addName("%route%", routeName)
                         .addName("%location%", where)),
-                     unit.getTile(), off);
+                     unit.getTile(), off, null, stopFacts(routeName, where, who));
             }
             if (!on.isEmpty()) {
                 post(turn, "load", Messages.message(StringTemplate
@@ -204,11 +229,22 @@ public final class CompanionLog {
                         .addName("%unit%", who)
                         .addName("%route%", routeName)
                         .addName("%location%", where)),
-                     unit.getTile(), on);
+                     unit.getTile(), on, null, stopFacts(routeName, where, who));
             }
         } catch (RuntimeException re) {
             // Ignore, the log is a convenience.
         }
+    }
+
+    /** The facts of a trade route stop, for the page's route chips. */
+    private static Map<String, String> stopFacts(String route, String place,
+                                                 String who) {
+        final Map<String, String> f = new LinkedHashMap<>();
+        f.put("group", LogDigest.ROUTE);
+        f.put("route", route);
+        f.put("place", place);
+        f.put("who", who);
+        return f;
     }
 
     /** How much more of each goods a holds than b, by goods type id. */
