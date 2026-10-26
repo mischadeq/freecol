@@ -1745,6 +1745,27 @@ top, so the (modal) dialog was hidden but blocked every click.
 - **Tested:** all 674 unit tests green (no unit test for Swing timing;
   Mischa to check in the game).
 
+### AI cheats removed
+
+Why: the AI grew too fast over the long term, most on big maps. Measured
+in Mischa's autosaves (see the project doc `freecol-ai-cheats.md`): a
+free expert colonist or ship roughly every 10 turns on Medium, and the
+sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
+
+- **Gone, in the code (so old saves lose them too):** free boycott
+  lifts, free scout and pioneer equipment, free land units, mercenary
+  enlisting, free warships and transports (`EuropeanAIPlayer.cheat`,
+  `cheatUnit`, `cheatGold`), the sales multiplier (`ServerPlayer.sell`),
+  and free gold for buying land (`BuildColonyMission`).
+- **Spec:** all cheat options set to 0 (multiplier 1) on every level; the
+  option group is labelled "removed in this mod, values are ignored".
+- **Kept (same rules as the human):** production, prices, emigration,
+  taxes, rumours, starting gold and experts per difficulty level.
+- **Tested:** build, all 674 tests green. Not tested in play.
+- **Risks to watch:** a weaker early AI (no free colonists, no 4x
+  income); an AI that loses every ship now has to buy one with its own
+  gold (before it always got one free).
+
 ### Fixes from Mischa's first game with steps 4-7 (2026-10-15)
 - **Trade routes go at the player's word:** units on trade routes no
   longer move by themselves whenever no unit needs attention (after the
