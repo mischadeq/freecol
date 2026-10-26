@@ -1,18 +1,251 @@
 # FreeCol UI mod: ideas and status
 
-Goal: make FreeCol's UI workable and give proper overviews.
-Branch: `colony-overview` on the fork `mischadeq/freecol`.
+Goal: make FreeCol's UI workable, give proper overviews, a companion
+page for a second screen, and computer nations and tribes that act with
+reasons. Fork `mischadeq/freecol`, branch `colony-overview` (cloud
+work arrives on `claude/...` branches, Mischa merges).
 
-Last updated: 2026-10-13
+Last updated: 2026-10-17 (749 unit tests, all green).
 
-Status legend: **Done** = written and seen working in the game.
-**In progress** = being worked on now. **To be tested** = written and
-committed, not yet checked in the game. **Planned** = designed, with a
-plan in `claude_docs/plans/`, not built. **Idea** = not started.
+How to read this file:
+1. **Where things stand**: every feature in one line, with its status.
+2. **To check in the game**: what Mischa has not seen working yet.
+3. **Known problems and loose ends**, **Decided**, **Ideas, not
+   started**.
+4. **Build log**: what was built when and why, oldest first, with the
+   tests. Later entries can change earlier ones; the summary at the top
+   is the current state.
+
+Status words: **seen OK** = Mischa saw it working. **in use** = part of
+Mischa's game every turn, no complaint left open (not formally ticked).
+**to check** = built and unit-tested, not yet seen in a game.
+"Auto-checked" / "sandbox-checked" in the log means Claude ran the real
+game in an automated session: a smoke test, not a play test.
 
 Aim: release the mod once Mischa is content with it.
 
-## Done
+## Where things stand
+
+### Game screens and orders
+
+| Feature | Where | Status |
+| --- | --- | --- |
+| Colony Overview: main products, needs, stocks, build, sortable, supply forecast in Needs | Report, Shift+F6 | seen OK (layout); forecast colours to check |
+| Supply warnings at the start of the turn (no carrier, nothing coming, too late, held up and now late) | turn report | to check (never seen on screen) |
+| Logistics report with route map and "moved, last 10 turns" bars | Report, Shift+F7 | to check |
+| Goods Overview (goods × colonies) | Report, Shift+F8 | to check |
+| Unit Overview with filters | Report, Shift+F10 | to check |
+| Unit groups: Form / Leave / Disband Group, march together, Rush (Shift+R) | Orders | to check |
+| Execute-orders button with count, hover list, end-turn warning; routes and go-to wait for the player | bottom bar | in use (count and bar fixes to re-check) |
+| Unit badges as symbols, hover explanations, View > Unit Badges | map | to check |
+| New trade route editor (map, stops table, warnings); routes do not haul to a full colony | Trade Routes | to check |
+| Warehouse dialog explains Low / High / Keep | colony | to check |
+| Borderless full screen on the monitor the game is on | Preferences > Display | in use |
+| Undo: Restart This Turn / Go Back One Turn | Game menu | to check |
+| Prices in the Europe amount dialog, treasury line on the Europe screen | Europe | to check |
+| Join colony and learn (soldier at the palisade to a teacher) | colony | to check |
+| Unexplored map as an old chart | Preferences > Display | in use (freeze fixed) |
+| Natives: gift part of a load; haggling when buying fixed | native trade | to check |
+| Trade with another nation's colony: what they sell in tens, price, haggling; high/low balling hint | trade screen | tried once (Add fixed), to check again |
+| Send an Envoy: peace, alliance, join my war, leave the coalition, gift; tribes too; trade (price agreement, notice board) | Report > Send an Envoy | to check |
+| Post a Trade Offer (notice board, price agreement) | Report | to check |
+| Offer dialogs (peace terms, calls to arms, notices, agreements, ultimatums, buy-outs, tribe offers, envoy terms) | start of turn | in use |
+| War of Spanish Succession as a war, then a partial cession; game option | game options | to check (new game) |
+| A new game starts with the game and map options chosen last time | new game screen | to check |
+| Notice-board deals: move a ship or wagon train into their colony to deliver or fetch at once | map | to check |
+| Indian converts as soldiers, dragoons, scouts, pioneers; own pictures | colony, Europe | to check |
+| Empty wagon trains on ships (1 slot each: a caravel takes 2), yours only | map, colony | to check |
+
+### Companion page (http://localhost:8765, View > Open Companion Page)
+
+| Feature | Status |
+| --- | --- |
+| Tabs (Overview with widgets, Colonies, Trade, Nations, Diplomacy, Military, Independence, History), keys 1-8 | in use |
+| Live map, alerts, colony cards (Liberty gauge, advice chips), empire goods | in use |
+| Supply network graph (directions kept, networks side by side) | in use; far colonies to check |
+| Europe market prices and chart; route charts | in use |
+| Log drawer with routine colony messages, important words highlighted | in use |
+| Relations drawer (homefront, nations, tribes per settlement); Colopedia drawer | in use |
+| Nations cards: figures, verdict chips, moods, memories, where they live; ranking table and chart | in use |
+| Tribe cards on the Nations tab and tribes in the Military army bars | to check |
+| Diplomacy tab: table, wars and alliances between others, coalitions, relations graph, offers, tribe cards | in use (seen 2026-10-17) |
+| Independence tab | to check |
+| History tab (expansion replay from old autosaves) | to check |
+
+### Computer nations and tribes (running in Mischa's game)
+
+| Step | What | Status |
+| --- | --- | --- |
+| 0 | Replay of autosaves to tune the diplomat (`ant replay`) | done |
+| 1 | Wars can be fought: landings across the sea, targeting fix | in use |
+| - | Where they live: sightings, guesses, scouting ships | in use |
+| - | The computer arms colonists, buys a ship for an invasion, keeps a treasury | in use |
+| 2 | Moods and memories, trust | in use |
+| 3 | War and peace between computer nations by the diplomat; offers, notice board, trade ships | in use |
+| 4 | Price agreements by ship | in use |
+| 5 | Alliances as pacts, joint wars, coalitions (buy-outs, joint strikes) | in use |
+| 6 | Grievances and ultimatums before a war | in use |
+| 7 | Tribes: know each other, rivals, calls for help, refugees, allied settlements, tribes as allies, unrest and uprisings, Pontiac | in use |
+| 8 | The player's envoys (nations and tribes), encroaching means taking land | to check |
+| - | The King's wars no longer poison relations; tension fades in peace | in use |
+| - | AI cheats removed (no free units, gold or sales multiplier) | to check |
+| - | Ship loans: a nation without ships borrows from you; rent, default, seizure, public credit record | to check |
+| - | War loans: a nation at war borrows gold for soldiers; on a default you pick goods to take | to check |
+
+## To check in the game
+
+Short list of what has not been seen working yet, newest first.
+
+- **Wagons on ships:** move an empty wagon train onto your ship (at sea
+  next to it, or in a colony); sail; move it ashore elsewhere. A loaded
+  wagon does not fit; a wagon aboard can not be loaded.
+
+- **Armed converts:** give a convert muskets and horses (in a colony):
+  the new pictures, dragoons beating colonist dragoons, musket-only
+  converts losing more often; your current save gets it on loading.
+
+- **Ship loans:** a computer nation that lost its ships asks for a
+  loan (dialog with rent and term sliders), the ship in their Europe,
+  payments in the turn report, a default (seize / forgive / wait), the
+  ship arriving in your Europe dock, the loans list and credit chips on
+  the companion page.
+- **War loans:** an ally at war asks for gold and buys dragoons with
+  it; on a default you pick which goods to take (boycotted ones greyed
+  out).
+
+- **Envoys** (Report > Send an Envoy): a gift, a peace envoy with gold,
+  terms in the popup, "join my war" with a nation and with a tribe
+  (price per brave, alliance), leaving a coalition, the trade lines.
+- **War of Spanish Succession** (new game): the war message, the treaty
+  6 turns later, which colonies go, the abandoned ones, the rest of the
+  loser still alive.
+- **Tribe cards** on the Nations tab, tribes in the Military army bars.
+- **Tribes and land:** a colony on a tribe's border does not anger it;
+  one on land taken without paying does.
+- **Trade screen** at another nation's colony: Add, the amount in tens,
+  haggling, a deal at their price.
+- **Supply network** with a far-away colony.
+- **Execute orders:** the hover list matches the units on the map; the
+  count drops after pressing; the bar stays when no unit is active.
+- **Older, never seen on screen:** supply warnings, Logistics / Goods /
+  Unit Overview reports, unit groups and Rush, unit badges, the trade
+  route editor, the warehouse dialog, Undo, Europe price dialog and
+  treasury line, join colony and learn, natives' gift part and haggle,
+  Independence and History tabs.
+
+## Known problems and loose ends
+
+- **Error when moving onto a French tile while at war** (FreeCol.log,
+  2026-10-16). Mischa: leave it for now. Not looked at.
+- **Envoy menu item is hard to find** (in the long Report menu).
+  Offered: a keyboard shortcut, or a button by each nation in Foreign
+  Affairs. Open.
+- **A European nation's price to join your war** (500-3500, doubled
+  when not allies, up to 10,000) may be too steep next to the tribes'
+  per-brave price. Asked Mischa whether to price it by their soldiers.
+  Open.
+- Left over from the steps (small, none urgent):
+  - envoy deals in gold only (no goods);
+  - the computer does not sell to you under a price agreement (only
+    buys), and agreements do not make war less likely;
+  - computer nations do not take each other's notices; no cancelling a
+    promise; no counter-offers in the offer dialog;
+  - the coalition founder cannot be bought out;
+  - terms other than gold in an ultimatum ("withdraw your soldiers");
+  - the King still declares wars at random (idea: pay to stay out);
+  - tribes: no dedicated war-party mission; no help between tribes in
+    wars between tribes;
+  - history charts for the tribes on the page;
+  - old chart map: guessed strokes beyond the edge, the minimap.
+
+## Decided
+
+- **Needs column stays icons only.** There are few enough goods to
+  remember, so no names there.
+- **Food stays in "Mainly produces" for now.** To reconsider later:
+  it shows up as a main product for many colonies (Food +3, +4), which
+  is accurate but says little about what a colony is specialised in.
+  One option is to hide it unless it is a real surplus, say +8 or more.
+- **The companion page is read-only:** the player acts in the game.
+- **Honest view:** nations, tribes and the page use only what they
+  could know (see `plans/companion-ui.md`).
+- **A war out of pure hatred stays in;** local allies against the
+  King's global wars; soldiers never stand in an ally's colony.
+- **Envoys:** one per nation every 5 turns, free, the answer next turn;
+  a price only when trusted; tribes put survival first; an abandoned
+  colony is disbanded; a shared border is not encroaching.
+- **Spanish Succession:** partial cession, small colonies abandoned,
+  each colonist of the bigger ones leaves with a 1 in 10 chance; two
+  computer nations picked at random, the stronger more likely wins.
+
+## Ideas, not started
+
+### Nations' economies (Mischa, 2026-10-17, for later)
+- Nations specialise (one makes coats, another sugar), and the
+  computer players build fewer, bigger colonies that produce more.
+- Europe's prices react to every nation's sales: if Spain and France
+  sell tons of coats, the coat price drops for everyone.
+- First: Mischa starts a new game to see how the AI builds now.
+
+### Unit groups, next steps
+- Choose which units on a tile join a group, instead of all of them.
+- Show the group on the map (a banner or number on the unit).
+- "Attack with the group" as an explicit order.
+- A list of groups with a button to jump to each.
+
+### Companion page, next steps
+- Filter the map to one trade route or one group (left out for now).
+- Arrivals of a group are logged once when the members arrive together;
+  members arriving in different moments still get a line each.
+- Later, maybe: let the page give simple orders. Kept read-only for now
+  (decided with Mischa).
+
+### Logistics, next steps
+- Suggested routes: link a colony that needs a good to one with a
+  surplus, straight from the overview.
+- Open the trade route editor from the Logistics report.
+- Check the wagon limit in the base rules. The `shippableWagons` mod's
+  copy of the wagon definition limits wagon trains to fewer than the
+  number of colonies. If the base rules have it too, a small companion
+  rules mod could lift it.
+
+### Colony overview
+- A totals row for the whole empire.
+- Option to show gross production instead of net.
+- Show hammers / construction capacity as a product.
+
+### Other overviews
+- Turn messages: group and filter end-of-turn reports, click to go to
+  the colony concerned.
+- Goods Overview: freeze the first columns when scrolling sideways.
+
+### Colony screen and map
+- Colony screen: show what a tile or building would yield before
+  committing a worker to it.
+- Map overlays: tile ownership, potential production, colonies with
+  problems.
+
+### Wars and the computer players
+- Checked in the source on 2026-10-13: the King declares war and peace
+  on your behalf at random; computer soldiers only sought targets within
+  8 moves; a bug dropped enemy units in the open. The bug and the
+  landings are done (step 1); still open: an option so the King's wars
+  need real tension, and a nation paying to stay out of the King's war.
+
+### Housekeeping
+- Decide later whether any of this is worth offering upstream. If so,
+  `claude_docs` should stay out of that pull request.
+- Release: Mischa wants to release the mod once he is content with it.
+  Before that: a list of what changed for players, and the options to
+  turn features on or off.
+
+## Build log
+
+Oldest first. Each entry: what was built, why, what was tested, what
+was left out. Checkboxes from the old "to be tested" lists are gone:
+the status lives in the tables above.
+
+### 2026-10-11: setup, the first Colony Overview
 
 - **Setup.** JDK 25 and Ant 1.10.18 installed, game builds with `ant`
   and runs from our own source. Fork created, `upstream` points at
@@ -34,23 +267,125 @@ Aim: release the mod once Mischa is content with it.
   folders are gone. The real clones (`freecol\freecol`,
   `mods\freecol-mods`) are untouched.
 
-## In progress
+### 2026-10-11: Colony Overview checks, supply forecast and warnings
 
-Nothing at the moment.
+Quick checks (2 minutes, `java -jar FreeCol.jar --debug-run 60`, click
+Start Game, then Report > Colony Overview or Shift+F6):
 
-## To be tested
+- **Smaller building icons.** Tested by Mischa 2026-10-12: OK. Auto-checked: rows are even.
+- **Building column colours.** Tested by Mischa 2026-10-12: OK. Red only for "Nothing"; magenta for
+      "needs N more ..."; dark gray when it is simply counting turns.
+      Auto-checked for "Nothing" only.
+- **Sortable columns.** Tested by Mischa 2026-10-12: OK. Click each of the seven headers: the rows
+      reorder, an arrow appears on the sorted header, a second click
+      reverses. Close and reopen the report: the sort is remembered.
+      Auto-checked for "Mainly produces" and "Needs".
 
-Written, but not yet tried by Mischa in a real game. Move an item to
-Done once it has been seen working.
+Longer check (about 15 minutes, needs your own colonies and a trade
+route; start with `java -jar FreeCol.jar --debug` and use Debug > Add
+Gold to buy a wagon train):
 
-"Auto-checked" means Claude ran the real game in an automated session
-(50 AI turns, took over AI colonies in debug mode, added wagons and
-soldiers, opened every report and took screenshots) and it worked
-there. That is a smoke test, not a play test.
+- **Supply forecast in the overview.** Colony B burns lumber
+      (colonist in the carpenter's house), a wagon on a trade route
+      loads lumber at A and unloads at B. In the overview, lumber under
+      Needs for B is green and the tooltip names the wagon, the route
+      and the arrival time.
+- **Broken supply line in the overview.** Take the wagon off the
+      route: lumber for B turns red, the tooltip says no wagon train
+      or ship is assigned.
+- **Start-of-turn messages appear in the real game.** Auto-checked
+      on 2026-10-12: after ending a turn the game produced "St. John's
+      relies on trade route Test run for Lumber, but none of its
+      carriers will bring any ..." and "Charlesbourg Royal relies on
+      trade route Back haul for Lumber, but no wagon train or ship is
+      assigned to that route any more ...". Still worth seeing on
+      screen yourself.
+- **Start-of-turn message: no carrier.** End the turn after taking
+      the wagon off. A message says B relies on the route but nothing
+      is assigned to it. It does not repeat on the following turns.
+- **Start-of-turn message: nothing coming.** Wagon assigned, but A
+      has no lumber to spare.
+- **Start-of-turn message: too late.** B runs out before the wagon
+      can arrive.
+- **Start-of-turn message: delayed.** Block or hold the wagon for
+      a turn while it is on its way, with so little in store that the
+      hold-up makes it late (since 2026-10-13 a hold-up that still
+      arrives in time gives no message).
+- **Building column, goods on their way.** A colony whose build
+      waits for tools, with a carrier bringing enough: the cell reads
+      "Tools arriving in N turns".
 
-### Not yet committed (written 2026-10-12, second round)
+The supply warnings pass their unit tests (all four message kinds),
+and the start-of-turn check ran in the automated game without errors,
+but no supply message has been seen on screen yet.
 
-- [ ] **Groups march together; Rush to Destination.** A normal go-to
+Known limits of the supply warnings (by design, not bugs):
+
+- The forecast assumes carriers visit every stop in order. The game
+  lets them skip stops with no work, so times are estimates.
+- "Delayed" compares with last turn's expectation, which is kept in
+  memory only. After loading a save the first turn has nothing to
+  compare with.
+- A carrier that spends a turn loading counts as one turn delayed. If
+  that is too noisy, add a threshold.
+- A delay on the very last leg into the colony is not detected.
+- A broken supply line is noticed at the start of the next turn, not
+  at the moment the wagon is reassigned. The overview shows it
+  immediately.
+
+### 2026-10-12, round 1: unit groups and the first reports (commits 0893f2ac5 / 860678de9)
+
+- **Unit groups: armies, wagon trains, fleets.**
+      - Orders menu: Form Group (Shift+G), Leave Group, Disband Group.
+      - Form Group takes all your units on the active unit's tile that
+        travel the same way (land or sea) and asks for a name. If the
+        active unit is already in a group, the others join it.
+      - One order for the whole group: go to a tile or colony, assign
+        a trade route (carriers only), fortify, sentry. A step with
+        the arrow keys also moves the members standing with the unit,
+        but only for a plain move; attacks, boarding and trading stay
+        with the unit you ordered.
+      - The info panel (bottom right) shows "Army 1 (3 units)".
+      - Groups are kept per game in your FreeCol user data folder
+        (`unitgroups/<game id>.properties`), so they survive save and
+        load. They exist on your machine only; the game rules, the AI
+        and multiplayer are untouched.
+      - Auto-checked: group shown in the info panel; a goto order
+        reached all three members; assigning one wagon to a route
+        assigned all three. Unit test for the group registry passes.
+      - Not checked at all: the Form/Leave/Disband menu items and
+        their dialogs, arrow-key moves, fortify/sentry for a group.
+      - Known limits: members move one after the other, each finding
+        its own path, so they can arrive on different turns. There is
+        no way yet to pick only some units on a tile.
+- **Logistics report** (Report menu, Shift+F7). Every trade route
+      with its stops and what each stop loads, what it delivers to
+      which colony and when (green in time, red too late or nothing
+      coming), its carriers with group, position, cargo and next
+      deliveries, and the wagon trains and ships without a route.
+      Auto-checked: renders correctly, including a route with no
+      carriers. Not seen yet: a carrier actually on its way with a
+      delivery time.
+- **Goods Overview report** (Report menu, Shift+F8). One row per
+      goods type, one column per colony, totals in front. Each cell
+      shows stock and change per turn; red for overflow or nearly
+      gone, magenta for draining or nearly full. Auto-checked: renders
+      correctly with 4 colonies. Not seen yet: many colonies (the
+      table scrolls sideways).
+- **Unit Overview report** (Report menu, Shift+F10). Every unit
+      not at work inside a colony: group, where, what it is doing,
+      moves left. Filters: All, Idle, Soldiers, Wagon trains, Ships,
+      In a group. Click a unit to select it on the map. Auto-checked:
+      renders, filters work, destinations show turns to go. Not
+      checked: clicking a unit.
+- **Colony Overview made narrower.** Tested by Mischa 2026-10-12: OK. Only the main product is
+      named, the other two show icon and amount; three stocks instead
+      of four; tighter spacing. Auto-checked: the horizontal scrollbar
+      is gone at a 1500 pixel wide window.
+
+### 2026-10-12, round 2: groups march together, Logistics map
+
+- **Groups march together; Rush to Destination.** A normal go-to
       order for a group now keeps it together: the slowest member moves
       first each turn and the faster ones go no further than its tile.
       Orders > Rush to Destination (Shift+R) lets every member go at
@@ -60,7 +395,7 @@ there. That is a smoke test, not a play test.
       all four members of a test army ended the turn on the same tile;
       the Rush menu item is present. Not checked: several turns of
       marching, and the rush itself moving units ahead.
-- [ ] **Map on the Logistics page.** A map strip at the top, zoomed to
+- **Map on the Logistics page.** A map strip at the top, zoomed to
       the area the trade routes cover. Each route in its own colour as
       a dashed line through its stops with an arrow for the direction;
       the route names below get the same colour. Wagon trains and
@@ -71,37 +406,37 @@ there. That is a smoke test, not a play test.
       strip. Not checked: a carrier on its way (path and turns), hover,
       click.
 
-### Not yet committed (written 2026-10-12, third round)
+### 2026-10-12, round 3: execute orders, unit badges
 
-- [ ] **Execute Orders button.** New round button at the right end of
+- **Execute Orders button.** New round button at the right end of
       the bottom bar (fast-forward sign). A red number shows how many
       units still have go-to orders or trade routes to carry out this
       turn; greyed out when there are none. Same as Orders > Execute Go
       To Orders (O). Sandbox-checked: count 4 at turn start, button
       moved the army, count back to 0.
-- [ ] **End-turn warning.** Ending the turn while units still have
+- **End-turn warning.** Ending the turn while units still have
       orders asks "End turn anyway / Not yet". Option: Preferences >
       Other > "Warn about orders not carried out". Sandbox-checked:
       "Not yet" keeps the turn and the orders.
-- [ ] **Unit badges as symbols.** ! waiting for orders, zz no moves
+- **Unit badges as symbols.** ! waiting for orders, zz no moves
       left, arrow on its way, circular arrow trade route, eye sentry,
       shield outline fortifying, filled shield fortified, double
       chevron skipped, hammer pioneer at work, plus under repair,
       house in a colony. Only your own units; other nations keep the
       letters. Option: Preferences > Interface > Map View > "Unit
       badges as symbols" (off = classic letters).
-- [ ] **Badge explanations on hover.** Rest the mouse on your units on
+- **Badge explanations on hover.** Rest the mouse on your units on
       the map: a tooltip explains each unit's badge in words. Option:
       "Explain unit badges on hover".
-- [ ] **View > Unit Badges.** A legend of all badges with the classic
+- **View > Unit Badges.** A legend of all badges with the classic
       letter next to each.
 - Sandbox results for Round 3 (2026-10-12): an arrow-key step moved
   all four army members (step 13 OK); marching together kept the
   scout with the soldiers; Rush sent the scout ahead (3 tiles further).
 
-### Not yet committed (written 2026-10-12, fourth round)
+### 2026-10-12, round 4: the companion page and many small fixes
 
-- [ ] **Companion page for a second monitor.** FreeCol now serves a
+- **Companion page for a second monitor.** FreeCol now serves a
       live, read-only page at http://localhost:8765 (this computer only,
       no Docker needed). View > Open Companion Page opens it in the
       browser. Portrait layout, top to bottom: header (year, turn, gold,
@@ -120,7 +455,7 @@ there. That is a smoke test, not a play test.
       edited without rebuilding. Sandbox-checked with Mischa's own save
       (Autosave 1497): route set up, 3 turns played, page followed along,
       wagons loaded at Alpha, Army 2 arrived at Bravo.
-- [ ] **Colopedia on the companion page** (Mischa: "connect the wiki").
+- **Colopedia on the companion page** (Mischa: "connect the wiki").
       Colopedia button in the page header (or C) opens a second tab in
       the sidebar, next to Log. Start: what to do right now in your game
       (colonies building nothing, pending orders, idle units), Congress
@@ -133,36 +468,36 @@ there. That is a smoke test, not a play test.
       the page opens its entry. Built from the rules of the game in play,
       so it matches mods. Link to the online manual
       (https://freecol.org/docs/FreeCol.html). Sandbox-checked.
-- [ ] **Borderless full screen.** Exclusive full screen made the game
+- **Borderless full screen.** Exclusive full screen made the game
       flicker black whenever the other monitor got the focus (Windows
       minimises it, FreeCol restores it). New option Preferences >
       Display > "Borderless full screen (for two monitors)", on by
       default: a window without borders over the whole screen instead.
       Restart after changing. Not testable in the sandbox (no full
       screen there): Mischa to check.
-- [ ] **Undo: Game > Restart This Turn / Go Back One Turn.** FreeCol
+- **Undo: Game > Restart This Turn / Go Back One Turn.** FreeCol
       has no undo (the server decides everything), but it already saves
       at the start of every turn (Autosave-<game>_<nation>_<year>.fsg).
       These two menu items reload that save after a confirmation, for
       mistakes like disbanding the wrong unit. Sandbox-checked: Restart
       This Turn reloads the game at the start of the turn; with no save
       for a turn it says so.
-- [ ] **Borderless full screen leaves the taskbar free.** Windows drew
+- **Borderless full screen leaves the taskbar free.** Windows drew
       its taskbar over the bottom of the borderless game (hiding the
       order buttons) when the other monitor had the focus. The game now
       fills the screen above the taskbar. Mischa to check.
-- [ ] **Prices in the amount dialog (Europe).** When buying from or
+- **Prices in the amount dialog (Europe).** When buying from or
       selling to the market in Europe (Shift+drag), the dialog shows the
       price as you type: "Cost: 20 × 3 = 60 gold, gold afterwards ..."
       (no tax on purchases) or "Sale: ... tax 10% = ..., you receive ...
       gold afterwards ...", and warns about boycotts. Same formulas as
       the server (ServerPlayer.buyInEurope / sellInEurope).
       Sandbox-checked (screenshots of both).
-- [ ] **Treasury line on the Europe screen**, next to the buttons: gold,
+- **Treasury line on the Europe screen**, next to the buttons: gold,
       tax, taxes paid so far this game, trade balance (sales after tax
       minus purchases), from the market's own records. Updates every
       second. Sandbox-checked.
-- [ ] **Europe market section on the companion page**: tax, taxes paid
+- **Europe market section on the companion page**: tax, taxes paid
       and trade balance; a price chart per goods (you sell for / you
       buy for, step lines, hover for the turn, colours validated for the
       dark background, buy line dashed); a table of all goods with sell
@@ -171,7 +506,7 @@ there. That is a smoke test, not a play test.
       they are recorded each turn to companion/prices-<game>.csv in the
       FreeCol user folder: the history starts with this version and
       grows as you play. Sandbox-checked with seeded history.
-- [ ] **Relations tab on the companion page** (R, or the Relations
+- **Relations tab on the companion page** (R, or the Relations
       button). Homefront: tax, rebels %, colonies, Congress (next father
       and bells to go), immigration (crosses), Europe (docks, ships,
       recruit price), boycotts with the cost to lift, the King's army.
@@ -187,17 +522,17 @@ there. That is a smoke test, not a play test.
       line "<settlement> now wants ..." when they change, and hovering a
       native settlement on the map shows its skill and wanted goods.
       Not yet seen live: a change being logged (needs a visit).
-- [ ] **claude_docs/tribes.md**: the eight tribes, from the rules and
+- **claude_docs/tribes.md**: the eight tribes, from the rules and
       the trade code: settlements, temper, region, richness, skills with
       odds, what they sell, how prices work, mood, haggling odds,
       teaching rules (capitals teach repeatedly), missionary vs scout vs
       soldier.
-- [ ] **claude_docs/freecol-advisor-prompt.md**: a prompt to paste into
+- **claude_docs/freecol-advisor-prompt.md**: a prompt to paste into
       Claude Haiku 5.5 (or a Project) to ask FreeCol questions. Contains
       the verified core rules, the tribe guide, our extra tools, and
       tables of buildings, units and founding fathers generated from the
       rule files.
-- [ ] **Fix: asking natives for a lower price when buying failed.**
+- **Fix: asking natives for a lower price when buying failed.**
       Reported by Mischa (90 furs at an Iroquois village). FreeCol bug,
       not ours: the haggle offer is sent with the price unset, it
       overwrites the server's copy of the trade, and the server then
@@ -207,14 +542,14 @@ there. That is a smoke test, not a play test.
       NativeTradeHaggleTest fails without the fix with the exact error
       from Mischa's log, passes with it. Natives may still refuse to
       haggle further, that is the normal rule.
-- [ ] **Fix: wagons on an edited route counted as "no carrier".**
+- **Fix: wagons on an edited route counted as "no carrier".**
       FreeCol's own TradeRoute.getAssignedUnits() compares route objects
       by identity, and after a route is edited the client keeps two
       copies. The Colony Overview, Logistics report, supply warnings and
       companion page now match carriers by route id instead. Found in the
       sandbox: the game warned "no wagon train is assigned" for a route
       with two wagons. Unit test added.
-- [ ] **Companion page: nations ranking.** A section under Colonies
+- **Companion page: nations ranking.** A section under Colonies
       that puts the European nations side by side: expansion (colonies,
       colonists, colonists per colony, a bar per colony by size, units),
       economy (gold, tax), military (army and navy strength) and politics
@@ -227,7 +562,7 @@ there. That is a smoke test, not a play test.
       each turn to companion/nations-<game>-<player>.csv. Files:
       CompanionNations.java (new), CompanionServer (/api/nations),
       client InGameController (record at turn start), page files.
-- [ ] **Gift part of a load to the natives.** Choosing a gift now asks
+- **Gift part of a load to the natives.** Choosing a gift now asks
       how much to give (all of it by default) instead of always handing
       over the whole hold. The server values the part itself, from its
       own copy of the trade, so a client can not inflate the value, and
@@ -235,7 +570,7 @@ there. That is a smoke test, not a play test.
       withAmount), NativeTrade (removeGiftFromUnit), server
       InGameController and NativeAIPlayer (match a part), client
       InGameController (amount dialog). Unit test NativeTradeGiftTest.
-- [ ] **Colony advice that keeps the supply network intact** (Mischa:
+- **Colony advice that keeps the supply network intact** (Mischa:
       warn when a colony is suboptimal, but Arnhem must keep feeding
       Nijmegen). Each colony card on the companion page gets a Network
       row (what it sends where along which route, and how much the
@@ -256,7 +591,7 @@ there. That is a smoke test, not a play test.
       files, messages. Unit test ColonyAdvisorTest (duty from a route,
       the food supply can not be cut, the farmer is never sent to the
       town hall, a swap that only gains is found).
-- [ ] **Companion page says more with less** (Mischa: "a load of
+- **Companion page says more with less** (Mischa: "a load of
       text"). A Supply network graph above the colonies: colonies placed
       as on the map, an arrow per route connection with the goods on it
       and how much the receiver lacks per turn; grey keeps up, red the
@@ -268,7 +603,7 @@ there. That is a smoke test, not a play test.
       colonist: rebels gold, tories grey, past the limit red, a dashed
       red pip when the next tory brings the penalty; bells made/used;
       bells to 50%) and short chips with the full advice on hover.
-- [ ] **High balling or low balling in the trade dialog.** When trading
+- **High balling or low balling in the trade dialog.** When trading
       with a computer nation, the middle of the Trade Negotiation dialog
       says what the deal is worth to them and whether the gold asked is
       High balling (with the counter offer they will make, or that they
@@ -280,11 +615,11 @@ there. That is a smoke test, not a play test.
       it gives you as a gain, and its counter offer is the gold asked
       minus half the deal's value, often more than the deal is worth;
       both left as they are, the estimate follows them.
-- [ ] **Fix: the Trade Negotiation dialog was cut off on the right**
+- **Fix: the Trade Negotiation dialog was cut off on the right**
       (the right column and the Send button). The window was sized
       before the wrapped texts in the middle were laid out; it is now
       sized again once they are. The texts in the middle wrap narrower.
-- [ ] **Routine colony messages go to the companion page** (Mischa: too
+- **Routine colony messages go to the companion page** (Mischa: too
       many warnings in the turn report, move them to the page, do not
       crowd both). While the page is open in a browser (it asked for the
       state in the last 30 seconds), messages about missing or
@@ -297,14 +632,14 @@ there. That is a smoke test, not a play test.
       (on by default). Tested on Mischa's save: the report went from four
       lines to the emigrant plus "3 routine colony messages are in the
       companion page's log". Unit test RoutineMessagesTest.
-- [ ] **Warehouse dialog explains its numbers** (Mischa: "I just see 10
+- **Warehouse dialog explains its numbers** (Mischa: "I just see 10
       90 50"). Each box now labels them Low %, High % and Keep (and
       Import with enhanced trade routes), with the amount in store under
       the icon instead of beside the numbers; one line under the title
       says what they mean: Low and High are warnings as a share of the
       warehouse, Keep is an amount that stays, trade routes and the
       custom house take only what is above it. Tool tips say the same.
-- [ ] **Trade routes do not haul goods to a full colony** (Mischa: a
+- **Trade routes do not haul goods to a full colony** (Mischa: a
       warning every time a settlement is full; note it is full and do not
       take those goods at the stop before). Better than a flag noted on
       the last visit: before loading, the carrier looks at the colony
@@ -318,9 +653,9 @@ there. That is a smoke test, not a play test.
       warehouse capacity being thrown away at the end of each turn.
       Unit test TradeRouteRoomTest.
 
-### Written 2026-10-13
+### 2026-10-13: screens, routes, companion tabs, Independence, old chart
 
-- [ ] **Full screen on the right monitor** (Mischa: View > Full screen
+- **Full screen on the right monitor** (Mischa: View > Full screen
       jumped back to the vertical monitor; moved over with Win+Shift+
       arrow it kept the vertical monitor's width, so either the order
       buttons were under the taskbar or the game did not use the full
@@ -338,7 +673,7 @@ there. That is a smoke test, not a play test.
       tried in the sandbox (its virtual monitors overlap): going full
       screen from the wide monitor did size the game to that monitor.
 
-- [ ] **Fewer supply warnings: only delays that make a delivery late.**
+- **Fewer supply warnings: only delays that make a delivery late.**
       A carrier that is held up but still arrives before the colony runs
       out no longer gives a message. When the hold-up does make it late,
       one message says so: "Wagon train on trade route X is held up by
@@ -350,7 +685,7 @@ there. That is a smoke test, not a play test.
       harmless hold-up is quiet), testDelayOnlyWarnsWhenLate,
       testLateWithoutDelay.
 
-- [ ] **What each route moved, as a small graph.** Every unload by a
+- **What each route moved, as a small graph.** Every unload by a
       carrier on a trade route is noted per route and turn (last 20
       turns, kept in `companion/routes-<game>-<player>.csv` in the user
       data folder, so it survives quitting; loading an older save or
@@ -367,7 +702,7 @@ there. That is a smoke test, not a play test.
       for all six routes (e.g. Ore to Wijchen: 48 tools, 8 ore, 2 food).
       Also: client/control AllTests now lists all the mod's tests.
 
-- [ ] **New trade route editor** (Mischa: the old dialog is clunky;
+- **New trade route editor** (Mischa: the old dialog is clunky;
       wanted a map in it; carriers stay assigned from the unit or group).
       One screen: name, Silence messages, how many carriers. A small map
       with the route and all colonies; click a colony to add it as a
@@ -396,7 +731,7 @@ there. That is a smoke test, not a play test.
       was saved with ore + muskets and Wijchen showed muskets under
       Unloads.
 
-- [ ] **Fix: a soldier at the palisade could not be made a student**
+- **Fix: a soldier at the palisade could not be made a student**
       (Mischa: picking "Assign to teacher" on the soldier next to the
       dragoon in Nijmegen sometimes did nothing, and the teacher said it
       needs a student). Trace on his save: the soldier stands on the
@@ -413,7 +748,7 @@ there. That is a smoke test, not a play test.
       Tried on Mischa's save: the soldier (unit:6673) joined Nijmegen,
       muskets 114 → 164, and became the veteran's student.
 
-- [ ] **Companion page in tabs, with plain-language nations and a
+- **Companion page in tabs, with plain-language nations and a
       Military tab** (Mischa: a lot of scrolling; a 1–4 rank says
       nothing; economic power was shallow; sinking their ships should
       show). Chose: tabs plus an Overview with picked widgets (C), all
@@ -448,7 +783,7 @@ there. That is a smoke test, not a play test.
       29; navy Dutch 1.8 frigates, others 0; output Dutch 406 gold/turn,
       French ≈ 302, English ≈ 282, Spanish ≈ 283.
 
-- [ ] **Nations in words, like the moods in Relations** (Mischa: "content"
+- **Nations in words, like the moods in Relations** (Mischa: "content"
       says more than 1/100; a 1–4 rank says nothing). Each nation card
       now has tags comparing it with you: Army / Navy far weaker, weaker,
       about even, stronger, far stronger; Economy far poorer … far
@@ -467,7 +802,7 @@ there. That is a smoke test, not a play test.
       two turns: Spanish "Army: far stronger, Navy: far weaker, Economy:
       poorer, Size: smaller".
 
-- [ ] **Independence tab on the companion page** (Mischa: worried about
+- **Independence tab on the companion page** (Mischa: worried about
       the King's force; wants his units against theirs, quality and the
       expected result). Tab 6 (also a widget): whether you can declare
       (rebels across all colonies vs 50%, port, deadline year); forces
@@ -490,7 +825,7 @@ there. That is a smoke test, not a play test.
       defence cases). New: CompanionIndependence, /api/independence.
       Unit test IndependenceTest.
 
-- [ ] **Test version: the unexplored map as an old chart** (Mischa: the
+- **Test version: the unexplored map as an old chart** (Mischa: the
       flat blue is bland; old maps fade out, "a mountain range fades out
       but we know it continues"; no spoilers). Unexplored tiles are aged,
       muted paper (one seamless texture anchored to the map, so no tile
@@ -509,134 +844,8 @@ there. That is a smoke test, not a play test.
       TileViewer, client option unexploredParchment. Unit test
       ParchmentPainterTest (seamless, anchored, muted).
 
-### Committed in 0893f2ac5 / 860678de9
+### 2026-10-13: the living diplomacy plan
 
-- [ ] **Unit groups: armies, wagon trains, fleets.**
-      - Orders menu: Form Group (Shift+G), Leave Group, Disband Group.
-      - Form Group takes all your units on the active unit's tile that
-        travel the same way (land or sea) and asks for a name. If the
-        active unit is already in a group, the others join it.
-      - One order for the whole group: go to a tile or colony, assign
-        a trade route (carriers only), fortify, sentry. A step with
-        the arrow keys also moves the members standing with the unit,
-        but only for a plain move; attacks, boarding and trading stay
-        with the unit you ordered.
-      - The info panel (bottom right) shows "Army 1 (3 units)".
-      - Groups are kept per game in your FreeCol user data folder
-        (`unitgroups/<game id>.properties`), so they survive save and
-        load. They exist on your machine only; the game rules, the AI
-        and multiplayer are untouched.
-      - Auto-checked: group shown in the info panel; a goto order
-        reached all three members; assigning one wagon to a route
-        assigned all three. Unit test for the group registry passes.
-      - Not checked at all: the Form/Leave/Disband menu items and
-        their dialogs, arrow-key moves, fortify/sentry for a group.
-      - Known limits: members move one after the other, each finding
-        its own path, so they can arrive on different turns. There is
-        no way yet to pick only some units on a tile.
-- [ ] **Logistics report** (Report menu, Shift+F7). Every trade route
-      with its stops and what each stop loads, what it delivers to
-      which colony and when (green in time, red too late or nothing
-      coming), its carriers with group, position, cargo and next
-      deliveries, and the wagon trains and ships without a route.
-      Auto-checked: renders correctly, including a route with no
-      carriers. Not seen yet: a carrier actually on its way with a
-      delivery time.
-- [ ] **Goods Overview report** (Report menu, Shift+F8). One row per
-      goods type, one column per colony, totals in front. Each cell
-      shows stock and change per turn; red for overflow or nearly
-      gone, magenta for draining or nearly full. Auto-checked: renders
-      correctly with 4 colonies. Not seen yet: many colonies (the
-      table scrolls sideways).
-- [ ] **Unit Overview report** (Report menu, Shift+F10). Every unit
-      not at work inside a colony: group, where, what it is doing,
-      moves left. Filters: All, Idle, Soldiers, Wagon trains, Ships,
-      In a group. Click a unit to select it on the map. Auto-checked:
-      renders, filters work, destinations show turns to go. Not
-      checked: clicking a unit.
-- [x] **Colony Overview made narrower.** Tested by Mischa 2026-10-12: OK. Only the main product is
-      named, the other two show icon and amount; three stocks instead
-      of four; tighter spacing. Auto-checked: the horizontal scrollbar
-      is gone at a 1500 pixel wide window.
-
-### Committed
-
-Quick checks (2 minutes, `java -jar FreeCol.jar --debug-run 60`, click
-Start Game, then Report > Colony Overview or Shift+F6):
-
-- [x] **Smaller building icons.** Tested by Mischa 2026-10-12: OK. Auto-checked: rows are even.
-- [x] **Building column colours.** Tested by Mischa 2026-10-12: OK. Red only for "Nothing"; magenta for
-      "needs N more ..."; dark gray when it is simply counting turns.
-      Auto-checked for "Nothing" only.
-- [x] **Sortable columns.** Tested by Mischa 2026-10-12: OK. Click each of the seven headers: the rows
-      reorder, an arrow appears on the sorted header, a second click
-      reverses. Close and reopen the report: the sort is remembered.
-      Auto-checked for "Mainly produces" and "Needs".
-
-Longer check (about 15 minutes, needs your own colonies and a trade
-route; start with `java -jar FreeCol.jar --debug` and use Debug > Add
-Gold to buy a wagon train):
-
-- [ ] **Supply forecast in the overview.** Colony B burns lumber
-      (colonist in the carpenter's house), a wagon on a trade route
-      loads lumber at A and unloads at B. In the overview, lumber under
-      Needs for B is green and the tooltip names the wagon, the route
-      and the arrival time.
-- [ ] **Broken supply line in the overview.** Take the wagon off the
-      route: lumber for B turns red, the tooltip says no wagon train
-      or ship is assigned.
-- [x] **Start-of-turn messages appear in the real game.** Auto-checked
-      on 2026-10-12: after ending a turn the game produced "St. John's
-      relies on trade route Test run for Lumber, but none of its
-      carriers will bring any ..." and "Charlesbourg Royal relies on
-      trade route Back haul for Lumber, but no wagon train or ship is
-      assigned to that route any more ...". Still worth seeing on
-      screen yourself.
-- [ ] **Start-of-turn message: no carrier.** End the turn after taking
-      the wagon off. A message says B relies on the route but nothing
-      is assigned to it. It does not repeat on the following turns.
-- [ ] **Start-of-turn message: nothing coming.** Wagon assigned, but A
-      has no lumber to spare.
-- [ ] **Start-of-turn message: too late.** B runs out before the wagon
-      can arrive.
-- [ ] **Start-of-turn message: delayed.** Block or hold the wagon for
-      a turn while it is on its way, with so little in store that the
-      hold-up makes it late (since 2026-10-13 a hold-up that still
-      arrives in time gives no message).
-- [ ] **Building column, goods on their way.** A colony whose build
-      waits for tools, with a carrier bringing enough: the cell reads
-      "Tools arriving in N turns".
-
-The supply warnings pass their unit tests (all four message kinds),
-and the start-of-turn check ran in the automated game without errors,
-but no supply message has been seen on screen yet.
-
-Known limits of the supply warnings (by design, not bugs):
-
-- The forecast assumes carriers visit every stop in order. The game
-  lets them skip stops with no work, so times are estimates.
-- "Delayed" compares with last turn's expectation, which is kept in
-  memory only. After loading a save the first turn has nothing to
-  compare with.
-- A carrier that spends a turn loading counts as one turn delayed. If
-  that is too noisy, add a threshold.
-- A delay on the very last leg into the colony is not detected.
-- A broken supply line is noticed at the start of the next turn, not
-  at the moment the wagon is reassigned. The overview shows it
-  immediately.
-
-## Decided
-
-- **Needs column stays icons only.** There are few enough goods to
-  remember, so no names there.
-- **Food stays in "Mainly produces" for now.** To reconsider later:
-  it shows up as a main product for many colonies (Food +3, +4), which
-  is accurate but says little about what a colony is specialised in.
-  One option is to hide it unless it is a real surplus, say +8 or more.
-
-## Planned (designed, not built)
-
-### Living diplomacy and native tribes (2026-10-13)
 Full plan: `claude_docs/plans/ai-diplomacy-and-natives.md` (snapshot of
 the Claude Doc "FreeCol: living diplomacy design").
 - **What:** every computer nation gets a "diplomat" with opinion,
@@ -1546,60 +1755,622 @@ refused.
 - **To tune in step 8:** the sizes (a slower military build-up is the
   price).
 
-## Ideas, not started
+### Fix: frozen game at the start of a turn with offers (2026-10-15)
+Mischa's game froze after one turn with "France offers peace" and
+"England proposes a price agreement" in the turn report. A thread dump
+showed the screen thread inside an offer dialog: the dialogs were
+opened at the start of the turn and the turn report was then drawn on
+top, so the (modal) dialog was hidden but blocked every click.
+- **Fix:** offer dialogs now wait until no panel (the turn report, a
+  colony, Europe...) and no other dialog is showing, then come one at
+  a time.
+- **Tested:** all 674 unit tests green (no unit test for Swing timing;
+  Mischa to check in the game).
 
-### Unit groups, next steps
-- Choose which units on a tile join a group, instead of all of them.
-- Show the group on the map (a banner or number on the unit).
-- "Attack with the group" as an explicit order.
-- A list of groups with a button to jump to each.
+### AI cheats removed
 
-### Companion page, next steps
-- Filter the map to one trade route or one group (left out for now).
-- Arrivals of a group are logged once when the members arrive together;
-  members arriving in different moments still get a line each.
-- Later, maybe: let the page give simple orders. Kept read-only for now
-  (decided with Mischa).
+Why: the AI grew too fast over the long term, most on big maps. Measured
+in Mischa's autosaves (see the project doc `freecol-ai-cheats.md`): a
+free expert colonist or ship roughly every 10 turns on Medium, and the
+sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
 
-### Logistics, next steps
-- Suggested routes: link a colony that needs a good to one with a
-  surplus, straight from the overview.
-- Open the trade route editor from the Logistics report.
-- Check the wagon limit in the base rules. The `shippableWagons` mod's
-  copy of the wagon definition limits wagon trains to fewer than the
-  number of colonies. If the base rules have it too, a small companion
-  rules mod could lift it.
+- **Gone, in the code (so old saves lose them too):** free boycott
+  lifts, free scout and pioneer equipment, free land units, mercenary
+  enlisting, free warships and transports (`EuropeanAIPlayer.cheat`,
+  `cheatUnit`, `cheatGold`), the sales multiplier (`ServerPlayer.sell`),
+  and free gold for buying land (`BuildColonyMission`).
+- **Spec:** all cheat options set to 0 (multiplier 1) on every level; the
+  option group is labelled "removed in this mod, values are ignored".
+- **Kept (same rules as the human):** production, prices, emigration,
+  taxes, rumours, starting gold and experts per difficulty level.
+- **Tested:** build, all 674 tests green. Not tested in play.
+- **Risks to watch:** a weaker early AI (no free colonists, no 4x
+  income); an AI that loses every ship now has to buy one with its own
+  gold (before it always got one free).
 
-### Colony overview
-- A totals row for the whole empire.
-- Option to show gross production instead of net.
-- Show hammers / construction capacity as a product.
+### Fixes from Mischa's first game with steps 4-7 (2026-10-15)
+- **Trade routes go at the player's word:** units on trade routes no
+  longer move by themselves whenever no unit needs attention (after the
+  turn report, after closing a colony). They move when the player
+  presses the execute-orders button (the double triangle), or at the
+  end of the turn if they have not moved yet. The same for units with
+  a go-to order (they set off when Mischa gave another ship a new
+  route); a unit given an order right now still moves at once.
+- **Ships sailing to or from Europe no longer count as pending
+  orders** (the end-turn warning and the count on the execute-orders
+  button): they have their order but nothing to do until they arrive.
+- **Trade routes wait for the turn report:** units with orders (trade
+  routes, goto) used to start moving while the turn report was still
+  open. They now wait until it is closed (pressing End Turn with the
+  report open does nothing until it is closed).
+- **Offer answers show at once:** the news of an answer ("agreement
+  accepted", "they bought 80 coats") appeared only after the next unit
+  move; the client now waits for the server's reply and shows it.
+- **Parchment map while scrolling:** scrolling with the mouse at the
+  screen edge draws the map on a separate painter thread into its own
+  image, which never got the mist fade (so it vanished while moving);
+  and both painters shared one "fade into this image" field, so a fade
+  could land in the wrong image (patches and odd rounded shapes left
+  in place). The image is now passed along each drawing, the scrolling
+  painter gets the fade too.
+- **Parchment, the real cause of the rounded corners:** the paper laid
+  over the sea near the unknown did not blend: wherever it was thicker
+  than the fog of war it replaced the pixel, which cut the fog (the
+  game's dark rounded diamonds on tiles out of sight) off along a hard
+  contour. It now blends over whatever is there, so sea and fog fade
+  smoothly into the paper. While edge-scrolling the sea had turned
+  brown (that painter draws the sea into the same image and the fade
+  treated it like land); it now gets the same paper over it. (A try
+  with a flat "chart blue" sea in between was dropped: it made lighter
+  diamonds with hard edges around the visible area.)
+- **The button bar no longer disappears:** the row of unit buttons
+  (with the execute-orders button) vanished in two ways. (1) The game
+  hides it while no unit is active, and since trade routes and go-to
+  orders wait for the player, that is now common: the turn starts with
+  only "End turn" in the corner and no execute-orders button. The bar
+  now stays during a game; buttons the unit would use are greyed out.
+  (2) A window resize (full screen, scaling) throws the buttons away
+  and makes them again only if a unit is active; with none active,
+  the new buttons were never put on screen until the next resize. They
+  are now put on screen whenever they are made. Also: when no orders
+  were carried out, a unit that becomes free later (out of a colony,
+  off a ship) is picked as the next active unit again. To be tested:
+  start a turn where every unit has orders; toggle full screen with
+  no unit selected, then select one.
+- **Execute-orders count no longer stuck at 1:** a unit that tried
+  its order and could get no further (waiting at Nijmegen for a ship,
+  a blocked path) kept counting as waiting all turn, and kept the
+  end-turn warning up. Units that tried this turn no longer count;
+  the button stays usable to try them again (a ship came in). Land
+  units in Europe waiting for a ship do not count either.
+- **Hover the execute-orders button** for the list: "Still to move"
+  (unit, where it is, where it goes or its route) and "Tried this
+  turn, can get no further now". To be tested: the list matches the
+  units on the map; the count drops after pressing the button.
+- **Freeze with the old-chart map (fixed):** the parchment fade read
+  pixels outside the map image for a tile half off the screen edge
+  (after the colony and build-queue panels were open), which failed on
+  every repaint and froze the game. The fade now stays inside the
+  image, and if it ever fails the tile is drawn without it instead of
+  stopping the map. New ParchmentFadeTest; the old ParchmentPainterTest
+  was not in the test suite and now is.
+- **Tested:** all 681 unit tests green (new: PendingOrdersTest,
+  ParchmentFadeTest); the drawing and the turn order need Mischa's eye
+  in the game.
 
-### Other overviews
-- Turn messages: group and filter end-of-turn reports, click to go to
-  the colony concerned.
-- Goods Overview: freeze the first columns when scrolling sideways.
+### Trade with other nations, supply network (2026-10-16)
+- **Europe price says it is gold:** the trade screen showed
+  "100 Muskets (300 in Europe)", which read like a number of goods.
+  Now "(worth 300 gold in Europe)"; the same when posting an offer.
+- **Supply network keeps its shape with far colonies:** every colony was
+  placed by its map position and stretched to fill the box, so one far
+  colony (Cuper's Cove) squeezed the rest into a strip at the top and
+  the labels were cut off. Now colonies keep their direction from each
+  other (west-east, north-south order) but are spaced evenly; route
+  networks that do not touch get their own part of the box, side by
+  side, with a faint line between; a colony without routes stays in its
+  direction, with the network nearest to it. Nodes shrink when they
+  stand close; the box grows only within the room the page has; labels
+  stay inside the box. Checked with a drawing of Mischa's colonies plus
+  a far network. To be tested on the page.
+- **Buying from another nation's colony works, on their terms:** asking
+  a colony for goods was always refused: the old trade screen offered
+  placeholder goods ("100 Muskets") that sat in no warehouse, so the
+  computer marked them invalid whatever gold was offered, and the
+  server would not have handed them over anyway. Now the colony says
+  what it sells (`SaleTerms`, worked out by the nation itself in
+  `EuropeanAIPlayer.saleTerms`, sent with `SaleTermsMessage`):
+  - **How much:** what the colony can spare after its own needs (5
+    turns of what it uses up; 50 muskets and horses kept, 100 at war),
+    times a share by character (traders 0.9, conquerors 0.5, others
+    0.65; weapons less, except for traders) and by how they feel about
+    you (half at neutral, all for a friend, nothing below opinion -40).
+    No weapons or horses to a nation they dislike or fear. Rounded
+    down to tens: you see what they sell, not what they hold.
+  - **Price:** Europe price after tax, less the trip to Europe and back
+    (2.5% a turn, at most 25%), less up to 15% when their colonists are
+    rebels (they do not like arming the Crown), plus their margin
+    (traders 10%, conquerors 20%, others 15%), up to 10% off for a
+    friend, up to 30% on for a nation they hate. Boycotted goods a
+    quarter less (Europe will not take them).
+  - **The screen:** "They sell" box: pick goods (icon, "up to 40",
+    greyed "out of stock" / "not for sale"), the amount in tens (no
+    more than they sell or the ship can carry), the price shows, Add
+    puts the goods and their price in gold on the table. Removing the
+    goods takes their price off again. A deal on the terms is
+    accepted; less gold or more goods is not.
+  - **Tested:** `SaleTermsTest` (amounts in tens, out of stock, own
+    needs kept, traders sell more, opinion, weapons, trip and rebels
+    lower the price, friend/foe/trader prices, deal checks, sending);
+    `AISaleTermsTest` (every goods listed, deal on terms taken, too
+    little gold or too much refused, disliked buyer gets nothing).
+    All 695 tests green. **Not checked:** the screen itself in the
+    game (layout, a full deal at a Spanish colony). No haggling yet.
+- **Trade screen fixes and haggling (Mischa's first try):** Add did
+  nothing: the game refuses to make goods "at" a colony whose store
+  the player cannot see; the goods are now made without a place and
+  then put in their colony. The total follows the amount as you type
+  (not only after Enter). The box now reads: goods, "They ask 4 gold
+  per 10", "Amount [10] = 4 gold", Add.
+  - **Haggling:** pick 5, 10, 15 or 20% off and Ask. They agree with a
+    chance that falls as the discount eats into their margin (room:
+    their margin plus any extra asked of a disliked buyer; a friend
+    keeps at least half the margin to bargain with), higher for
+    traders (0.75 at the start) than settlers (0.55) and conquerors
+    (0.4), plus a quarter of the opinion. Past the room: always no.
+    Agreed discounts add up; a refusal holds for that goods for the
+    rest of the turn. Goods already on the table get the new price.
+    Worked out on the server with the nation's own dice; not saved.
+  - **Tested:** `SaleTermsTest` (room, chances fall with the discount,
+    traders bargain gladly, a friend still has room, a haggled line);
+    `AISaleTermsTest` (goods made as the screen makes them are valid,
+    a haggle lowers the price and a deal at it is taken, a refusal
+    holds, a new turn forgets it, the server moves the cloth to the
+    ship and the gold to the seller). All 699 tests green. **Not
+    checked:** the screen in the game.
+- **Log: the important words stand out:** on the companion page log,
+  who and where are bold (the nations, tribes, colonies, places and
+  goods the game filled into the message), and so is what went wrong
+  (exceeded its capacity, wasted, shortage, missing, stopped
+  production, concerned, encroachments, our lands, starving...); good
+  news is green (peace, alliance, joined, completed, arrived), bad news
+  red (war, attacked, destroyed, captured, burned, lost...). Numbers
+  stay plain; "war" in "warehouse" is not war. The game works out the
+  runs (`CompanionHighlight`), the page draws them. Tested with the
+  lines of Mischa's turn 272 (`HighlightTest`) and a drawing of them.
+  All 704 tests green.
+- **The King's wars no longer poison relations:** in Mischa's game the
+  French King kept declaring war on the Dutch (at the turn change),
+  then France offered peace and paid, yet France grew angrier each
+  time. Causes: the old rule adds 1000 tension for any war and takes
+  only 500 off for peace, and tension between Europeans never fades,
+  so each forced war plus peace left 500 more for good; and our memory
+  turned every war in the history into "they declared war on us" for
+  both sides. Now: a war the King orders adds no tension (the fighting
+  still does); a war in the history is a grudge only for the side that
+  was attacked by the other's own choice (wars are tagged with the
+  declarer and the King's order; older saves count as before);
+  tension towards other European nations at peace fades by 10 a turn
+  (`ServerPlayer.TENSION_FADE`), so full hatred is gone after about
+  100 peaceful turns. Tested: `KingsWarTest` (King's war: no tension,
+  no grudge, peace leaves none; own war: tension, only the victim holds
+  a grudge; fading in peace, not at war, never below 0). All 707 tests
+  green. **Not done:** the King still declares wars at random (the
+  idea of a nation paying to stay out of the King's war stays open).
 
-### Colony screen and map
-- Colony screen: show what a tile or building would yield before
-  committing a worker to it.
-- Map overlays: tile ownership, potential production, colonies with
-  problems.
+### Step 8.1 built: envoys to nations (2026-10-17)
+- **Report > Send an Envoy:** pick a nation (each shows its stance
+  and "envoy ready" or "next envoy in 3 turns"), what to propose
+  (peace when at war, an alliance when at peace, a gift any time) and
+  the gold that goes with it. The envoy leaves now; the gold travels
+  with him (back if they say no).
+- **Answered on their turn**, so it reaches you at the start of your
+  next turn (`EnvoyDesk`, run from `OfferPlanner.plan`): the same
+  diplomat that makes their own offers scores the move
+  (`DealValue.stance`), your gold is added. Worth it: yes (peace or
+  alliance made, they keep the gold). A war they chose themselves less
+  than 10 turns ago: "not yet". Too little trust (or, for an alliance,
+  too little liking): no, with the reason. Otherwise they name their
+  price (rounded up to 50, at most 5000) as terms in the usual offer
+  popup; accept and pay, and it is done. A gift is always taken: a
+  memory of the gift and tension down by a tenth of the gold.
+- **One envoy per nation every 5 turns**; at the start of the turn the
+  wait is over: "An envoy can go to France again." Envoys and terms are
+  in the companion page's offer list.
+- **Rules:** `EnvoyRules` (pure). Peace looks only at trust, not at
+  liking: a fresh war always leaves the opinion of the enemy low, and
+  the diplomat's peace score weighs it already.
+- **Tested:** `EnvoyRulesTest` (waiting, yes, the price, distrust, too
+  dear, not yet, alliance never, gifts, rounding), `AIEnvoyTest` (gift
+  round trip with the gold held, the wait and the status, wrong
+  proposals refused at once with no gold lost, a peace envoy answered
+  with gold back on a no, terms accepted and paid, terms that no longer
+  fit). All 721 tests green. **Not checked:** the dialogs in the game.
 
-### Wars and the computer players (checked in the source, 2026-10-13)
-- The King declares war and peace on your behalf at random (Monarch
-  DECLARE_WAR / DECLARE_PEACE); computer nations follow tension, which
-  cools by itself. Not a difficulty matter (Easy meddles slightly less).
-- Computer soldiers only seek targets within 8 moves, overland or from
-  the ship they are on: no planned landings, so island maps see almost
-  no land war. Bug: UnitSeekAndDestroyMission.scorePath drops the score
-  for enemy units in the open (only colonies are ever targeted).
-- Ideas: fix that bug; let the computer ship an army to an enemy colony
-  when at war; option so the King's wars need real tension.
+### Step 8.3a built: encroaching means taking their land (2026-10-17)
+- **Discussed with Mischa:** sharing a border is not encroaching (Cuper's
+  Cove next to the Arawak). The game's old rule angered a village at
+  every colony, used tile and armed unit within its land plus 2 tiles,
+  paid for or not; our "land taken" memory counted any colony within
+  2 tiles of a village.
+- **Now:** land got from a tribe is recorded (`LandClaims`, saved with
+  the tribe): bought (or given) or taken without paying. Each turn a
+  village is angered only by colonies and used tiles on land taken from
+  it, and by armed units inside the tribe's borders or right next to
+  the village. The tribe's "land taken" memory comes from taken land
+  too. Land got before the record counts as taken when it lies inside
+  a village's own land (its radius).
+- **Tested:** `LandClaimsTest` (recorded, saved and read back,
+  forgotten; old land inside a village counts, outside not; a border
+  colony angers nobody; a colony on taken land angers; claims made by
+  the game are recorded, stolen and free). All 726 tests green.
 
-### Housekeeping
-- Decide later whether any of this is worth offering upstream. If so,
-  `claude_docs` should stay out of that pull request.
-- Release: Mischa wants to release the mod once he is content with it.
-  Before that: a list of what changed for players, and the options to
-  turn features on or off.
+### Step 8.3b built: envoys to tribes (2026-10-17)
+- **Tribes are in the envoy window** (Report > Send an Envoy): peace
+  when at war, a gift any time; one envoy per tribe every 5 turns,
+  answered on the tribe's turn (`TribeEnvoyDesk`, from
+  `TribePlanner.plan`).
+- **Survival first** (`TribeEnvoyRules`): the tribe weighs its braves
+  against your soldiers within 4 tiles of its villages, and a village
+  lost to you in the last 20 turns. Losing (2 braves per 3 soldiers or
+  fewer, or a village lost): peace at once, humbly. Even: peace for
+  gold, half the anger above 300 (900 anger: 300 gold). Strong (1.5
+  braves per soldier or more): twice the gold, and if it dislikes you,
+  conditions: give back the land you took (the tiles become theirs
+  again, workers on them step out), abandon a colony standing on taken
+  land (disbanded, its colonists leave as free units, the land is
+  theirs), pull your soldiers out of their land (peace begins the turn
+  none is inside; 10 turns, or the deal is off). Strong and full of
+  hatred (opinion -90 or lower): no, they want revenge.
+- **Peace** brings the tribe's and its villages' anger down to 300. A
+  gift: anger down by a tenth of the gold, and remembered.
+- **The terms** come in the usual offer popup, with the conditions in
+  words; the companion page lists them too.
+- **Tested:** `TribeEnvoyRulesTest` (standing, losing takes peace, even
+  wants gold, strong sets conditions or takes gold when there is
+  nothing to ask back, revenge, a losing tribe still takes peace,
+  gifts, fit), `AITribeEnvoyTest` (a losing tribe makes peace at once;
+  a strong tribe's terms with a colony and a gun in its land: gold
+  back, accepted, colony disbanded, land theirs, colonists free, peace
+  only once the gun leaves; a gift cools anger, the wait, no
+  alliances). All 735 tests green. **Not checked:** in the game.
+- **Next:** 8.2 (joint wars, leaving a coalition), asking a tribe to
+  fight for you, 8.4 (trade in the same window).
+
+### Step 8.2 built: join my war, leave the coalition, tribes fight for you (2026-10-17)
+- **Join my war** (envoy window, a nation or a tribe you are not at war
+  with): pick a nation you fight that they do not fight and are not
+  allied with. A nation scores the war with its own diplomat; if it has
+  no reason of its own the price is 1500 gold, more if it likes the
+  enemy (up to 3500), less if it dislikes it (down to 500); twice that
+  when you are not allies. A war it wanted anyway is free. It says no
+  above 10000 gold, or when allied with the enemy. Once agreed it
+  declares war and holds it 10 turns like a war of its own.
+- **Leave the coalition against me** (only shown for a member, not the
+  leader): it leaves for its buy-out price (what the coalition is
+  worth to it): alliances with the members end, its war with you ends,
+  the members remember it broke its word.
+- **Tribes fight for you**: an ally fights your wars anyway, so yes, for
+  free. Otherwise, if it likes you: its price and only as your ally
+  (you will be called to help in its wars too). If it dislikes you: no.
+  The price is by what you get: 100 gold per brave it has, x1.5
+  against a European nation, half against its old rival, from half to
+  twice as much by how it likes you compared with the enemy; at least
+  100 (4 braves against France: 600). Mischa found the first version
+  (the old missionary incite price, 5000-10000) far too dear: "20
+  cannons for 4 warriors".
+- The answers, terms and companion lines name the enemy. The envoy
+  status now says which nations are in the coalition against you.
+- **Tested:** `EnvoyRulesTest` (war price without a reason, misfit
+  reasons, buy-out price), `TribeEnvoyRulesTest` (war prices per brave, ally
+  free, price plus alliance, no if disliked, already at war),
+  `AIJointWarEnvoyTest` (war for enough gold and held; their price as
+  terms, taken: war; misfits: no gold lost, not against an ally; buy a
+  member out of a coalition, the leader cannot be; a tribe's price and
+  alliance, then the next war free). All 744 tests green. **Not
+  checked:** in the game.
+- **Next:** 8.4 (trade in the same window).
+
+### Step 8.4 built: trade in the envoy window (2026-10-17)
+- **One window for diplomacy and trade**: after picking a nation in
+  Send an Envoy, the list also has "Trade: a price agreement" (straight
+  to the goods and price for that nation) and the notice board ("goods
+  I want", "goods I sell", seen by all nations).
+- **Trade needs no envoy**: a nation whose envoy is still waiting can be
+  picked for trade (only the trade lines show); a tribe that is waiting
+  stays greyed out.
+- The old Post a Trade Offer menu item still works the same.
+- **Tested:** the window is client wiring only, around the existing
+  agreement and notice-board code (their tests unchanged and green).
+  All 744 tests green. **Not checked:** in the game.
+- **Step 8 is done.** Not built from the plan: a button by each nation
+  in Foreign Affairs; goods (not just gold) in envoy deals.
+
+### Tribes on the Nations and Military tabs (2026-10-17)
+- **Tribe cards next to the nations** (Nations tab, dashed border, a
+  "tribe" tag): settlements (and how many you have seen), about how
+  many braves, their army in soldiers' worth with the same bar as the
+  nations, an Army chip (weaker / about even / stronger than you), the
+  stance, and their braves in sight (plain, armed, mounted, dragoons).
+- **Military tab**: the tribes join the Army bars (in italics), so you
+  see the Iroquois next to France in one list.
+- **Honest**: the settlement count is what the game's Native Affairs
+  report shows; braves per settlement are the middle of the sizes the
+  rules give (the capital bigger); braves in sight count as they are
+  (an armed brave hits harder), the rest as plain braves (1.5, a
+  soldier 3). Only tribes you met (`CompanionTribeStrength`,
+  `Estimates.tribeBraves` / `tribeStrength`).
+- **Tested:** `NationEstimateTest.testTribeEstimates`,
+  `TribeStrengthTest` (settlements, the estimate, a brave in sight,
+  unmet tribes left out). All 746 tests green. **Not checked:** on the
+  live page. **Not done:** a history chart for the tribes (the nations'
+  chart reads old saves; tribes start from now if wanted).
+
+### War of Spanish Succession, closer to Utrecht (2026-10-17)
+- **Why**: in Mischa's game France handed all 7 colonies, units and
+  missions to England in one turn and left the game ("sudden, not
+  realistic"). That is the old event: once any nation passes 50%
+  rebels, the weakest computer nation (by score) gives everything to
+  the strongest. History: at Utrecht (1713) France ceded Newfoundland,
+  Acadia and Hudson Bay but kept Canada and Louisiana; small outposts
+  emptied (Plaisance), most settlers of the big places stayed.
+- **Now**: when the line is passed, a war breaks out in Europe between
+  the two (everyone gets the news). 6 turns later the treaty: the loser
+  cedes about 2 in 5 of its colonies, the ones nearest the winner's
+  colonies, and always keeps one. Colonies under 3 colonists are
+  abandoned (the settlers sail home, the colony disappears). From the
+  others a tenth of the people sail home (Mischa chose 10%; the skilled
+  go first: officials, officers, merchants), and so do the garrison and
+  ships in port. Ceded colonies start at 0% rebels (their bells were for
+  the old crown, so the winner gets no free score and big ones may
+  suffer the tory penalty). The loser stays in the game, at peace with
+  the winner. Still once a game.
+- **Game option** "War of Spanish Succession" (on by default) switches
+  it off (`model.option.spanishSuccession`; old saves: on).
+- Code: `common/diplomacy/SuccessionRules` (pure), `server/model/
+  Succession` (the treaty), `ServerGame.csSuccession` (war, then
+  treaty; the pending war is saved on the game as `successionPending`).
+- **Tested:** `SuccessionTest` (the rules; the treaty: nearest colony
+  ceded, a small one abandoned, a tenth sails home, no rebels left,
+  garrison home, the loser alive and at peace; war first, treaty
+  later). All 749 tests green. **Not checked:** in a game.
+
+### Your game and map options are remembered (2026-10-17)
+- **Why:** Mischa set up a big map (75 x 150, high seas 3) and his game
+  options, and wants them as the default for the next game.
+- **Found:** the Game Options and Map Generator Options dialogs already
+  save what you pick (on OK) to `game_options.xml` and
+  `map_generator_options.xml` in the FreeCol folder (Documents\Freecol\
+  freecol), but the game never read them back (FreeCol's own loading
+  code is switched off).
+- **Now:** a new game starts from those two files, once (the new-game
+  screen, `StartGamePanel.applySavedOptions`), and tells the server.
+  The dialogs still change everything; OK saves the new choice as the
+  default; Reset in the game options goes back to the rules' defaults.
+  An older file without a newer option keeps that option's default.
+- Set on Mischa's PC: map 75 x 150, high seas 3, natural disasters 10%
+  (old files kept as `*.before-claude.xml`).
+- **Tested:** `SavedOptionsTest` (the map size saved and read back; an
+  older game options file keeps the Spanish Succession default). All
+  751 tests green. **Not checked:** in the game.
+
+### Notice-board deals: move into their colony to deliver (2026-10-17)
+- **Why:** Mischa took a Russian "wanted: 100 lumber at Unalashka" and
+  tried to sail into the colony: "cannot go in". Same with wagon trains.
+  Without Jan de Witt the game forbids trading in a foreign colony, and
+  the deal only completed when a *ship* stood *next to* the colony at
+  the start of the Russians' turn (his merchantman was already next to
+  it, so ending the turn would have done it, but nothing said so).
+- **Now:** moving a ship or wagon train into their colony hands the
+  deal over at once (the goods, or for a "for sale" deal the room and
+  the gold; part of the goods is paid pro rata), with the usual
+  messages. No Jan de Witt needed for that. With nothing to deliver
+  there, the move is refused as before. Wagon trains next to the colony
+  now count too, not only ships. The promise message says so.
+- Code: `DeliverMessage`, `InGameController.deliver` (server),
+  `OfferPlanner.deliverNow` / `complete`, client
+  `InGameController.deliverAt` (from the "no access" and trade moves).
+- **Fix the same night (Mischa: "still doesn't work"):** he moved the
+  ship with the mouse. The map's goto never finds a path *into* a
+  foreign colony, so dragging or clicking onto Unalashka did nothing
+  (the arrow-key move worked; checked by loading his save in a headless
+  client). Now dragging or clicking a ship or wagon train onto another
+  nation's colony goes to the nearest tile next to it (the path shows
+  while dragging); if it gets there with moves left the deal is handed
+  over at once, else it waits there and the deal is done on their turn.
+  With no deal there: the usual "no access" message.
+  (`SwingGUI.updateGotoTile` / `traverseGotoPath`,
+  `InGameController.isDeliveryTarget` / `pathNextTo` / `deliverTo`.)
+- **Tested:** `AIOffersTest.testDeliverNowByMovingIn` (nobody there,
+  part, the rest, done and remembered, not at another colony),
+  `testWagonDelivers`. All 753 tests green. **Not checked:** in the
+  game.
+
+### Wagon trains and price agreements; open notices on the spot (2026-10-18)
+- **Why:** Mischa's wagon trains at Unalashka got the game's "no trading
+  rights" message. His save: the lumber notice was already done; what
+  ran was a *price agreement* for lumber, which only asked "how many?"
+  for a *ship* next to a *coastal* colony; the two fur notices were
+  still open (never taken), and moving in only handled taken deals.
+- **Now:**
+  - Price agreements work with wagon trains too, at any of their
+    colonies (coastal or not), on their turn when the carrier waits next
+    to it, or at once when it moves into the colony: the "how many do
+    you sell?" question comes straight away.
+  - A notice still open to you (wanted or for sale) is taken and
+    completed on the spot when you move in with the goods (or the room
+    and the gold); if you can not complete it, it stays open.
+  - With nothing to hand over, a plain message says so ("take their
+    offer first"), instead of the game's "no trading rights", which
+    suggested deals need Jan de Witt.
+- **Tested:** `AIAgreementsTest.testWagonSellsUnderAgreement` (asked at
+  once on moving in, sold, asked again on their turn),
+  `AIOffersTest.testOpenNoticeTakenByMovingIn` (no goods: stays open;
+  with goods: taken and done). All 755 tests green. **Not checked:** in
+  the game.
+
+### War of Spanish Succession: random pair, chance of leaving (2026-10-18)
+- **Why (Mischa, after the first one in his game: Russia ceded 2
+  colonies of 4 to Denmark, nobody left):** "10% should be a
+  distribution, not a hard number: 0 or 3 out of 4 can happen"; "why
+  does the weakest always fight the strongest? More fun random." Not
+  wanted: the nearest nation as winner.
+- **Now:** when the line is passed, two computer nations (with
+  colonies) are picked at random and go to war in Europe; the news
+  names both, not who will lose. At the treaty, 6 turns later, the war
+  is decided: the stronger (army and navy) more likely wins, never sure
+  (strength + 1 over both + 2: equal 50%, three times stronger about
+  75%). Each colonist of a ceded colony sails home with a 1 in 10
+  chance (the most skilled go first), at least one stays.
+- **Tested:** `SuccessionTest` (leaving over 2000 rolls: about 0.4 of 4,
+  sometimes 2 or 3, never all, often nobody; win chances; the treaty
+  with fixed rolls; war then treaty with either side winning). All 755
+  tests green.
+
+### Ship loans (2026-10-26)
+- **Why:** with the AI cheats gone, a nation whose navy is sunk must
+  buy a ship with its own gold, and a broke one stays stuck. Now it
+  can borrow; you earn rent and goodwill ("they come crawling to me").
+  Plan: `plans/ship-loans.md` (all numbers there).
+- **Branch:** `claude/ship-loans`, made from `claude/fix-offer-freeze`
+  with `claude/remove-ai-cheats` merged in (the cheats branch was 31
+  commits behind: no envoys, no succession).
+- **What you see:**
+  - A dialog: "Spain has lost its ships and asks you for a loan of 650
+    gold to buy a caravel". It shows their gold, ships, a credit chip
+    (good payer / new / wary / bad payer) and their record, and two
+    sliders: rent per turn (0-6%, default 2%) and turns to repay
+    (15-40, default 30), with the first payment and the total rent
+    (2% over 30 turns is about 31%) updating as you slide.
+  - Too high a rent: they answer at once with the most they pay
+    (about 3%, more when they have no ship at all or a bad record),
+    and you accept or decline. Accept: your gold goes, their ship is
+    in their Europe the same turn.
+  - Each turn a line in the report: payment received, or missed. Rich
+    borrowers pay off early (the rent to that turn only). At war with
+    them: payments stop until peace. A borrower that won the war may
+    ask you to cancel the debt in its peace terms.
+  - Three missed payments: default. You choose: seize the ship (when
+    it docks in Europe it goes to your dock; passengers stay theirs;
+    half its price comes off the debt), forgive (they remember it
+    warmly), or wait 10 turns for the arrears. No answer in 5 turns
+    counts as waiting.
+  - Companion page, Offers widget: "Your ship loans" cards (balance
+    bar, rent, next payment, state and credit chips); credit chips on
+    the nation cards.
+- **Computer nations lend too:** traders, balance keepers and settlers,
+  to friends only, at 2% (traders 2.5%, +1% for a wary borrower),
+  never from their reserve; they seize at once on a default and press
+  what is left as a grievance (complaint, demand, a reason for war).
+- **Public credit record** per nation, saved with the game: repaid,
+  repaid early, defaults (forgiven, cured), ships seized. Bad payers
+  get no loans from computer nations; everyone who knows them hears of
+  a default (a small "bad payer" memory) or a repayment.
+- **Code:** rules in `common/diplomacy/Loan`, `LoanRules`,
+  `CreditRecord`; the store `server/model/CreditRecords`; the turn and
+  the answers in `server/ai/diplomacy/LoanDesk` (called before
+  `OfferPlanner.plan`, so payments come before shopping);
+  `Offer.Kind.LOAN` / `LOAN_DEFAULT`; the next payment is a promise
+  in the treasury; dialog `client/gui/dialog/LoanDialog`.
+- **Tested:** `LoanTest` (13: schedule and total cost, means filter,
+  ceiling and counter, war freeze, default, void, seizure value,
+  forgive and wait, early payoff, credit standing, save lines) and
+  `AILoansTest` (13: asks / rich does not ask / poor player not asked,
+  the gold and the ship, the counter, refusal tries the next lender
+  and then waits, payments from gold above the reserve and the promise,
+  early payoff, default and seizure with both unit lists and AI units
+  right also after save and load, forgive, wait and cure, unanswered
+  = wait, war freeze, peace terms cancel the debt, a computer lender,
+  bad payers refused). All 783 tests green.
+- **Not done:** loans offered by you on your own; loans for anything
+  but one ship; computer lenders forgiving or waiting; partial early
+  payoff; your own peace envoy cannot offer to cancel their debt (only
+  their peace terms ask for it); Europe price differences.
+
+### War loans (2026-10-26)
+- **Why (Mischa):** "my allies could use some gold". Mischa chose: only
+  they ask; on a default you take goods, and you pick which ("I don't
+  want only products that might be boycotted for me"); the gold goes to
+  the war first.
+- **What you see:** a nation at war (with a ship, short of the gold for
+  3 dragoons) asks: "Spain is at war with France and asks you for a
+  loan of 1,800 gold for soldiers", same sliders as ship loans, a
+  "losing the war" chip when it is. The report says how many dragoons
+  it bought with your gold. Payments, rent, early payoff, war freeze,
+  credit record: as ship loans.
+- **Default:** the question lists the goods in their colonies, each
+  with what it fetches in your Europe market after tax; goods boycotted
+  for you are shown greyed out. Pick one kind: as much is taken as
+  covers the debt, and you get its worth in gold. Asked again while
+  something is owed and something worth taking is left; or take nothing
+  more (the rest stays a claim), forgive, or wait.
+- **Computer lenders** lend for wars too and take the goods worth most
+  to them.
+- **Code:** `LoanDesk.needsWarLoan`, `signWar`, `takeGoods`,
+  `goodsList`; `EuropeanAIPlayer.buySoldiers` (dragoons with a budget,
+  the reserve not counted); a war loan is a `Loan` with no ship type.
+- **Tested:** `AILoansTest`: the request at war (not at peace), the gold
+  buys dragoons, the player picks goods (boycotted ones bring nothing,
+  asked again, the rest a claim), a computer lender takes goods. All
+  787 tests green.
+- **Not done:** the goods do not move the Europe market; the player
+  can not offer a loan himself.
+
+### Loans: only from you for now; companion additions (2026-10-26)
+- **Computer nations no longer lend to each other** (Mischa: "we
+  shouldn't have loans between AIs yet"). Switched off with
+  `LoanRules.computerLenders`; the rules and their tests stay (the
+  tests switch it on). Only the player is asked.
+- **Companion page:**
+  - Alerts (Overview): a loan request or a default waiting for your
+    answer in the game, payments missed, a ship to be seized when it
+    docks.
+  - Your nation card: a "Lent out" row: gold still owed to you, loans
+    open, and what came back so far against what you lent (a bar).
+    Each loan now counts the gold you got back (payments with rent,
+    payoffs, goods taken).
+  - Credit chips (nation cards and loan cards) show the record on
+    hover: "2 repaid (1 early), a default 14 turns ago (forgiven), 1
+    seizure".
+- **Tested:** `AILoansTest.testNoComputerLendersYet`, gold got back on
+  an early payoff; all 788 tests green. The page itself not checked in
+  the game.
+
+### Indian converts can be armed (2026-10-26)
+- **Why (Mischa):** converts as soldiers and dragoons: born horsemen,
+  little drill with muskets, better than a colonist hand to hand.
+- **Numbers (Mischa chose):** a convert with a musket is 25% worse than
+  a colonist soldier (attack and defence 1.5 instead of 2); on a horse
+  25% better than a colonist dragoon (3.75 instead of 3; a veteran
+  dragoon has 4.5); unarmed he defends at 2 instead of 1 (he still
+  cannot attack, and the AI does not count him as a defender). Converts
+  can also be scouts and pioneers (keeping the defence of 2), not
+  missionaries.
+- **How:** rules (`data/rules/classic/specification.xml`): the convert
+  can be equipped and has +1 defence; the soldier and dragoon roles
+  have modifiers only for the convert type (scope). Saves carry their
+  own rules, so `Specification.fixArmedConverts` adds the same on
+  loading an older game (checked against Mischa's autosave).
+- **Pictures:** soldier, dragoon and scout made from the armed and
+  mounted brave pictures with the convert's look (no feather, his blue
+  trousers), `images/units/convert/`; made by
+  `claude_docs/tools/convert_art.py` from the game's own images.
+- **Tested:** `ArmedConvertTest` (the equipment allowed; the strength
+  ratios exactly 0.75, 1.25 and 2 against colonists). All 790 tests
+  green. **Not checked:** in the game (pictures on the map, the AI
+  arming its converts).
+
+### Empty wagon trains on ships (2026-10-26)
+- **Why (Mischa):** carry empty wagon trains by ship to another part of
+  the coast; a caravel takes two. Player only.
+- **Now:** an empty wagon train of a player takes one cargo slot (a
+  caravel 2, a merchantman 4, a galleon 6). With goods it takes 12, as
+  before, so it can not board; aboard, it can not be loaded. Computer
+  players' wagons stay ashore (their transport planning is not built
+  for it). `Unit.getSpaceTaken` / `isShippableWagon`,
+  `Unit.getLoadableAmount`.
+- **Tested:** `WagonOnShipTest` (two on a caravel, not three; six on a
+  galleon; the embark move; loaded does not fit; aboard stays empty;
+  computer wagons stay ashore); the upstream `UnitTest.testCanAdd`
+  now expects the new rule. All 793 tests green. **Not checked:** in
+  the game (moving on and off, the Europe dock, the colony screen).

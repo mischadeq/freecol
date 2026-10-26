@@ -45,6 +45,12 @@ public final class UnitButton extends FreeColButton {
 
     private static final Logger logger = Logger.getLogger(UnitButton.class.getName());
 
+    /**
+     * Action value for a button tooltip longer than the action's name,
+     * such as the list of waiting units (mod).
+     */
+    public static final String TOOLTIP = "unitButtonTooltip";
+
     private final String actionId;
     private final ActionManager am;
 
@@ -83,7 +89,9 @@ public final class UnitButton extends FreeColButton {
             setRolloverIcon((ImageIcon)a.getValue(FreeColAction.BUTTON_ROLLOVER_IMAGE));
             setPressedIcon((ImageIcon)a.getValue(FreeColAction.BUTTON_PRESSED_IMAGE));
             setDisabledIcon((ImageIcon)a.getValue(FreeColAction.BUTTON_DISABLED_IMAGE));
-            setToolTipText((String)a.getValue(FreeColAction.NAME));
+            final Object tip = a.getValue(TOOLTIP);
+            setToolTipText((String)((tip != null) ? tip
+                    : a.getValue(FreeColAction.NAME)));
             setText(null);
             setFocusPainted(false);
             setContentAreaFilled(false);
@@ -114,8 +122,13 @@ public final class UnitButton extends FreeColButton {
         @Override
         public void propertyChange(PropertyChangeEvent e) {
             String propertyName = e.getPropertyName();
-            if (Action.NAME.equals(e.getPropertyName())
+            if (TOOLTIP.equals(propertyName)) {
+                button.setToolTipText((String) e.getNewValue());
+            } else if (Action.NAME.equals(e.getPropertyName())
                 || Action.SHORT_DESCRIPTION.equals(e.getPropertyName())) {
+                // A longer tooltip set on the action wins (mod).
+                if (e.getSource() instanceof Action
+                    && ((Action)e.getSource()).getValue(TOOLTIP) != null) return;
                 String text = (String) e.getNewValue();
                 button.setToolTipText(text);
             } else if ("enabled".equals(propertyName)) {

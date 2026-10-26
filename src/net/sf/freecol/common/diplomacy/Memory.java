@@ -72,7 +72,24 @@ public final class Memory {
         /** We called for help and they came (tribes). */
         CAME_TO_HELP(25, 60, 20),
         /** We called for help and they stayed home (tribes). */
-        LEFT_US_ALONE(-10, 30, -10);
+        LEFT_US_ALONE(-10, 30, -10),
+        /** They lent us the gold for a ship when we needed it (ship
+            loans, mod; x2 when we had no ship at all). */
+        LOAN_GIVEN(15, 40, 10),
+        /** They paid an installment on time (x5 when repaid, x8 early). */
+        LOAN_PAID(1, 20, 1),
+        /** They squeezed us: rent above 3.0% (one per 0.5% over). */
+        LOAN_SQUEEZED(-3, 30, -2),
+        /** They defaulted on our loan. */
+        LOAN_DEFAULT(-30, 60, -30),
+        /** They seized our ship for a debt (hard but fair). */
+        LOAN_SEIZED(-10, 30, 0),
+        /** They forgave our debt. */
+        LOAN_FORGIVEN(25, 60, 20),
+        /** They defaulted on someone (everyone hears of it). */
+        BAD_PAYER(-3, 40, -3),
+        /** They repaid a loan (everyone hears of it). */
+        GOOD_PAYER(2, 30, 2);
 
         public final int weight;
         public final int fade;

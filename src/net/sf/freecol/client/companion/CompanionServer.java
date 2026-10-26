@@ -256,7 +256,10 @@ public final class CompanionServer {
                 try {
                     json = onEdt(() -> (this.fcc.getGame() == null
                             || this.fcc.getMyPlayer() == null) ? "{}"
-                        : CompanionOffers.build(CompanionOffers.known(this.fcc,
+                        : CompanionOffers.build(this.fcc,
+                            CompanionOffers.known(this.fcc,
+                                this.fcc.getMyPlayer()),
+                            CompanionOffers.loans(this.fcc,
                                 this.fcc.getMyPlayer()),
                             this.fcc.getGame(), this.fcc.getMyPlayer()));
                 } catch (Exception e) {

@@ -39,6 +39,7 @@ import net.sf.freecol.common.model.Role;
 import net.sf.freecol.common.model.Settlement;
 import net.sf.freecol.common.model.Specification;
 import net.sf.freecol.common.model.Stance;
+import net.sf.freecol.common.model.StringTemplate;
 import net.sf.freecol.common.model.Tile;
 import net.sf.freecol.common.model.Turn;
 import net.sf.freecol.common.model.Unit;
@@ -141,6 +142,10 @@ public final class WorldViewBuilder {
             if (k == null) continue;
             Player p = game.getFreeColGameObject(h.getPlayerId(), Player.class);
             if (p == null) continue;
+            // A war is a grudge only against the nation that declared
+            // it by its own choice: not one we declared, not the King's
+            // (mod; older saves have no tags and still count).
+            if (k == Memory.Kind.WAR && !grudge(h, me)) continue;
             w.memories.add(new Memory(k, p.getNationId(),
                                       h.getTurn().getNumber(), 1));
         }
@@ -493,6 +498,21 @@ public final class WorldViewBuilder {
         }
         for (PlaceView b : theirs) coastTheirs |= b.coastal;
         return (european && coastMine && coastTheirs) ? 0.5 : 0.2;
+    }
+
+    /**
+     * Is a war in our history a grudge against the other side?
+     *
+     * @param h The DECLARE_WAR {@code HistoryEvent}.
+     * @param me The player whose history it is.
+     * @return False if we declared it or the King ordered it.
+     */
+    static boolean grudge(HistoryEvent h, Player me) {
+        final StringTemplate king = h.getReplacement("%kingsWar%");
+        if (king != null) return false;
+        final StringTemplate by = h.getReplacement("%declarer%");
+        if (by == null) return true; // an old save: as before
+        return !me.getNationId().equals(by.getId());
     }
 
     private static Memory.Kind memoryKind(HistoryEvent h) {

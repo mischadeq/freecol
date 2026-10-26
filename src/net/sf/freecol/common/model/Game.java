@@ -188,6 +188,10 @@ public class Game extends FreeColGameObject {
     /** Whether the War of Spanish Succession has already taken place. */
     private boolean spanishSuccession = false;
 
+    /** The War of Spanish Succession announced and not yet settled
+        (mod): "loser nation|winner nation|treaty turn", or null. */
+    private String successionPending = null;
+
     /** Initial active unit identifier. */
     private String initialActiveUnitId = null;
     
@@ -1245,6 +1249,24 @@ public class Game extends FreeColGameObject {
     }
 
     /**
+     * The War of Spanish Succession announced and not settled yet (mod).
+     *
+     * @return "loser nation|winner nation|treaty turn", or null.
+     */
+    public final String getSuccessionPending() {
+        return successionPending;
+    }
+
+    /**
+     * Set the pending War of Spanish Succession (mod).
+     *
+     * @param pending "loser nation|winner nation|treaty turn", or null.
+     */
+    public final void setSuccessionPending(final String pending) {
+        this.successionPending = pending;
+    }
+
+    /**
      * Get the identifier for the initial active unit.
      *
      * @return The active unit identifier, if any.
@@ -1624,6 +1646,7 @@ public class Game extends FreeColGameObject {
         this.currentPlayer = updateRef(o.getCurrentPlayer(), Player.class);
         this.turn = o.getTurn();
         this.spanishSuccession = o.getSpanishSuccession();
+        this.successionPending = o.getSuccessionPending();
         this.initialActiveUnitId = o.getInitialActiveUnitId();
         return true;
     }
@@ -1642,6 +1665,7 @@ public class Game extends FreeColGameObject {
     private static final String INITIAL_ACTIVE_UNIT_ID = "initialActiveUnitId";
     private static final String NEXT_ID_TAG = "nextId";
     private static final String SPANISH_SUCCESSION_TAG = "spanishSuccession";
+    private static final String SUCCESSION_PENDING_TAG = "successionPending";
     private static final String TURN_TAG = "turn";
     private static final String UUID_TAG = "UUID";
 
@@ -1667,6 +1691,9 @@ public class Game extends FreeColGameObject {
         xw.writeAttribute(TURN_TAG, getTurn().getNumber());
 
         xw.writeAttribute(SPANISH_SUCCESSION_TAG, spanishSuccession);
+        if (successionPending != null) {
+            xw.writeAttribute(SUCCESSION_PENDING_TAG, successionPending);
+        }
 
         if (initialActiveUnitId != null) {
             xw.writeAttribute(INITIAL_ACTIVE_UNIT_ID, initialActiveUnitId);
@@ -1751,6 +1778,8 @@ public class Game extends FreeColGameObject {
         turn = new Turn(xr.getAttribute(TURN_TAG, 1));
 
         spanishSuccession = xr.getAttribute(SPANISH_SUCCESSION_TAG, false);
+        successionPending = xr.getAttribute(SUCCESSION_PENDING_TAG,
+                                            (String)null);
 
         initialActiveUnitId = xr.getAttribute(INITIAL_ACTIVE_UNIT_ID,
                                               (String)null);

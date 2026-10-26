@@ -128,6 +128,8 @@ public final class TribePlanner {
         pickRival();
         remember();
         landTaken();
+        // The players' envoys get their answer (step 8.3b).
+        new TribeEnvoyDesk(ai).answerAll(cs, lb);
         rub();
         tribeStances(lb);
         answerCalls(lb);
@@ -279,14 +281,19 @@ public final class TribePlanner {
         ai.getMemories().fade(now());
     }
 
-    /** New colonies on our lands are remembered. */
+    /**
+     * Colonies on land taken from us are remembered: land they took
+     * without paying (or, from before the record, land inside one of
+     * our villages' own land). A colony that only shares a border with
+     * us is not (mod, step 8.3).
+     */
     private void landTaken() {
         final Set<String> near = new HashSet<>();
         final Map<String, String> owner = new java.util.HashMap<>();
         for (Player p : game().getLiveEuropeanPlayerList()) {
             for (Colony c : p.getColonyList()) {
-                for (IndianSettlement is : me().getIndianSettlementList()) {
-                    if (c.getTile().getDistanceTo(is.getTile()) <= LAND_RADIUS) {
+                for (net.sf.freecol.common.model.Tile t : c.getOwnedTiles()) {
+                    if (net.sf.freecol.server.model.LandClaims.taken(me(), t, p)) {
                         near.add(c.getId());
                         owner.put(c.getId(), p.getNationId());
                         break;
@@ -929,6 +936,7 @@ public final class TribePlanner {
         case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
         case DEFEND_SETTLEMENT: return "offer.postedDefendSettlement";
         case CALL_TO_ARMS: return "offer.postedTribeCall";
+        case TERMS: return "offer.postedTribeTerms";
         default: return "offer.postedTribeAlliance";
         }
     }
@@ -982,6 +990,8 @@ public final class TribePlanner {
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         switch (o.kind) {
+        case TERMS:
+            return new TribeEnvoyDesk(ai).answerTerms(o, human, accept, cs);
         case SETTLEMENT_JOINS:
             final IndianSettlement is = game().getFreeColGameObject(o.place,
                 IndianSettlement.class);

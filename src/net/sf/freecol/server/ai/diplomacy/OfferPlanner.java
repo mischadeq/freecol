@@ -128,6 +128,8 @@ public final class OfferPlanner {
             final Offer o = it.next();
             if (o.state.over() && now - o.posted > KEEP) it.remove();
         }
+        // The players' envoys get their answer (step 8).
+        new EnvoyDesk(ai).answerAll(outlook, cs, lb);
         for (Offer o : book) {
             if (!me.getNationId().equals(o.from)) {
                 if (o.stale(now)) o.state = Offer.State.EXPIRED;
@@ -164,14 +166,7 @@ public final class OfferPlanner {
         }
         final int price = o.priceAt(now);
         if (price >= 0 && deliver(o, taker, colony, price, cs)) {
-            if (o.kind != Offer.Kind.WANT) o.paid = price;
-            final boolean late = price < o.gold;
-            o.state = (late) ? Offer.State.LATE : Offer.State.DONE;
-            remember(late ? Memory.Kind.DEAL_LATE : Memory.Kind.DEAL_KEPT, taker);
-            remember(Memory.Kind.TRADE, taker);
-            message(cs, taker, (o.kind == Offer.Kind.WANT)
-                ? ((late) ? "offer.deliveredLate" : "offer.delivered")
-                : "offer.fetched", o, (o.kind == Offer.Kind.WANT) ? o.paid : price);
+            complete(o, taker, price, cs);
             return;
         }
         if (price < 0) {
@@ -189,9 +184,87 @@ public final class OfferPlanner {
         }
     }
 
+    /** A delivery made: the deal is done (or late), and remembered. */
+    private void complete(Offer o, Player taker, int price, ChangeSet cs) {
+        if (o.kind != Offer.Kind.WANT) o.paid = price;
+        final boolean late = price < o.gold;
+        o.state = (late) ? Offer.State.LATE : Offer.State.DONE;
+        remember(late ? Memory.Kind.DEAL_LATE : Memory.Kind.DEAL_KEPT, taker);
+        remember(Memory.Kind.TRADE, taker);
+        message(cs, taker, (o.kind == Offer.Kind.WANT)
+            ? ((late) ? "offer.deliveredLate" : "offer.delivered")
+            : "offer.fetched", o, (o.kind == Offer.Kind.WANT) ? o.paid : price);
+    }
+
     /**
-     * Complete a deal if a ship of the taker is next to the colony with
-     * the goods (or the room and the gold).
+     * The player moved a ship or wagon train into one of our colonies to
+     * deliver (or fetch) a notice-board deal he took (mod): hand it over
+     * now instead of at the start of our turn.
+     *
+     * @param taker The player.
+     * @param colony Our colony.
+     * @param cs A {@code ChangeSet} to update.
+     * @return "done" if a deal was completed, "part" if goods were
+     *     handed over but the deal is not complete, "none" otherwise.
+     */
+    public String deliverNow(ServerPlayer taker, Colony colony,
+                             ChangeSet cs) {
+        if (colony == null || colony.getOwner() != me()) return "none";
+        String ret = "none";
+        final int now = now();
+        for (Offer o : new ArrayList<>(ai.getOffers())) {
+            if ((o.kind != Offer.Kind.WANT && o.kind != Offer.Kind.SELL)
+                || !me().getNationId().equals(o.from)
+                || !colony.getId().equals(o.place)) continue;
+            // A notice still open to him: coming with the goods (or the
+            // room and the gold) takes it on the spot.
+            final boolean open = o.state == Offer.State.OPEN
+                && o.visibleTo(taker.getNationId(), now);
+            if (!open && (o.state != Offer.State.TAKEN
+                          || !taker.getNationId().equals(o.takenBy))) continue;
+            if (open) {
+                o.state = Offer.State.TAKEN;
+                o.takenBy = taker.getNationId();
+                o.takenTurn = now;
+            }
+            final int price = o.priceAt(now);
+            final int before = o.delivered;
+            if (price >= 0 && deliver(o, taker, colony, price, cs)) {
+                complete(o, taker, price, cs);
+                ret = "done";
+            } else if (o.delivered > before) {
+                if (!"done".equals(ret)) ret = "part";
+            } else if (open && o.state == Offer.State.TAKEN) {
+                o.state = Offer.State.OPEN; // could not: still open
+                o.takenBy = null;
+                o.takenTurn = -1;
+            }
+        }
+        // A running price agreement: ask how many they sell, now.
+        for (Offer a : new ArrayList<>(ai.getOffers())) {
+            if (a.kind != Offer.Kind.AGREEMENT || a.state != Offer.State.TAKEN
+                || !taker.getNationId().equals(a.takenBy)
+                || a.turnsLeft(now) <= 0
+                || me().getStance(taker) == Stance.WAR) continue;
+            final GoodsType gt = game().getSpecification().getGoodsType(a.goods);
+            if (gt == null) continue;
+            for (Tile t : colony.getTile().getSurroundingTiles(1)) {
+                for (Unit u : t.getUnitList()) {
+                    if (u.getOwner() != taker || !u.canCarryGoods()
+                        || u.getGoodsCount(gt) <= 0 || askedLately(a, u)) continue;
+                    final Offer q = saleVisit(a, taker, u, colony, cs);
+                    ai.getOffers().add(q);
+                    tell(q, cs);
+                    if ("none".equals(ret)) ret = "asked";
+                }
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Complete a deal if a ship or wagon train of the taker is next to
+     * the colony with the goods (or the room and the gold).
      *
      * @return True if done.
      */
@@ -202,8 +275,8 @@ public final class OfferPlanner {
         final Player me = me();
         for (Tile t : colony.getTile().getSurroundingTiles(1)) {
             for (Unit u : t.getUnitList()) {
-                if (u.getOwner() != taker || !u.isNaval()
-                    || !u.canCarryGoods()) continue;
+                // Ships and, since the player asked, wagon trains.
+                if (u.getOwner() != taker || !u.canCarryGoods()) continue;
                 if (o.kind == Offer.Kind.WANT) {
                     // In parts (step 4): what the ship has, paid pro rata.
                     final int n = Math.min(u.getGoodsCount(gt),
@@ -291,6 +364,7 @@ public final class OfferPlanner {
         case ULTIMATUM: return "offer.postedUltimatum";
         case AGREEMENT: return "offer.postedAgreement";
         case SALE: return "offer.postedSale";
+        case TERMS: return "offer.postedTerms";
         default: return "offer.postedSell";
         }
     }
@@ -358,8 +432,12 @@ public final class OfferPlanner {
                 ? 50 * (Math.min(MAX_PEACE_GOLD, Math.max(0, me().getGold()) / 5) / 50)
                 : 0;
             final Colony capital = biggest(me().getColonyList(), null);
+            // We owe them for a ship and won the war: peace if they
+            // cancel the debt (mod, ship loans).
+            final int debt = new LoanDesk(ai).debtToCancel(h);
             Offer o = new Offer(id(now), Offer.Kind.PEACE, me().getNationId(),
-                null, 0, gold, (capital == null) ? null : capital.getId(),
+                null, debt, (debt > 0) ? 0 : gold,
+                (capital == null) ? null : capital.getId(),
                 (capital == null) ? "" : capital.getName(), now, 0);
             o.audience.add(h.getNationId());
             return o;
@@ -580,7 +658,8 @@ public final class OfferPlanner {
      */
     private void considerPosted(Outlook outlook, ChangeSet cs, LogBuilder lb) {
         for (Offer o : new ArrayList<>(ai.getOffers())) {
-            if (me().getNationId().equals(o.from) || o.state != Offer.State.OPEN) {
+            if (me().getNationId().equals(o.from) || o.state != Offer.State.OPEN
+                || o.kind.envoy()) {
                 continue;
             }
             final Player h = game().getPlayerByNationId(o.from);
@@ -800,28 +879,41 @@ public final class OfferPlanner {
             return;
         }
         for (Colony c : me().getColonyList()) {
-            if (!c.isConnectedPort()) continue;
+            // Ships and (mod) wagon trains next to any of our colonies.
             for (Tile t : c.getTile().getSurroundingTiles(1)) {
                 for (Unit u : t.getUnitList()) {
-                    if (u.getOwner() != human || !u.isNaval()
+                    if (u.getOwner() != human || !u.canCarryGoods()
                         || u.getGoodsCount(gt) <= 0 || askedLately(a, u)) continue;
-                    final int room = net.sf.freecol.common.diplomacy
-                        .PriceAgreement.room(c.getWarehouseCapacity(),
-                            c.getGoodsCount(gt), me().getGold(), a.gold);
-                    final Offer q = new Offer("sale#" + a.id + "#" + u.getId()
-                        + "#" + now, Offer.Kind.SALE, me().getNationId(),
-                        gt.getId(), room, a.gold, c.getId(), c.getName(), now, 0);
-                    q.audience.add(human.getNationId());
-                    if (room <= 0) { // Full: they say so, no question
-                        q.state = Offer.State.DECLINED;
-                        q.told.add(human.getNationId());
-                        message(cs, human, "agreement.full", q, a.gold);
-                    }
+                    final Offer q = saleVisit(a, human, u, c, cs);
                     visits.add(q);
-                    lb.add("\n  Agreement: ", u, " at ", c.getName(), ", takes ", room);
+                    lb.add("\n  Agreement: ", u, " at ", c.getName(), ", takes ", q.amount);
                 }
             }
         }
+    }
+
+    /**
+     * A carrier of the player with goods under a price agreement stands
+     * next to one of our colonies: the "how many?" question (a SALE
+     * offer), or "full" when we have no room.
+     */
+    private Offer saleVisit(Offer a, Player human, Unit u, Colony c,
+                            ChangeSet cs) {
+        final GoodsType gt = game().getSpecification().getGoodsType(a.goods);
+        final int now = now();
+        final int room = net.sf.freecol.common.diplomacy
+            .PriceAgreement.room(c.getWarehouseCapacity(),
+                c.getGoodsCount(gt), me().getGold(), a.gold);
+        final Offer q = new Offer("sale#" + a.id + "#" + u.getId()
+            + "#" + now, Offer.Kind.SALE, me().getNationId(),
+            gt.getId(), room, a.gold, c.getId(), c.getName(), now, 0);
+        q.audience.add(human.getNationId());
+        if (room <= 0) { // Full: they say so, no question
+            q.state = Offer.State.DECLINED;
+            q.told.add(human.getNationId());
+            message(cs, human, "agreement.full", q, a.gold);
+        }
+        return q;
     }
 
     /** Did we ask this ship about this agreement in the last two turns? */
@@ -940,6 +1032,12 @@ public final class OfferPlanner {
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         if (o.kind == Offer.Kind.SALE) return sell(o, human, accept, amount, cs);
+        if (o.kind == Offer.Kind.LOAN || o.kind == Offer.Kind.LOAN_DEFAULT) {
+            return new LoanDesk(ai).answer(o, human, accept, amount, cs);
+        }
+        if (o.kind == Offer.Kind.TERMS) {
+            return new EnvoyDesk(ai).answerTerms(o, human, accept, cs);
+        }
         if (o.kind == Offer.Kind.AGREEMENT) {
             if (accept) {
                 o.state = Offer.State.TAKEN;
@@ -1030,6 +1128,7 @@ public final class OfferPlanner {
             if (me().getStance(human) == Stance.WAR) {
                 ((ServerPlayer)me()).csChangeStance(Stance.PEACE, human, true, cs);
             }
+            if (o.amount > 0) new LoanDesk(ai).cancelForPeace(human, cs);
             final int gold = Math.min(o.gold, Math.max(0, me().getGold()));
             gold(me(), -gold, cs);
             gold(human, gold, cs);

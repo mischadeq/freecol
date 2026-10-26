@@ -472,7 +472,58 @@ public abstract class ServerAPI {
      * @return True if the message was sent.
      */
     public boolean answerOffer(String offerId, boolean accept) {
-        return send(new OfferMessage(offerId, accept));
+        // Wait for the reply, so its messages can be shown at once.
+        return ask(new OfferMessage(offerId, accept));
+    }
+
+    /**
+     * Deliver (or fetch) the goods of a notice-board deal at another
+     * nation's colony now (mod). The answer arrives before this returns.
+     *
+     * @param colonyId The colony id.
+     * @return True if the server interaction succeeded.
+     */
+        public boolean deliver(String colonyId) {
+        return ask(new DeliverMessage(colonyId));
+    }
+
+    /**
+     * Send an envoy (mod), see above.
+     *
+     * @param to The nation id, or null.
+     * @param kind The envoy kind name, or null.
+     * @param gold The gold sent with it.
+     * @param against The enemy for a joint war (8.2), or null.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean envoy(String to, String kind, int gold, String against) {
+        return ask((to == null) ? new EnvoyMessage()
+                   : new EnvoyMessage(to, kind, gold, against));
+    }
+
+    /**
+     * Ask what another nation sells at one of its colonies (mod).  The
+     * answer arrives before this returns.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean saleTerms(net.sf.freecol.common.model.Colony colony) {
+        return ask(new SaleTermsMessage(colony));
+    }
+
+    /**
+     * Haggle over goods at another nation's colony (mod).  The answer
+     * arrives before this returns.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @param goodsId The goods.
+     * @param off Percent more off asked.
+     * @return True if the server interaction succeeded.
+     */
+    public boolean haggle(net.sf.freecol.common.model.Colony colony,
+                          String goodsId, int off) {
+        return ask(new SaleTermsMessage(colony, goodsId, off));
     }
 
     /**
@@ -484,7 +535,20 @@ public abstract class ServerAPI {
      * @return True if the message was sent.
      */
     public boolean answerOffer(String offerId, int amount) {
-        return send(new OfferMessage(offerId, amount > 0, amount));
+        return ask(new OfferMessage(offerId, amount > 0, amount));
+    }
+
+    /**
+     * Answer an offer with an amount (mod, ship loans: the terms, or
+     * the choice after a default).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @param amount The amount.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, boolean accept, int amount) {
+        return ask(new OfferMessage(offerId, accept, amount));
     }
 
     /**

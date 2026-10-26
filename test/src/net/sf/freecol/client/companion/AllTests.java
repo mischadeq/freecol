@@ -27,8 +27,10 @@ public class AllTests {
 
     public static Test suite() {
         TestSuite suite = new TestSuite("Test for net.sf.freecol.client.companion");
+        suite.addTestSuite(HighlightTest.class);
         suite.addTestSuite(IndependenceTest.class);
         suite.addTestSuite(NationEstimateTest.class);
+        suite.addTestSuite(TribeStrengthTest.class);
         suite.addTestSuite(MoodsTest.class);
         suite.addTestSuite(GraphTest.class);
         suite.addTestSuite(ArchiveTest.class);

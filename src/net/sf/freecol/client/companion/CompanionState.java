@@ -174,6 +174,10 @@ final class CompanionState {
         colonies(j, player, colonies, goodsTypes, forecast, alerts);
         routes(j, player, routes, alerts);
         units(j, game, player, routes, alerts);
+        // Ship and war loans (mod): decisions waiting, late payers.
+        final List<String[]> loanAlerts = new ArrayList<>();
+        CompanionOffers.alerts(this.fcc, player, loanAlerts);
+        for (String[] a : loanAlerts) alerts.add(alert(a[0], a[1], null, null));
         others(j, game, player);
         alerts(j, alerts);
         goods(j, game, colonies, goodsTypes);
@@ -275,7 +279,8 @@ final class CompanionState {
             final String text = (e.getValue() > 1)
                 ? e.getKey() + " (\u00d7" + e.getValue() + ")" : e.getKey();
             CompanionLog.post(turn, "msg-" + m.getMessageType().name()
-                    .toLowerCase(), text, sourceTile(game, m), null);
+                    .toLowerCase(), text, sourceTile(game, m), null,
+                filledNames(m));
             this.loggedTexts.add(e.getKey());
         }
         this.seenMessages = now;
@@ -949,11 +954,49 @@ final class CompanionState {
         j.endArr();
     }
 
+    /**
+     * The names the game filled into a message (nations, tribes,
+     * colonies, places, goods), to show them in bold (mod).
+     *
+     * @param t The {@code StringTemplate}.
+     * @return The names.
+     */
+    static List<String> filledNames(StringTemplate t) {
+        final List<String> ret = new ArrayList<>();
+        filledNames(t, ret, 0);
+        return ret;
+    }
+
+    private static void filledNames(StringTemplate t, List<String> ret,
+                                    int depth) {
+        if (t == null || depth > 3) return;
+        for (java.util.AbstractMap.SimpleEntry<String, StringTemplate> e
+                 : t.entryList()) {
+            final StringTemplate v = e.getValue();
+            if (v == null) continue;
+            if (!v.entryList().isEmpty()) {
+                filledNames(v, ret, depth + 1);
+                continue;
+            }
+            try {
+                final String s = Messages.message(v);
+                if (s != null && !s.isEmpty()) ret.add(s);
+            } catch (RuntimeException re) {
+                // Leave it plain.
+            }
+        }
+    }
+
     private static void log(Json j, long since) {
         j.key("log").arr();
         for (CompanionLog.Entry e : CompanionLog.since(since)) {
             j.obj().put("id", e.id).put("turn", e.turn).put("kind", e.kind)
                 .put("text", e.text).put("x", e.x).put("y", e.y);
+            j.key("hl").arr();
+            for (int[] r : e.runs) {
+                j.arr().val(r[0]).val(r[1]).val(r[2]).endArr();
+            }
+            j.endArr();
             j.key("goods").arr();
             for (Map.Entry<String, Integer> g : e.goods.entrySet()) {
                 goods(j, g.getKey(), g.getValue());

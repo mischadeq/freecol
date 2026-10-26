@@ -1951,6 +1951,110 @@ public final class InGameController extends Controller {
     }
 
     /**
+     * The player moved a ship or wagon train into another nation's
+     * colony to deliver (or fetch) a notice-board deal he took (mod).
+     *
+     * @param serverPlayer The {@code ServerPlayer} delivering.
+     * @param colonyId The colony id.
+     * @return A {@code ChangeSet} with the answer.
+     */
+    public ChangeSet deliver(ServerPlayer serverPlayer, String colonyId) {
+        final ChangeSet cs = new ChangeSet();
+        final Colony colony = (colonyId == null) ? null
+            : getGame().getFreeColGameObject(colonyId, Colony.class);
+        String result = "none";
+        if (colony != null && colony.getOwner() != serverPlayer) {
+            final net.sf.freecol.server.ai.AIPlayer ai = getFreeColServer()
+                .getAIMain().getAIPlayer(colony.getOwner());
+            if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer) {
+                result = new net.sf.freecol.server.ai.diplomacy.OfferPlanner(
+                    (net.sf.freecol.server.ai.EuropeanAIPlayer)ai)
+                    .deliverNow(serverPlayer, colony, cs);
+            }
+        }
+        cs.add(See.only(serverPlayer),
+            new net.sf.freecol.common.networking.DeliverMessage(colonyId,
+                                                                result));
+        return cs;
+    }
+
+    /**
+     * The player sends an envoy, or asks how his envoys stand (step 8,
+     * mod).  The answer carries the status of every computer nation he
+     * knows (turns to wait), and why an envoy could not go, if so.
+     *
+     * @param serverPlayer The {@code ServerPlayer} sending.
+     * @param to The nation id, or null just to ask.
+     * @param kind The envoy kind name, or null.
+     * @param gold The gold sent with it.
+     * @param against The enemy for a joint war (8.2), or null.
+     * @return A {@code ChangeSet} with the answer.
+     */
+    public ChangeSet envoy(ServerPlayer serverPlayer, String to, String kind,
+                           int gold, String against) {
+        final ChangeSet cs = new ChangeSet();
+        final net.sf.freecol.server.ai.AIMain aiMain
+            = getFreeColServer().getAIMain();
+        final List<net.sf.freecol.server.ai.EuropeanAIPlayer> ais
+            = new ArrayList<>();
+        for (Player p : getGame().getLiveEuropeanPlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.EuropeanAIPlayer
+                && p != serverPlayer) {
+                ais.add((net.sf.freecol.server.ai.EuropeanAIPlayer)ai);
+            }
+        }
+        // The tribes too (step 8.3b).
+        final List<net.sf.freecol.server.ai.NativeAIPlayer> tribes
+            = new ArrayList<>();
+        for (Player p : getGame().getLiveNativePlayerList()) {
+            final net.sf.freecol.server.ai.AIPlayer ai = aiMain.getAIPlayer(p);
+            if (ai instanceof net.sf.freecol.server.ai.NativeAIPlayer) {
+                tribes.add((net.sf.freecol.server.ai.NativeAIPlayer)ai);
+            }
+        }
+        String error = null;
+        if (to != null && kind != null) {
+            net.sf.freecol.server.ai.AIPlayer target = null;
+            for (net.sf.freecol.server.ai.EuropeanAIPlayer a : ais) {
+                if (a.getPlayer().getNationId().equals(to)) target = a;
+            }
+            for (net.sf.freecol.server.ai.NativeAIPlayer a : tribes) {
+                if (a.getPlayer().getNationId().equals(to)) target = a;
+            }
+            net.sf.freecol.common.diplomacy.Offer.Kind k = null;
+            try {
+                k = net.sf.freecol.common.diplomacy.Offer.Kind.valueOf(kind);
+            } catch (IllegalArgumentException e) {
+                k = null;
+            }
+            error = (target instanceof net.sf.freecol.server.ai.EuropeanAIPlayer)
+                ? new net.sf.freecol.server.ai.diplomacy.EnvoyDesk(
+                    (net.sf.freecol.server.ai.EuropeanAIPlayer)target)
+                    .send(serverPlayer, k, gold, against, cs)
+                : (target instanceof net.sf.freecol.server.ai.NativeAIPlayer)
+                ? new net.sf.freecol.server.ai.diplomacy.TribeEnvoyDesk(
+                    (net.sf.freecol.server.ai.NativeAIPlayer)target)
+                    .send(serverPlayer, k, gold, against, cs)
+                : "envoy.error.nation";
+            if (error == null) {
+                cs.addMessage(serverPlayer, new ModelMessage(
+                    ModelMessage.MessageType.FOREIGN_DIPLOMACY, "envoy.sent",
+                    serverPlayer)
+                    .addStringTemplate("%nation%",
+                        target.getPlayer().getNationLabel()));
+            }
+        }
+        final List<net.sf.freecol.server.ai.AIPlayer> all = new ArrayList<>(ais);
+        all.addAll(tribes);
+        cs.add(See.only(serverPlayer),
+            new net.sf.freecol.common.networking.EnvoyMessage(
+                String.join(";", net.sf.freecol.server.ai.diplomacy.EnvoyDesk
+                    .status(serverPlayer, all)), error));
+        return cs;
+    }
+
+    /**
      * A player answers an offer of a computer nation (mod).
      *
      * @param serverPlayer The {@code ServerPlayer} answering.

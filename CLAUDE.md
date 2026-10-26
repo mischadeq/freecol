@@ -41,7 +41,7 @@ Read these first, in this order:
 - Build: `ant -q` (makes `FreeCol.jar`).
 - One test suite: `ant -lib test/lib/junit.jar test -Dtest=common.diplomacy.AllTests`
   (also `tools.replay.AllTests`, `server.ai.AllTests`).
-- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 674
+- Everything: `ant -lib test/lib/junit.jar test` (about a minute, 749
   tests at the last count). Results land in `build/TEST-*.txt`; delete
   those and `build/dependencies.txt` afterwards (they are untracked).
 - Replay of a saved game (step 0 measuring tool; needs Mischa's
@@ -98,6 +98,21 @@ Read these first, in this order:
   and `SALE` (the "how many" dialog when a ship visits, answered with
   an amount via `OfferMessage`), handled in `OfferPlanner`
   (`considerAgreement`, `followAgreement`, `sell`).
+- The player's envoys (step 8, Report > Send an Envoy): rules in
+  `common/diplomacy/EnvoyRules` and `TribeEnvoyRules`, answered by
+  `server/ai/diplomacy/EnvoyDesk` (nations, from `OfferPlanner.plan`)
+  and `TribeEnvoyDesk` (tribes, from `TribePlanner.plan`); sent with
+  `EnvoyMessage`; the dialog is `client/control/InGameController.
+  sendEnvoy`. Land bought or taken from tribes: `server/model/LandClaims`.
+- War of Spanish Succession (mod): `common/diplomacy/SuccessionRules`,
+  `server/model/Succession`, `ServerGame.csSuccession` (game option
+  `model.option.spanishSuccession`).
+- Ship loans: rules in `common/diplomacy/Loan`, `LoanRules`,
+  `CreditRecord` (public, stored game-wide in
+  `server/model/CreditRecords`); the borrower's turn and the player's
+  answers in `server/ai/diplomacy/LoanDesk`; loans are saved in the
+  borrower's `EuropeanAIPlayer.getLoans()`. Plan: `plans/ship-loans.md`.
+  Computer lenders are off (`LoanRules.computerLenders`).
 - Treasury: `common/diplomacy/Treasury`, `EuropeanAIPlayer.reserve()` /
   `spendable()`: shopping in Europe only spends gold above the reserve
   (deals may spend it).

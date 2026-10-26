@@ -187,6 +187,31 @@ public class AIAgreementsTest extends FreeColTestCase {
         assertNotNull(open(Offer.Kind.SALE));
     }
 
+    /** A wagon train sells under an agreement too, at the start of
+        their turn or at once when it moves into the colony (mod). */
+    public void testWagonSellsUnderAgreement() {
+        setUpGame();
+        propose(coats, 5, 20);
+        final Unit w = new ServerUnit(game, game.getMap().getTile(7, 10),
+            english, spec().getUnitType("model.unit.wagonTrain"));
+        w.addGoods(coats, 100);
+        assertEquals("asked at once", "asked",
+            new OfferPlanner(ai).deliverNow(english, havana, new ChangeSet()));
+        final Offer q = open(Offer.Kind.SALE);
+        assertNotNull(q);
+        final int gold = english.getGold();
+        assertTrue(new OfferPlanner(ai).answer(english, q.id, true, 100,
+                                               new ChangeSet()));
+        assertEquals(0, w.getGoodsCount(coats));
+        assertEquals(gold + 500, english.getGold());
+        // And at the start of their turn, a wagon next to the colony.
+        w.addGoods(coats, 50);
+        havana.removeGoods(coats); // shipped to Europe: room again
+        nextTurns(2);
+        plan();
+        assertNotNull("asked on their turn", open(Offer.Kind.SALE));
+    }
+
     public void testFullColonySaysNo() {
         setUpGame();
         propose(coats, 5, 20);

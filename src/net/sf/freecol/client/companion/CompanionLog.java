@@ -63,9 +63,12 @@ public final class CompanionLog {
         final int x, y;
         /** Goods involved, by goods type id. */
         final Map<String, Integer> goods;
+        /** What to highlight: runs {start, end, flags} (mod). */
+        final java.util.List<int[]> runs;
 
         Entry(long id, int turn, String kind, String text, Tile tile,
-              Map<String, Integer> goods) {
+              Map<String, Integer> goods,
+              java.util.Collection<String> names) {
             this.id = id;
             this.turn = turn;
             this.kind = kind;
@@ -73,6 +76,7 @@ public final class CompanionLog {
             this.x = (tile == null) ? -1 : tile.getX();
             this.y = (tile == null) ? -1 : tile.getY();
             this.goods = (goods == null) ? Collections.emptyMap() : goods;
+            this.runs = CompanionHighlight.runs(text, names);
         }
     }
 
@@ -99,7 +103,26 @@ public final class CompanionLog {
      */
     public static synchronized void post(int turn, String kind, String text,
                                          Tile tile, Map<String, Integer> goods) {
-        entries.addLast(new Entry(nextId++, turn, kind, text, tile, goods));
+        post(turn, kind, text, tile, goods, null);
+    }
+
+    /**
+     * Add an entry, with the names filled into its text, which are
+     * shown in bold (mod).
+     *
+     * @param turn The turn number.
+     * @param kind The kind of event.
+     * @param text The text to show.
+     * @param tile Where it happened, or null.
+     * @param goods Goods involved, or null.
+     * @param names The names in the text (nations, colonies, goods...),
+     *     or null.
+     */
+    public static synchronized void post(int turn, String kind, String text,
+                                         Tile tile, Map<String, Integer> goods,
+                                         java.util.Collection<String> names) {
+        entries.addLast(new Entry(nextId++, turn, kind, text, tile, goods,
+                                  names));
         while (entries.size() > MAX) entries.removeFirst();
     }
 

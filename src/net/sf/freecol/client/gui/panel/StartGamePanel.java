@@ -134,12 +134,47 @@ public final class StartGamePanel extends FreeColPanel {
     }
 
 
+    /** The game the saved options were last applied to (mod). */
+    private static java.lang.ref.WeakReference<net.sf.freecol.common.model.Game>
+        appliedTo = new java.lang.ref.WeakReference<>(null);
+
+    /**
+     * Start a new game with the options the player chose last time
+     * (mod). The game and map generator options dialogs already save
+     * what the player picks (OK) to {@code game_options.xml} and
+     * {@code map_generator_options.xml} in his FreeCol folder, but the
+     * game never read them back. Now a new game starts from them, once;
+     * the dialogs still change them, and their OK saves the new choice.
+     */
+    private void applySavedOptions() {
+        final FreeColClient fcc = getFreeColClient();
+        final net.sf.freecol.common.model.Game game = fcc.getGame();
+        if (game == null || game.getMap() != null
+            || appliedTo.get() == game) return;
+        appliedTo = new java.lang.ref.WeakReference<>(game);
+        final java.io.File gf = net.sf.freecol.common.io.FreeColDirectories
+            .getOptionsFile(net.sf.freecol.common.io.FreeColDirectories
+                            .GAME_OPTIONS_FILE_NAME);
+        if (gf != null && gf.isFile() && game.getGameOptions() != null
+            && game.getGameOptions().load(gf)) {
+            fcc.getPreGameController().updateGameOptions();
+        }
+        final java.io.File mf = net.sf.freecol.common.io.FreeColDirectories
+            .getOptionsFile(net.sf.freecol.common.io.FreeColDirectories
+                            .MAP_GENERATOR_OPTIONS_FILE_NAME);
+        if (mf != null && mf.isFile() && game.getMapGeneratorOptions() != null
+            && game.getMapGeneratorOptions().load(mf)) {
+            fcc.getPreGameController().updateMapGeneratorOptions();
+        }
+    }
+
     public void initialize(boolean singlePlayer) {
         removeAll();
         this.singlePlayerGame = singlePlayer;
 
         if (singlePlayer || getMyPlayer().isAdmin()) {
             getSpecification().updateGameAndMapOptions();
+            applySavedOptions(); // mod
         }
 
         NationOptions nationOptions = getGame().getNationOptions();

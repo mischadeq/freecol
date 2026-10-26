@@ -271,12 +271,21 @@ public final class ParchmentPainter {
         final float fR = corner(tile, Direction.E, Direction.NE, Direction.SE);
         final float fB = corner(tile, Direction.S, Direction.SE, Direction.SW);
         if (fL <= 0 && fT <= 0 && fR <= 0 && fB <= 0) return;
+        final boolean water = !tile.isLand();
         final BufferedImage tex = getTexture();
         final int wx = worldX(tile.getX(), tile.getY(), w);
         final int wy = worldY(tile.getY(), h);
-        final int x0 = Math.max(ox, clip.x), x1 = Math.min(ox + w, clip.x + clip.width);
-        final int y0 = Math.max(oy, clip.y), y1 = Math.min(oy + h, clip.y + clip.height);
-        if (x1 > img.getWidth() || y1 > img.getHeight()) return;
+        // Only the part of the tile inside both the redrawn area and the
+        // image: a tile half off the edge of the screen (or a redrawn
+        // area reaching past it) once sent getRGB outside the image,
+        // which failed every repaint and froze the screen.
+        final int x0 = Math.max(0, Math.max(ox, clip.x));
+        final int x1 = Math.min(img.getWidth(),
+                                Math.min(ox + w, clip.x + clip.width));
+        final int y0 = Math.max(0, Math.max(oy, clip.y));
+        final int y1 = Math.min(img.getHeight(),
+                                Math.min(oy + h, clip.y + clip.height));
+        if (x0 >= x1 || y0 >= y1) return;
         for (int y = y0; y < y1; y++) {
             final double q = (y - oy + 0.5) / h;
             for (int x = x0; x < x1; x++) {
@@ -295,16 +304,36 @@ public final class ParchmentPainter {
                                              Math.floorMod(wy + y - oy, T));
                 final int pr = (paper >> 16) & 0xff, pg = (paper >> 8) & 0xff,
                     pb = paper & 0xff;
+                // Paper laid over the sea, thicker towards the unknown.
+                final double cover = Math.max(smooth(0.3, 1.0, f),
+                                              0.55 * smooth(0.0, 0.6, f));
                 if (alpha < 255) {
-                    // Nothing (or little) drawn here: the animated sea
-                    // shows through from below.  Lay paper over it,
-                    // thicker towards the unknown.
-                    final double cover = Math.max(smooth(0.3, 1.0, f),
-                                                  0.55 * smooth(0.0, 0.6, f));
-                    final int pa = (int)Math.round(255 * cover);
-                    if (pa > alpha) {
-                        img.setRGB(x, y, (pa << 24) | (pr << 16) | (pg << 8) | pb);
-                    }
+                    // Little or nothing drawn here (the animated sea, or
+                    // the fog of war, shows through): blend the paper
+                    // over what is there, never cut it off, so the fog
+                    // and the sea fade smoothly into the paper.
+                    if (cover <= 0) continue;
+                    final double a0 = alpha / 255.0;
+                    final double oa = cover + a0 * (1 - cover);
+                    final double keep = a0 * (1 - cover) / oa;
+                    final double put = cover / oa;
+                    final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
+                        b0 = argb & 0xff;
+                    img.setRGB(x, y, ((int)Math.round(255 * oa) << 24)
+                        | ((int)Math.round(pr * put + r0 * keep) << 16)
+                        | ((int)Math.round(pg * put + g0 * keep) << 8)
+                        | (int)Math.round(pb * put + b0 * keep));
+                    continue;
+                }
+                if (water) {
+                    // Drawn straight onto the sea (the scrolling painter):
+                    // the same paper over it, not the brown ink of land.
+                    final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,
+                        b0 = argb & 0xff;
+                    img.setRGB(x, y, (0xff << 24)
+                        | ((int)Math.round(r0 + (pr - r0) * cover) << 16)
+                        | ((int)Math.round(g0 + (pg - g0) * cover) << 8)
+                        | (int)Math.round(b0 + (pb - b0) * cover));
                     continue;
                 }
                 final int r0 = (argb >> 16) & 0xff, g0 = (argb >> 8) & 0xff,

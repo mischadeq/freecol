@@ -39,6 +39,10 @@ public class AllTests {
         suite.addTestSuite(GrievanceTest.class);
         suite.addTestSuite(PriceAgreementTest.class);
         suite.addTestSuite(TreasuryTest.class);
+        suite.addTestSuite(LoanTest.class);
+        suite.addTestSuite(SaleTermsTest.class);
+        suite.addTestSuite(EnvoyRulesTest.class);
+        suite.addTestSuite(TribeEnvoyRulesTest.class);
         return suite;
     }
 }

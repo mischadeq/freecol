@@ -77,6 +77,7 @@ import net.sf.freecol.common.diplomacy.Memory;
 import net.sf.freecol.common.diplomacy.Mood;
 import net.sf.freecol.common.diplomacy.Observed;
 import net.sf.freecol.common.diplomacy.Offer;
+import net.sf.freecol.common.diplomacy.SaleTerms;
 import net.sf.freecol.common.diplomacy.Outlook;
 import net.sf.freecol.common.diplomacy.ScoredAction;
 import net.sf.freecol.common.diplomacy.Sightings;
@@ -219,14 +220,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
     // These should be final, but need the spec.
 
-    /** Cheat chances. */
-    private static int liftBoycottCheatPercent;
-    private static int equipScoutCheatPercent;
-    private static int equipPioneerCheatPercent;
-    private static int landUnitCheatPercent;
-    private static int offensiveLandUnitCheatPercent;
-    private static int offensiveNavalUnitCheatPercent;
-    private static int transportNavalUnitCheatPercent;
     /** The pioneer role. */
     private static Role pioneerRole = null;
     /** The scouting role. */
@@ -413,20 +406,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (pioneerRole != null) return;
         pioneerRole = spec.getRoleWithAbility(Ability.IMPROVE_TERRAIN, null);
         scoutRole = spec.getRoleWithAbility(Ability.SPEAK_WITH_CHIEF, null);
-        liftBoycottCheatPercent
-            = spec.getInteger(GameOptions.LIFT_BOYCOTT_CHEAT);
-        equipScoutCheatPercent
-            = spec.getInteger(GameOptions.EQUIP_SCOUT_CHEAT);
-        equipPioneerCheatPercent
-            = spec.getInteger(GameOptions.EQUIP_PIONEER_CHEAT);
-        landUnitCheatPercent
-            = spec.getInteger(GameOptions.LAND_UNIT_CHEAT);
-        offensiveLandUnitCheatPercent
-            = spec.getInteger(GameOptions.OFFENSIVE_LAND_UNIT_CHEAT);
-        offensiveNavalUnitCheatPercent
-            = spec.getInteger(GameOptions.OFFENSIVE_NAVAL_UNIT_CHEAT);
-        transportNavalUnitCheatPercent
-            = spec.getInteger(GameOptions.TRANSPORT_NAVAL_UNIT_CHEAT);
     }
 
     /**
@@ -497,292 +476,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             if ((m = getSimpleMission(aiu)) != null) lb.add(m, ", ");
         }
         if (lb.grew("\n  Backup: ")) lb.shrink(", ");
-    }
-
-    /**
-     * Cheat by adding gold to guarantee the player has a minimum amount.
-     *
-     * @param amount The minimum amount of gold required.
-     * @param lb A {@code LogBuilder} to log to.
-     */
-    public void cheatGold(int amount, LogBuilder lb) {
-        final Player player = getPlayer();
-        // What it may spend: the treasury stays (mod).
-        int gold = spendable();
-        if (gold < amount) {
-            amount -= gold;
-            player.modifyGold(amount);
-            lb.add("added ", amount, " gold");
-        }
-        player.logCheat(amount + " gold");
-    }
-
-    /**
-     * Cheats for the AI.  Please try to centralize cheats here.
-     *
-     * FIXME: Remove when the AI is good enough.
-     *
-     * @param lb A {@code LogBuilder} to log to.
-     */
-    private void cheat(LogBuilder lb) {
-        final AIMain aiMain = getAIMain();
-        if (!aiMain.getFreeColServer().getSinglePlayer()) return;
-
-        final Player player = getPlayer();
-        if (player.getPlayerType() != PlayerType.COLONIAL) return;
-        lb.mark();
-
-        final Specification spec = getSpecification();
-        final Game game = getGame();
-        final Market market = player.getMarket();
-        final Europe europe = player.getEurope();
-        final Random air = getAIRandom();
-        final List<GoodsType> arrears = new ArrayList<>();
-        if (market != null) {
-            arrears.addAll(transform(spec.getGoodsTypeList(),
-                                     gt -> market.getArrears(gt) > 0));
-        }
-        final int nCheats = arrears.size() + 6; // 6 cheats + arrears
-        int[] randoms = randomInts(logger, "cheats", air, 100, nCheats);
-        int cheatIndex = 0;
-
-        for (GoodsType goodsType : arrears) {
-            if (randoms[cheatIndex++] < liftBoycottCheatPercent) {
-                market.setArrears(goodsType, 0);
-                // Just remove one goods party modifier (we can not
-                // currently identify which modifier applies to which
-                // goods type, but that is not worth fixing for the
-                // benefit of `temporary' cheat code).  If we do not
-                // do this, AI colonies accumulate heaps of party
-                // modifiers because of the cheat boycott removal.
-                final CachingFunction<Colony, Modifier> partyModifierMapper
-                    = new CachingFunction<>(c ->
-                        first(transform(c.getModifiers(), partyPred)));
-                Colony party = getRandomMember(logger, "end boycott",
-                    transform(player.getColonies(),
-                              isNotNull(c -> partyModifierMapper.apply(c))),
-                    air);
-                if (party != null) {
-                    party.removeModifier(partyModifierMapper.apply(party));
-                    lb.add("lift-boycott at ", party, ", ");
-                    player.logCheat("lift boycott at " + party.getName());
-                }
-            }
-        }
-    
-        if (!europe.isEmpty()
-            && scoutsNeeded() > 0
-            && randoms[cheatIndex++] < equipScoutCheatPercent) {
-            for (Unit u : transform(europe.getUnits(), equipPred)) {
-                try {
-                    int g = europe.priceGoods(u.getGoodsDifference(scoutRole, 1));
-                    cheatGold(g, lb);
-                } catch (FreeColException fce) {
-                    continue;
-                }
-                if (getAIUnit(u).equipForRole(spec.getRoleWithAbility(Ability.SPEAK_WITH_CHIEF, null))) {
-                    lb.add(" to equip scout ", u, ", ");
-                    player.logCheat("Equip scout " + u.toShortString());
-                    break;
-                }
-            }
-        }
-
-        if (!europe.isEmpty()
-            && pioneersNeeded() > 0
-            && randoms[cheatIndex++] < equipPioneerCheatPercent) {
-            for (Unit u : transform(europe.getUnits(), equipPred)) {
-                try {
-                    int g = europe.priceGoods(u.getGoodsDifference(pioneerRole, 1)); 
-                    cheatGold(g, lb);
-                } catch (FreeColException fce) {
-                    continue;
-                }
-                if (getAIUnit(u).equipForRole(spec.getRoleWithAbility(Ability.IMPROVE_TERRAIN, null))) {
-                    lb.add(" to equip pioneer ", u, ", ");
-                    player.logCheat("Equip pioneer " + u.toShortString());
-                    break;
-                }
-            }
-        }
-
-        if (randoms[cheatIndex++] < landUnitCheatPercent) {
-            final Predicate<Entry<UnitType, List<WorkerWish>>> bestWishPred = e -> {
-                UnitType ut = e.getKey();
-                return ut != null && ut.isAvailableTo(player)
-                    && europe.getUnitPrice(ut) != UNDEFINED
-                    && any(e.getValue());
-            };
-            WorkerWish bestWish = maximize(transform(workerWishes.entrySet(),
-                                                     bestWishPred,
-                                                     e -> first(e.getValue()),
-                                                     Collectors.toSet()),
-                ValuedAIObject.ascendingValueComparator);
-            int cost = (bestWish != null)
-                ? europe.getUnitPrice(bestWish.getUnitType())
-                : (player.getImmigration() < player.getImmigrationRequired() / 2)
-                ? player.getEuropeanRecruitPrice()
-                : INFINITY;
-            if (cost != INFINITY) {
-                cheatGold(cost, lb);
-                AIUnit aiu;
-                if (bestWish == null) {
-                    if ((aiu = recruitAIUnitInEurope(-1)) != null) {
-                        // let giveNormalMissions look after the mission
-                        lb.add(" to recruit ", aiu.getUnit(), ", ");
-                    }
-                } else {
-                    if ((aiu = trainAIUnitInEurope(bestWish.getUnitType())) != null) {
-                        Mission m = getWishRealizationMission(aiu, bestWish);
-                        if (m != null) {
-                            lb.add(" to train for ", m, ", ");
-                        } else {
-                            lb.add(" to train ", aiu.getUnit(), ", ");
-                        }
-                    }
-                }
-                if (aiu != null) player.logCheat("Make " + aiu.getUnit());
-            }
-        }
-
-        if (game.getTurn().getNumber() > 300
-            && player.isAtWar()
-            && randoms[cheatIndex++] < offensiveLandUnitCheatPercent) {
-            // - collect enemies, prefer not to antagonize the strong or
-            //   crush the weak
-            List<Player> wars = transform(game.getLivePlayers(player),
-                                          x -> player.atWarWith(x));
-            List<Player> preferred = new ArrayList<>(wars.size());
-            List<Player> enemies = new ArrayList<>(wars.size());
-            for (Player p : wars) {
-                enemies.add(p);
-                double strength = getStrengthRatio(p);
-                if (strength < 3.0/2.0 && strength > 2.0/3.0) {
-                    preferred.add(p);
-                }
-            }
-            if (!preferred.isEmpty()) {
-                enemies.clear();
-                enemies.addAll(preferred);
-            }
-            List<Colony> colonies = player.getColonyList();
-            // Find a target to attack.
-            Location target = null;
-            // Few colonies?  Attack the weakest European port
-            if (colonies.size() < 3) {
-                final Comparator<Colony> targetScore
-                    = cachingDoubleComparator(c -> {
-                            double score = 100000.0 / c.getUnitCount();
-                            Building stockade = c.getStockade();
-                            return (stockade == null) ? 1.0
-                                : score / (stockade.getLevel() + 1.5);
-                        });
-                target = maximize(flatten(enemies, Player::isEuropean,
-                                          Player::getConnectedPorts),
-                                  targetScore);
-            }
-            // Otherwise attack something near a weak colony
-            if (target == null && !colonies.isEmpty()) {
-                List<AIColony> bad = new ArrayList<>(getBadlyDefended());
-                if (bad.isEmpty()) bad.addAll(getAIColonies());
-                AIColony defend = getRandomMember(logger,
-                    "AIColony to defend", bad, air);
-                Tile center = defend.getColony().getTile();
-                Tile t = game.getMap().searchCircle(center,
-                    GoalDeciders.getEnemySettlementGoalDecider(enemies),
-                    30);
-                if (t != null) target = t.getSettlement();
-            }
-            if (target != null) {
-                List<AbstractUnit> aMercs = new ArrayList<>();
-                int aPrice = player.getMonarch().loadMercenaries(air, aMercs);
-                if (aPrice > 0) {
-                    List<Unit> mercs = ((ServerPlayer)player)
-                        .createUnits(aMercs, europe, air);
-                    for (Unit u : mercs) {
-                        AIUnit aiu = getAIUnit(u);
-                        if (aiu == null) continue; // Can not happen
-                        player.logCheat("Enlist " + aiu.getUnit());
-                        Mission m = getSeekAndDestroyMission(aiu, target);
-                        if (m != null) {
-                            lb.add("enlisted ", m, ", ");
-                        } else {
-                            lb.add("enlisted ", aiu.getUnit(), ", ");
-                        }
-                    }
-                }
-            }
-        }
-            
-        // Always cheat a new armed ship if the navy is destroyed,
-        // otherwise if the navy is below average the chance to cheat
-        // is proportional to how badly below average.
-        double naval = getNavalStrengthRatio();
-        int nNaval = (player.getUnitCount(true) == 0) ? 100
-            : (0.0f < naval && naval < 0.5f)
-            ? (int)(naval * offensiveNavalUnitCheatPercent)
-            : -1;
-        final Function<UnitType, RandomChoice<UnitType>> mapper = ut ->
-            new RandomChoice<>(ut, 100000 / europe.getUnitPrice(ut));
-        if (randoms[cheatIndex++] < nNaval) {
-            cheatUnit(transform(spec.getUnitTypeList(),
-                                ut -> ut.hasAbility(Ability.NAVAL_UNIT)
-                                    && ut.isAvailableTo(player)
-                                    && ut.hasPrice()
-                                    && ut.isOffensive(),
-                                mapper), "offensive-naval", lb);
-        }
-        // Only cheat carriers if they have work to do.
-        int nCarrier = (nNavalCarrier > 0) ? transportNavalUnitCheatPercent
-            : -1;
-        if (randoms[cheatIndex++] < nCarrier) {
-            cheatUnit(transform(spec.getUnitTypeList(),
-                                ut -> ut.hasAbility(Ability.NAVAL_UNIT)
-                                    && ut.isAvailableTo(player)
-                                    && ut.hasPrice()
-                                    && ut.getSpace() > 0,
-                                mapper), "transport-naval", lb);
-        }
-
-        if (lb.grew("\n  Cheats: ")) lb.shrink(", ");
-    }
-
-    /**
-     * Cheat-build a unit in Europe.
-     *
-     * @param rc A list of random choices to choose from.
-     * @param what A description of the unit.
-     * @param lb A {@code LogBuilder} to log to.
-     * @return The {@code AIUnit} built.
-     */
-    private AIUnit cheatUnit(List<RandomChoice<UnitType>> rc, String what,
-                             LogBuilder lb) {
-        UnitType unitToPurchase
-            = RandomChoice.getWeightedRandom(logger, "Cheat which unit",
-                                             rc, getAIRandom());
-        return (unitToPurchase == null) ? null
-            : cheatUnit(unitToPurchase, what, lb);
-    }
-
-    /**
-     * Cheat-build a unit in Europe.
-     *
-     * @param unitType The {@code UnitType} to build.
-     * @param what A description of the unit.
-     * @param lb A {@code LogBuilder} to log to.
-     * @return The {@code AIUnit} built.
-     */
-    private AIUnit cheatUnit(UnitType unitType, String what, LogBuilder lb) {
-        final Player player = getPlayer();
-        final Europe europe = player.getEurope();
-        int cost = europe.getUnitPrice(unitType);
-        cheatGold(cost, lb);
-        AIUnit result = trainAIUnitInEurope(unitType);
-        lb.add(" to build ", what, " ", unitType.getSuffix(),
-            ((result != null) ? "" : "(failed)"), ", ");
-        if (result == null) return null;
-        player.logCheat("Build " + result.getUnit());
-        return result;
     }
 
     /**
@@ -2485,6 +2178,52 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return g;
     }
 
+    // Ship loans (mod): we are the borrower; saved; no initializers.
+
+    /** Our loans (as the borrower), running or lately finished. */
+    private List<net.sf.freecol.common.diplomacy.Loan> loans;
+    /** Lenders that said no, by nation id, to the turn; "*" is the turn
+        we may ask again at all. */
+    private java.util.Map<String, Integer> loanAsks;
+
+    public List<net.sf.freecol.common.diplomacy.Loan> getLoans() {
+        if (loans == null) loans = new ArrayList<>();
+        return loans;
+    }
+
+    public java.util.Map<String, Integer> getLoanAsks() {
+        if (loanAsks == null) loanAsks = new HashMap<>();
+        return loanAsks;
+    }
+
+    /**
+     * Our character.
+     *
+     * @return The {@code NationCharacter}.
+     */
+    public net.sf.freecol.common.diplomacy.NationCharacter character() {
+        return net.sf.freecol.common.diplomacy.NationCharacter.forNationType(
+            (getPlayer().getNationType() == null) ? null
+                : getPlayer().getNationType().getId(), true);
+    }
+
+    /**
+     * Gold our loans will want next turn: kept back as a promise, so we
+     * do not spend it on soldiers and then miss the payment.
+     *
+     * @return The gold.
+     */
+    public int loanPromise() {
+        int g = 0;
+        for (net.sf.freecol.common.diplomacy.Loan l : getLoans()) {
+            final Player lender = getGame().getPlayerByNationId(l.lender);
+            if (l.over() || lender == null) continue;
+            g += (l.collectible(getPlayer().getStance(lender) == Stance.WAR))
+                ? l.due() : 0;
+        }
+        return g;
+    }
+
     /** Turns back we look for a lost war. */
     public static final int LOSING_TURNS = 10;
 
@@ -2519,7 +2258,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 (getPlayer().getNationType() == null) ? null
                     : getPlayer().getNationType().getId(), true);
         return net.sf.freecol.common.diplomacy.Treasury.reserve(
-            getPlayer().getColonyList().size(), ch, promisedGold(), losingWar());
+            getPlayer().getColonyList().size(), ch,
+            promisedGold() + loanPromise(), losingWar());
     }
 
     /**
@@ -2787,7 +2527,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
 
         // Note call to getAIUnits().  This triggers
         // AIPlayer.createAIUnits which we want to do early, certainly
-        // before cheat() or other operations that might make new units
+        // before other operations that might make new units
         // happen.
         LogBuilder lb = new LogBuilder(1024);
         int colonyCount = getAIColonies().size();
@@ -2849,6 +2589,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 }
             }
             mood = m;
+            // Ship loans first: pay what is due before shopping (mod).
+            new net.sf.freecol.server.ai.diplomacy.LoanDesk(this).plan(lb);
             new OfferPlanner(this).plan(outlook, lb);
         }
 
@@ -2867,7 +2609,6 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             buildTipMap(lb);
             buildWishMaps(lb);
         }
-        cheat(lb);
         buyUnitsInEurope(lb);
 
         // Note order of operations below.  We allow rearrange et al to run
@@ -3055,6 +2796,57 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
     
     private Unit buyDragoon() {
+        return buyDragoon(spendable()); // keep the treasury (mod)
+    }
+
+    /**
+     * What a dragoon costs us in Europe (mod, war loans).
+     *
+     * @return The price, or -1 if we can not buy one.
+     */
+    public int dragoonPrice() {
+        final AbstractUnit au = dragoonToBuy();
+        if (au == null) return -1;
+        final int p = getPlayer().getEuropeanPurchasePrice(au);
+        return (p <= 0 || p == INFINITY) ? -1 : p;
+    }
+
+    /**
+     * Spend borrowed gold on soldiers (mod, war loans): dragoons in
+     * Europe, as many as the gold buys, the reserve not counted.
+     *
+     * @param budget The gold.
+     * @return The dragoons bought.
+     */
+    public int buySoldiers(int budget) {
+        int n = 0;
+        for (;;) {
+            final int before = getPlayer().getGold();
+            if (buyDragoon(Math.min(budget, before)) == null) break;
+            budget -= Math.max(1, before - getPlayer().getGold());
+            n++;
+        }
+        return n;
+    }
+
+    /** The cheapest unit trained in Europe, as a dragoon, or null. */
+    private AbstractUnit dragoonToBuy() {
+        final Role dragoonRole = getSpecification().getMilitaryRolesList().stream()
+                .filter(r -> r.hasAbility(Ability.ARMED) && r.hasAbility(Ability.MOUNTED))
+                .findFirst()
+                .orElse(null);
+        if (dragoonRole == null) return null;
+        final UnitType cheapestUnitType = getSpecification().getUnitTypesTrainedInEurope(getPlayer())
+            .stream()
+            .filter(ut -> ut.getPrice() > 0 && ut.getPrice() != INFINITY)
+            .sorted((a, b) -> Integer.compare(a.getPrice(), b.getPrice()))
+            .findFirst()
+            .orElse(null);
+        return (cheapestUnitType == null) ? null
+            : new AbstractUnit(cheapestUnitType, dragoonRole.getId(), 1);
+    }
+
+    private Unit buyDragoon(int budget) {
         final Player player = getPlayer();
         final Role dragoonRole = getSpecification().getMilitaryRolesList().stream()
                 .filter(r -> r.hasAbility(Ability.ARMED) && r.hasAbility(Ability.MOUNTED))
@@ -3081,7 +2873,7 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (purchasePrice <= 0 || purchasePrice == INFINITY) {
             return null;
         }
-        if (purchasePrice > spendable()) { // keep the treasury (mod)
+        if (purchasePrice > budget) { // keep the treasury (mod)
             return null;
         }
         
@@ -3242,6 +3034,119 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     }
 
     /**
+     * What we sell another nation at one of our colonies, and for how
+     * much (mod): see {@link SaleTerms}.  Discounts haggled this turn
+     * are taken off.
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @return A line for every storable goods type.
+     */
+    public List<SaleTerms.Line> saleTerms(Colony colony, Player buyer) {
+        final List<SaleTerms.Line> ret = new ArrayList<>();
+        if (colony == null || buyer == null || !getPlayer().owns(colony)) {
+            return ret;
+        }
+        final Outlook dip = getOutlook();
+        for (GoodsType gt : getSpecification().getStorableGoodsTypeList()) {
+            final SaleTerms.Line l
+                = SaleTerms.line(saleInput(colony, buyer, gt, dip));
+            final int[] h = haggleState(colony, buyer, gt.getId());
+            ret.add((h == null) ? l : l.haggled(h[1], h[2] != 0));
+        }
+        return ret;
+    }
+
+    /**
+     * Everything that goes into the terms for one goods type (mod).
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @param gt The {@code GoodsType}.
+     * @param dip Our {@code Outlook}.
+     * @return The {@code SaleTerms.Input}.
+     */
+    private SaleTerms.Input saleInput(Colony colony, Player buyer,
+                                      GoodsType gt, Outlook dip) {
+        final Player player = getPlayer();
+        final net.sf.freecol.common.diplomacy.WorldView w = dip.view;
+        final net.sf.freecol.common.diplomacy.NationView nv
+            = w.others.get(buyer.getNationId());
+        final int sail = getSpecification()
+            .getInteger(GameOptions.TURNS_TO_SAIL);
+        final Market market = player.getMarket();
+        final SaleTerms.Input in = new SaleTerms.Input();
+        in.goodsId = gt.getId();
+        in.military = gt.getMilitary();
+        in.stock = colony.getGoodsCount(gt);
+        in.net = colony.getNetProductionOf(gt);
+        in.atWar = !w.enemies().isEmpty();
+        final net.sf.freecol.common.diplomacy.GoodsView gv
+            = w.goods.get(gt.getId());
+        in.europePrice = (gv != null) ? gv.sellPrice
+            : (market == null) ? 1 : market.getSalePrice(gt, 1);
+        in.boycotted = (gv != null) ? gv.boycotted
+            : (market != null && market.getArrears(gt) > 0);
+        in.tax = player.getTax();
+        in.tripTurns = 2 * sail + (colony.isConnectedPort() ? 0 : 2);
+        in.rebels = player.getSoL();
+        in.opinion = (nv == null) ? 0 : nv.opinion;
+        in.fear = (nv == null) ? 0 : nv.fear;
+        in.character = w.character;
+        return in;
+    }
+
+    /**
+     * Haggling this turn, by buyer, colony and goods (mod): the turn,
+     * the percent off agreed, and 1 if we refused further haggling.
+     * Not saved: a bargain lasts the turn.
+     */
+    private final java.util.Map<String, int[]> haggles
+        = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private int[] haggleState(Colony colony, Player buyer, String goodsId) {
+        final int[] h = haggles.get(buyer.getId() + "|" + colony.getId()
+                                    + "|" + goodsId);
+        return (h == null || h[0] != getGame().getTurn().getNumber())
+            ? null : h;
+    }
+
+    /** What came of a haggle (mod). */
+    public enum HaggleResult { AGREED, REFUSED, CLOSED }
+
+    /**
+     * A buyer asks for a discount on goods at one of our colonies
+     * (mod).  We agree with the chance {@link SaleTerms#haggleChance}
+     * gives; a refusal holds for the rest of the turn.
+     *
+     * @param colony Our {@code Colony}.
+     * @param buyer The buying {@code Player}.
+     * @param goodsId The goods.
+     * @param ask Percent more off asked.
+     * @return The {@code HaggleResult}.
+     */
+    public HaggleResult haggle(Colony colony, Player buyer, String goodsId,
+                               int ask) {
+        final GoodsType gt = getSpecification().getGoodsType(goodsId);
+        if (colony == null || buyer == null || gt == null
+            || !getPlayer().owns(colony)) return HaggleResult.CLOSED;
+        final int turn = getGame().getTurn().getNumber();
+        final int[] h = haggleState(colony, buyer, goodsId);
+        if (h != null && h[2] != 0) return HaggleResult.CLOSED;
+        final int already = (h == null) ? 0 : h[1];
+        final double p = SaleTerms.haggleChance(
+            saleInput(colony, buyer, gt, getOutlook()), already, ask);
+        final boolean yes = p > 0 && randomInt(logger, "Haggle",
+            getAIRandom(), 1000) < (int)Math.round(p * 1000);
+        haggles.put(buyer.getId() + "|" + colony.getId() + "|" + goodsId,
+            new int[] { turn, already + (yes ? ask : 0), yes ? 0 : 1 });
+        logger.info(getPlayer().getName() + " haggle " + goodsId + " -"
+            + ask + "% (had " + already + "%) chance " + p + ": "
+            + (yes ? "yes" : "no"));
+        return (yes) ? HaggleResult.AGREED : HaggleResult.REFUSED;
+    }
+
+    /**
      * What a trade item is worth to our diplomat (mod).
      *
      * @param item The {@code TradeItem}.
@@ -3254,6 +3159,20 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         if (item instanceof GoodsTradeItem) {
             final Goods g = ((GoodsTradeItem)item).getGoods();
             if (g == null) return DealValue.NO_OPINION;
+            // Goods from one of our colonies: on our sale terms (mod),
+            // the same the buyer was shown.
+            if (item.getSource() == player
+                && g.getLocation() instanceof Colony
+                && player.owns((Colony)g.getLocation())) {
+                final SaleTerms.Line l = SaleTerms.find(
+                    saleTerms((Colony)g.getLocation(), other),
+                    g.getType().getId());
+                if (l != null) {
+                    return (l.status != SaleTerms.Status.FOR_SALE
+                            || g.getAmount() > l.max) ? DealValue.NEVER
+                        : -l.priceFor(g.getAmount());
+                }
+            }
             return DealValue.goods(dip.view, g.getType().getId(),
                 g.getAmount(), item.getDestination() == player);
         }
@@ -3606,6 +3525,12 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String STANCE_CHOICES_TAG = "stanceChoices";
     /** Our grievances (mod), see {@code Grievance.serialize}, ';' separated. */
     private static final String GRIEVANCES_TAG = "grievances";
+    /** Our loans (mod), see {@code Loan.serialize}, ';' separated. */
+    private static final String LOANS_TAG = "loans";
+    /** Lenders that said no (mod): "nation=turn;...". */
+    private static final String LOAN_ASKS_TAG = "loanAsks";
+    /** Our public credit record (mod), see {@code CreditRecord}. */
+    private static final String CREDIT_TAG = "credit";
 
     /**
      * {@inheritDoc}
@@ -3655,6 +3580,27 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
             xw.writeAttribute(OFFERS_TAG, sb.toString());
         }
+        if (!getLoans().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Loan l : getLoans()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(l.serialize());
+            }
+            xw.writeAttribute(LOANS_TAG, sb.toString());
+        }
+        if (!getLoanAsks().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, Integer> e : getLoanAsks().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(LOAN_ASKS_TAG, sb.toString());
+        }
+        final String credit = net.sf.freecol.server.model.CreditRecords
+            .serialize(getPlayer());
+        if (!net.sf.freecol.common.diplomacy.CreditRecord.parse(credit).empty()) {
+            xw.writeAttribute(CREDIT_TAG, credit);
+        }
     }
 
     /**
@@ -3692,6 +3638,31 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 final Offer o = Offer.parse(rec);
                 if (o != null) offers.add(o);
             }
+        }
+        loans = new ArrayList<>();
+        final String ls = xr.getAttribute(LOANS_TAG, (String)null);
+        if (ls != null && !ls.isEmpty()) {
+            for (String rec : ls.split(";")) {
+                final net.sf.freecol.common.diplomacy.Loan l
+                    = net.sf.freecol.common.diplomacy.Loan.parse(rec);
+                if (l != null) loans.add(l);
+            }
+        }
+        loanAsks = new HashMap<>();
+        final String la = xr.getAttribute(LOAN_ASKS_TAG, (String)null);
+        if (la != null && !la.isEmpty()) {
+            for (String rec : la.split(";")) {
+                final int i = rec.lastIndexOf('=');
+                if (i <= 0) continue;
+                try {
+                    loanAsks.put(rec.substring(0, i),
+                                 Integer.parseInt(rec.substring(i + 1)));
+                } catch (NumberFormatException nfe) {} // skip
+            }
+        }
+        if (getPlayer() != null) {
+            net.sf.freecol.server.model.CreditRecords.load(getPlayer(),
+                xr.getAttribute(CREDIT_TAG, (String)null));
         }
         keptArmed = new HashMap<>();
         final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);

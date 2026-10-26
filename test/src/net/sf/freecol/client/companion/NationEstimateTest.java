@@ -47,6 +47,26 @@ public class NationEstimateTest extends FreeColTestCase {
         assertEquals(-1.0, NationEstimate.equivalent(-1, 3.0), 0.001);
     }
 
+    /** Tribes: capital plus settlements at their middle size; braves
+        in sight count as they are (mod). */
+    public void testTribeEstimates() {
+        assertEquals(7 + 3 * 5.0,
+            net.sf.freecol.common.diplomacy.Estimates.tribeBraves(4, 5, 7, 2),
+            0.001);
+        assertEquals("more in sight than estimated", 30.0,
+            net.sf.freecol.common.diplomacy.Estimates.tribeBraves(4, 5, 7, 30),
+            0.001);
+        assertEquals(0.0,
+            net.sf.freecol.common.diplomacy.Estimates.tribeBraves(0, 5, 7, 0),
+            0.001);
+        // 20 braves, 2 in sight armed (4.5 each), the rest plain (1.5).
+        assertEquals(9 + 18 * 1.5,
+            net.sf.freecol.common.diplomacy.Estimates.tribeStrength(20, 2, 9, 1.5),
+            0.001);
+        assertEquals(1.5, net.sf.freecol.common.diplomacy.Estimates.bravePower(
+            spec().getUnitType("model.unit.brave")), 0.001);
+    }
+
     public void testChangePerTurn() {
         SortedMap<Integer, Integer> gold = new TreeMap<>();
         gold.put(10, 1000);

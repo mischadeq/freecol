@@ -313,6 +313,86 @@
   const NET_C = { ok: "#7d8794", none: "#f2a93b", short: "#ff5d61" };
   const NET_RANK = { ok: 0, none: 1, short: 2 };
 
+  // Layout of the supply network (mod, 2026-10-16). Colonies keep
+  // their direction from each other (west-east, north-south order) but
+  // not the distance: they are spaced evenly, so one far colony does not
+  // squeeze the rest into a corner. Route networks that do not touch
+  // each other get their own part of the box, side by side, west to
+  // east; a colony without routes joins the network nearest to it.
+  // Nodes shrink when crowded; the box grows only within the room the
+  // page has. Sets X, Y and r on every node; returns the box height
+  // and where the lines between networks go.
+  function netLayout(nodes, ids, edges, outside, W) {
+    // Networks: colonies joined by routes (Europe does not join them).
+    const parent = {};
+    const find = (a) => (parent[a] === undefined || parent[a] === a) ? a : (parent[a] = find(parent[a]));
+    ids.forEach((i) => { parent[i] = i; });
+    Object.values(edges).forEach((e) => {
+      if (nodes[e.from] && nodes[e.to] && !nodes[e.to].outside) parent[find(e.from)] = find(e.to);
+    });
+    const linked = new Set();
+    Object.values(edges).forEach((e) => { if (nodes[e.to]) { linked.add(e.from); linked.add(e.to); } else { linked.add(e.from); } });
+    const groups = {};
+    ids.filter((i) => linked.has(i)).forEach((i) => { (groups[find(i)] = groups[find(i)] || []).push(i); });
+    let parts = Object.values(groups);
+    if (!parts.length) parts = [[]];
+    // Colonies without routes go with the nearest network.
+    const d2 = (a, b) => (a.px - b.px) ** 2 + (a.py - b.py) ** 2;
+    ids.filter((i) => !linked.has(i)).forEach((i) => {
+      let best = parts[0], bd = Infinity;
+      for (const p of parts) for (const j of p) {
+        const d = d2(nodes[i], nodes[j]);
+        if (d < bd) { bd = d; best = p; }
+      }
+      best.push(i);
+    });
+    const mean = (p) => p.reduce((t, i) => t + nodes[i].px, 0) / p.length;
+    parts.sort((a, b) => mean(a) - mean(b));
+    // Even spacing: a colony's place is its rank along each axis.
+    const ranks = (p, key) => {
+      const vals = [...new Set(p.map((i) => Math.round(nodes[i][key] * 2) / 2))].sort((a, b) => a - b);
+      const r = {};
+      p.forEach((i) => { r[i] = vals.indexOf(Math.round(nodes[i][key] * 2) / 2); });
+      return { r, n: vals.length };
+    };
+    const rx = parts.map((p) => ranks(p, "px")), ry = parts.map((p) => ranks(p, "py"));
+    const rows = Math.max(...ry.map((r) => r.n));
+    // Height: room for the rows, but no more than the page offers.
+    const room = Math.max(300, Math.round((window.innerHeight || 800) * 0.55));
+    const padY = 34;
+    const H = Math.max(240, Math.min(room, 2 * padY + rows * 70));
+    const right = outside.length ? 110 : 0;
+    const usable = W - right;
+    const cols = parts.map((p, k) => rx[k].n);
+    const total = cols.reduce((t, c) => t + c, 0);
+    let x = 0;
+    const dividers = [];
+    parts.forEach((p, k) => {
+      // Each network gets a share of the width by its number of columns;
+      // names sit right of the nodes, so more pad on the right.
+      const w = usable * cols[k] / total, padL = 26, padR = 96;
+      const bw = Math.max(1, w - padL - padR), bh = H - 2 * padY;
+      p.forEach((i) => {
+        const n = nodes[i];
+        n.X = x + padL + ((rx[k].n > 1) ? rx[k].r[i] / (rx[k].n - 1) * bw : bw / 2);
+        n.Y = padY + ((ry[k].n > 1) ? ry[k].r[i] / (ry[k].n - 1) * bh : bh / 2);
+      });
+      if (k) dividers.push(x);
+      x += w;
+    });
+    // Smaller nodes when they stand close together.
+    let gap = Infinity;
+    for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
+      gap = Math.min(gap, Math.hypot(nodes[ids[a]].X - nodes[ids[b]].X, nodes[ids[a]].Y - nodes[ids[b]].Y));
+    }
+    const cap = (gap === Infinity) ? 30 : Math.max(8, gap * 0.36);
+    ids.forEach((i) => { nodes[i].r = Math.min(nodes[i].r, cap); });
+    outside.forEach((o, k) => {
+      nodes[o] = { name: o.slice(1), X: W - 55, Y: padY + (k + 0.5) * (H - 2 * padY) / outside.length, r: 18, outside: true };
+    });
+    return { H, dividers };
+  }
+
   function renderNetwork(colonies) {
     const svg = $("net");
     const W = svg.getBoundingClientRect().width || 700;
@@ -329,29 +409,18 @@
     const ids = Object.keys(nodes);
     $("netSec").hidden = !Object.keys(edges).length;
     if (!Object.keys(edges).length) return;
-    // Fit the map positions into the box, same scale both ways.
-    const xs = ids.map((i) => nodes[i].px), ys = ids.map((i) => nodes[i].py);
-    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    // Each axis stretched on its own: the layout keeps north, south,
-    // east and west, and uses the whole box.
-    const padX = 110, padY = 46, right = outside.length ? 150 : 0;
-    const H = Math.max(260, Math.min(440, 140 + ids.length * 50));
-    const bw = W - 2 * padX - right, bh = H - 2 * padY;
-    const place = (v, a, b, size) => (b - a < 0.3) ? size / 2 : (v - a) / (b - a) * size;
-    ids.forEach((i) => {
-      const n = nodes[i];
-      n.X = padX + place(n.px, x0, x1, bw);
-      n.Y = padY + place(n.py, y0, y1, bh);
-    });
-    outside.forEach((o, k) => {
-      nodes[o] = { name: o.slice(1), X: W - 70, Y: padY + (k + 0.5) * (H - 2 * padY) / outside.length, r: 18, outside: true };
-    });
+    const lay = netLayout(nodes, ids, edges, outside, W), H = lay.H;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.style.height = H + "px";
 
     let s = '<defs>' + Object.keys(NET_C).map((st) =>
       '<marker id="ah-' + st + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
       '<path d="M0,0 L10,5 L0,10 z" fill="' + NET_C[st] + '"/></marker>').join("") + "</defs>";
+    // A faint line between route networks that do not touch.
+    lay.dividers.forEach((dx) => {
+      s += '<line x1="' + dx.toFixed(1) + '" y1="10" x2="' + dx.toFixed(1) + '" y2="' + (H - 10) +
+        '" stroke="#2f3742" stroke-dasharray="4 6"/>';
+    });
     const labels = [];
     for (const k of Object.keys(edges)) {
       const e = edges[k], a = nodes[e.from], b = nodes[e.to];
@@ -382,6 +451,11 @@
         if (!hit(r)) { placed.push(r); break; }
         l.x += l.nx * 8; l.y += l.ny * 8;
       }
+    }
+    for (const l of labels) {
+      // Never past the edge of the box (they were cut off at the top).
+      l.x = Math.max(l.w / 2 + 2, Math.min(W - l.w / 2 - 2, l.x));
+      l.y = Math.max(14, Math.min(H - 14, l.y));
     }
     for (const l of labels) {
       const items = l.items, w = l.w;
@@ -421,8 +495,9 @@
           " colonists, rebels " + g.sol + "%" + (g.bonus < 0 ? ", tory penalty" : "")) + "</title>" +
         '<circle cx="' + n.X + '" cy="' + n.Y + '" r="' + n.r + '" fill="#222832" stroke="' + ring + '" stroke-width="2"/>' +
         arc(g.sol) +
-        '<text x="' + n.X + '" y="' + (n.Y + 5) + '" text-anchor="middle" font-size="14" font-weight="600" fill="#e8e3d8">' + c.size + "</text>" +
-        '<text x="' + (n.X + n.r + 8) + '" y="' + (n.Y + 5) + '" font-size="13" fill="#e8e3d8">' + esc(c.name) + "</text>";
+        '<text x="' + n.X + '" y="' + (n.Y + Math.round(n.r * 0.33)) + '" text-anchor="middle" font-size="' + Math.max(10, Math.min(14, Math.round(n.r * 0.85))) +
+          '" font-weight="600" fill="#e8e3d8">' + c.size + "</text>" +
+        '<text x="' + (n.X + n.r + 6) + '" y="' + (n.Y + 5) + '" font-size="' + (n.r < 13 ? 11 : 13) + '" fill="#e8e3d8">' + esc(c.name) + "</text>";
       // Goods that arrive and go no further pile up beside the node.
       stuck.forEach((a, k) => {
         const bx = n.X + n.r + 8 + k * 22, by = n.Y + 12;
@@ -887,7 +962,7 @@
       const head = turnGroup(e.turn, null);
       const li = document.createElement("li");
       li.className = logClass(e) + (e.x >= 0 ? " link" : "") + (state ? " new" : "");
-      let html = esc(e.text);
+      let html = highlight(e.text, e.hl);
       if (e.goods && e.goods.length) {
         html += ' <span class="g">' + e.goods.map((g) =>
           '<span class="' + (g[1] < 0 ? "neg" : "pos") + '">' + gi(g[0]) +
@@ -900,6 +975,21 @@
     }
     while (ol.children.length > 500) ol.removeChild(ol.lastChild);
     showUnread();
+  }
+
+  // The important words of a log line (mod): names and trouble in
+  // bold, good news green, bad news red. The game sends the runs.
+  function highlight(text, runs) {
+    if (!runs || !runs.length) return esc(text);
+    let out = "", at = 0;
+    for (const [a, b, f] of runs) {
+      if (a < at || b > text.length) continue;
+      out += esc(text.slice(at, a));
+      const cls = [(f & 1) ? "hb" : "", (f & 4) ? "hbad" : (f & 2) ? "hgood" : ""].filter(Boolean).join(" ");
+      out += '<span class="' + cls + '">' + esc(text.slice(a, b)) + "</span>";
+      at = b;
+    }
+    return out + esc(text.slice(at));
   }
 
   function showUnread() {
@@ -1778,9 +1868,10 @@
     soldier: ["soldier", "soldiers"], dragoon: ["dragoon", "dragoons"],
     artillery: ["artillery", "artillery"], warship: ["warship", "warships"],
     merchant: ["merchant ship", "merchant ships"], wagon: ["wagon train", "wagon trains"],
-    colonist: ["colonist outside", "colonists outside"], other: ["other", "others"]
+    colonist: ["colonist outside", "colonists outside"], other: ["other", "others"],
+    brave: ["brave", "braves"], armed: ["armed brave", "armed braves"], mounted: ["mounted brave", "mounted braves"]
   };
-  const KIND_ORDER = ["soldier", "dragoon", "artillery", "warship", "merchant", "wagon", "colonist", "other"];
+  const KIND_ORDER = ["soldier", "dragoon", "artillery", "armed", "mounted", "brave", "warship", "merchant", "wagon", "colonist", "other"];
 
   function kindList(units, only) {
     const parts = [];
@@ -1922,8 +2013,9 @@
 
   function renderNatCards() {
     const N = nations.nations.slice().sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
+    const T = (nations.tribes || []).slice().sort((a, b) => b.soldiers - a.soldiers);
     const me = N.find((n) => n.me);
-    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0), ...T.map((t) => t.soldiers || 0));
     const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
     const maxOut = Math.max(1, ...N.map((n) => n.output || 0));
     const per = nations.perColonist, sp = nations.soldierPower, fp = nations.frigatePower;
@@ -1955,6 +2047,14 @@
         rows.push(["Treasury", "<b>" + num(v("gold")) + "</b> gold" + (g != null ? ' <span class="' + (g >= 0 ? "up" : "down") + '">' + (g >= 0 ? "+" : "") + num(g) + "/turn</span>" : "") +
           " · tax " + v("tax") + "% " + natSpark(n, "gold", n.color),
           "Gold in the treasury (Foreign Affairs report); the change per turn is the average over the last turns: sales and taxes minus purchases."]);
+      }
+      // Gold out on loans (yours only)
+      if (n.me && n.lent) {
+        const L = n.lent;
+        const back = L.lent ? Math.max(0, Math.min(1, L.received / L.lent)) : 0;
+        rows.push(["Lent out", (L.open ? "<b>" + num(L.owed) + "</b> owed to you (" + L.open + (L.open === 1 ? " loan" : " loans") + ") · " : "") +
+          num(L.received) + " back of " + num(L.lent) + ' lent <span class="nbar"><i class="ok" style="width:' + Math.round(100 * back) + '%;background:var(--ok)"></i></span>',
+          "Ship and war loans you made (the last 60 turns): what they still owe you, and what came back so far (payments with rent, payoffs, goods taken) against what you lent."]);
       }
       // Army and navy
       if (n.soldiers != null && n.soldiers >= 0) {
@@ -1993,12 +2093,38 @@
         (cl.length > 6 ? '<span class="m"> +' + (cl.length - 6) + "</span>" : "");
       return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
         "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') +
-        (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
+        (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") +
+        (n.credit ? " " + creditChip(n.credit, n.creditText) : "") + "</div>" +
         moodChips(n) + verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
-    }).join("");
+    }).join("") + T.map((t) => tribeCard(t, me, maxSol, sp)).join("");
     if ($("natCards").innerHTML !== html) $("natCards").innerHTML = html;
+  }
+
+  // A tribe's card next to the nations: settlements, braves, army.
+  function tribeCard(t, me, maxSol, sp) {
+    const sz = t.sizes || [];
+    const sizes = sz.length >= 2 ? " (the rules give a settlement " + sz[0] + "–" + sz[1] + " braves" +
+      (sz.length >= 4 ? ", the capital " + sz[2] + "–" + sz[3] : "") + ")" : "";
+    const rows = [
+      ["Settlements", "<b>" + t.settlements + "</b> · " + t.known + " seen on the map",
+        "How many settlements they have, as the game's Native Affairs report shows; and how many of them you have seen."],
+      ["Braves", "<b>≈ " + num(t.braves) + "</b> braves",
+        "Estimate: their settlements at the middle of their sizes" + sizes + ". Braves you see now: " + t.seen + "."],
+      ["Army", "<b>≈ " + tenth(t.soldiers) + "</b> soldiers " + bar(t.soldiers, maxSol, t.color),
+        "Attack strength as soldiers' worth (a soldier attacks with " + sp + ", a plain brave with 1.5). Armed and mounted braves you see count as they are, the others as plain braves. Your army: " +
+        (me ? tenth(me.soldiers) : "?") + " soldiers."]
+    ];
+    const seen = kindList(t.units);
+    if (seen) rows.push(["Seen now", esc(seen), "Their braves on the map that you can see right now (not those inside their settlements)."]);
+    const w = t.verdict;
+    const chip = w ? '<div class="nverd"><span class="tag ' + VERDICT_CLASS[w] + '" title="Their army against yours: ≈ ' + tenth(t.soldiers) +
+      " vs your " + (me ? tenth(me.soldiers) : "?") + ' soldiers">Army: ' + VERDICT_WORDS.military[w] + "</span></div>" : "";
+    return '<div class="ncard tribe"><div class="nhead"><i class="sw" style="background:' + esc(t.color) + '"></i>' +
+      "<b>" + esc(t.name) + '</b> <span class="tag m">tribe</span>' +
+      (t.stance && t.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[t.stance] || "m") + '">' + esc(cap(t.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") + "</div>" +
+      chip + '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl></div>";
   }
 
   // ---------------------------------------------------------------- diplomacy
@@ -2078,8 +2204,9 @@
       : '<p class="m">No coalitions. One forms when a nation grows too strong (its threat passes the line for this difficulty).</p>';
 
     renderGraph();
-    $("dipSoon").innerHTML = '<h3 class="soonhead">Coming later</h3>' +
-      soon("Trade agreements", "step 4", "Deals that run for many turns, settled each turn from a named colony; a missed delivery is a broken deal.");
+    // Everything once marked "coming later" is built (price agreements
+    // are in the Offers list), so the box stays empty.
+    $("dipSoon").innerHTML = "";
     $("dipNote").textContent = "Moods, trust and memories are the computer nations' own view of you, shown in words, not numbers (single-player games only). " +
       "Their plans stay secret: you see only what they make known, such as goods they want to trade or that they want peace.";
 
@@ -2225,7 +2352,7 @@
     try {
       const r = await fetch("/api/offers", { cache: "no-store" });
       const d = await r.json();
-      if (d.offers) { offTurn = turn; renderOffers(d.offers); }
+      if (d.offers) { offTurn = turn; renderOffers(d.offers, d.loans || []); }
     } catch (e) { /* Try again next poll */ }
   }
 
@@ -2233,16 +2360,62 @@
     open: ["info", "open"], sailing: ["info", "sailing"], taken: ["warn", "promised"], done: ["ok", "done"], late: ["warn", "done late"],
     failed: ["alarm", "failed"], declined: ["m", "declined"], expired: ["m", "expired"], cancelled: ["m", "called off"]
   };
-  function renderOffers(list) {
+  // Ship loans you made (mod): a balance bar, rent, next payment, chips.
+  const LOAN_STATE = {
+    active: ["ok", "running"], frozen: ["info", "frozen (war)"], paid: ["ok", "paid"], paid_early: ["ok", "paid early"],
+    default: ["alarm", "default"], waiting: ["warn", "waiting"], seizure_pending: ["alarm", "seizing"],
+    seized: ["alarm", "seized"], forgiven: ["m", "forgiven"], cancelled: ["m", "cancelled"], void: ["m", "void"]
+  };
+  const CREDIT = { good: ["ok", "good payer"], new: ["m", "new borrower"], wary: ["warn", "wary"], bad: ["alarm", "bad payer"] };
+  function creditChip(c, text) {
+    const k = CREDIT[c];
+    return k ? '<span class="tag ' + k[0] + '" title="Public credit record: ' + esc(text || "loans repaid, defaults, seizures") + '">' + k[1] + "</span>" : "";
+  }
+  function pct(t) { return Math.floor(t / 10) + "." + (t % 10) + "%"; }
+  function loanCard(l) {
+    let st = LOAN_STATE[l.state] || ["m", l.state];
+    if (l.state === "active" && l.missed > 0) st = ["warn", "late"];
+    if (l.state === "seized" && l.over) st = ["m", "seized, closed"];
+    const left = l.principal ? Math.max(0, Math.min(1, l.balance / l.principal)) : 0;
+    const cls = st[0] === "alarm" ? "alarm" : st[0] === "warn" ? "warn" : "ok";
+    const late = l.missed > 0 ? ' <span class="tag warn" title="Payments missed in a row; 3 is a default">' + l.missed + " missed</span>" : "";
+    return '<div class="ocard loan"><div class="ohead"><i class="sw" style="background:' + esc(l.color) + '"></i><b>' + esc(l.from) + "</b>" +
+      '<span class="tag ' + st[0] + '">' + st[1] + "</span>" + late + creditChip(l.credit, l.creditText) + '<span class="m">' + esc(l.signed) + "</span></div>" +
+      '<div class="oclock" title="What they still owe you, of the ' + num(l.principal) + ' gold lent">' +
+      '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * left) + '%"></i></span> <b>' + num(l.balance) + "</b> / " + num(l.principal) + "</div>" +
+      '<div class="chips"><span class="tag m" title="' + (l.war ? "Gold for soldiers; on a default you take goods" : "Gold for a ship; the ship is the collateral") + '">' +
+      (l.war ? "war loan" : "ship loan") + "</span>" +
+      '<span class="tag info" title="Rent per turn on what they still owe">' + pct(l.rent) + " a turn</span>" +
+      (l.next ? '<span class="tag ok" title="Due on their next turn">next ' + num(l.next) + "</span>" : "") +
+      '<span class="tag m" title="Payments made of the term">' + l.paidTurns + " / " + l.term + " paid</span></div></div>";
+  }
+
+  function renderOffers(list, loans) {
+    loans = loans || [];
+    const lh = loans.length ? '<div class="k">Your ship loans</div>' + loans.map(loanCard).join("") : "";
     if (!list.length) {
-      $("offers").innerHTML = '<p class="m">No offers yet. Computer nations post them on the notice board (first to the nation they like most) and send peace terms when they want out of a war with you.</p>';
+      $("offers").innerHTML = lh || '<p class="m">No offers yet. Computer nations post them on the notice board (first to the nation they like most) and send peace terms when they want out of a war with you.</p>';
       return;
     }
-    $("offers").innerHTML = list.map((o) => {
+    $("offers").innerHTML = lh + list.map((o) => {
       const st = o.kind === "agreement" && o.state === "taken" ? ["ok", "running"]
         : o.yours && o.state === "taken" ? ["ok", "taken"] : OFFER_STATE[o.state] || ["m", o.state];
       let what;
-      if (o.kind === "peace") what = "Peace" + (o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      const DEAL = { envoy_peace: "peace", envoy_alliance: "an alliance", envoy_gift: "a gift",
+        envoy_war: "war on <b>" + esc(o.against) + "</b>", envoy_leave: "leaving the coalition against you" };
+      if (o.kind === "envoy_gift") what = "Your envoy to <b>" + esc(o.to) + "</b>: a gift of <b>" + num(o.gold) + "</b> gold";
+      else if (DEAL[o.kind]) what = "Your envoy to <b>" + esc(o.to) + "</b>: " + DEAL[o.kind] +
+        (o.gold ? ", with <b>" + num(o.gold) + "</b> gold" : "") + (o.state === "open" ? ' <span class="m">(answer next turn)</span>' : "");
+      else if (o.kind === "terms") what = "Their terms for " + (DEAL[o.deal] || "your envoy's offer") + ": <b>" + num(o.gold) + "</b> gold" +
+        [[1, "give back the land you took"], [2, "abandon <b>" + esc(o.place) + "</b>"], [4, "pull your soldiers out of their land"], [8, "as your allies"]]
+          .filter((c) => o.amount & c[0]).map((c) => ", " + c[1]).join("");
+      else if (o.kind === "peace") what = "Peace" + (o.amount ? ", if you cancel the <b>" + num(o.amount) + "</b> gold they owe you" :
+        o.gold ? " and <b>" + num(o.gold) + "</b> gold for you" : "");
+      else if (o.kind === "loan") what = (o.id.endsWith(":counter") ? "Counter offer: " : o.ship ? "Asks for a ship loan: " : "Asks for a war loan: ") +
+        "<b>" + num(o.amount) + "</b> gold at " + pct(o.delivered) + " a turn for " + o.deadline + " turns" +
+        (o.against ? " (war on <b>" + esc(o.against) + "</b>)" : "");
+      else if (o.kind === "loan_default") what = "In default on your loan: <b>" + num(o.amount) + "</b> gold owed" +
+        (o.ship ? "; their ship is worth <b>" + num(o.gold) + "</b>" : "; you may take goods from their colonies");
       else if (o.kind === "call_to_arms") what = (o.tribe ? "Your allies call for help against <b>" : "Calls you to arms against <b>") + esc(o.against) + "</b>";
       else if (o.kind === "alliance") what = o.tribe ? "The chiefs offer an alliance and their protection" : "Invites you into an alliance (a defensive pact)";
       else if (o.kind === "defend_settlement") what = "March on <b>" + esc(o.place) + "</b> to take it back: defend it (war with them) or it goes back";
@@ -2535,11 +2708,13 @@
     const me = N.find((n) => n.me);
     if (!me) return;
     const sp = nations.soldierPower;
-    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0));
+    const T = nations.tribes || [];
+    const maxSol = Math.max(1, ...N.map((n) => n.soldiers || 0), ...T.map((t) => t.soldiers || 0));
     const maxFri = Math.max(1, ...N.map((n) => n.frigates || 0));
-    const sorted = (key) => N.slice().filter((n) => n[key] != null && n[key] >= 0).sort((a, b) => b[key] - a[key]);
+    const sorted = (key) => (key === "soldiers" ? N.concat(T) : N).filter((n) => n[key] != null && n[key] >= 0).sort((a, b) => b[key] - a[key]);
     const rows = (key, unit) => sorted(key).map((n) =>
-      '<div class="mrow' + (n.me ? " me" : "") + '"><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
+      '<div class="mrow' + (n.me ? " me" : "") + (n.tribe ? " tribe" : "") + '"' + (n.tribe ? ' title="A tribe: ≈ ' + num(n.braves) + " braves in " + n.settlements + ' settlements"' : "") +
+      '><span class="mname"><i class="sw" style="background:' + esc(n.color) + '"></i>' + esc(n.name) + "</span>" +
       bar(n[key], key === "soldiers" ? maxSol : maxFri, n.color) + '<span class="mval">' + (n.me ? "" : "≈ ") + tenth(n[key]) + " " + unit + "</span></div>").join("");
     const fights = N.filter((n) => n.raids).map((n) => {
       const r = n.raids;
@@ -2555,9 +2730,9 @@
           (me.units && me.units.merchant ? " (and " + kindList(me.units, ["merchant"]) + ")" : "") + "</div>" +
         '<div class="mline m" title="50 muskets arm one soldier; 50 horses more make a dragoon">In store: ' + gi("model.goods.muskets") + " " + num(me.muskets || 0) +
           " muskets = " + extraSoldiers + " more soldiers · " + gi("model.goods.horses") + " " + num(me.horses || 0) + " horses</div>" +
-        '<div class="mline m">Strength counts only armed units: a soldier attacks with ' + sp + ", a dragoon with 4.5, artillery with 10.5, a frigate with " + nations.frigatePower + ".</div>" +
+        '<div class="mline m">Strength counts only armed units: a soldier attacks with ' + sp + ", a dragoon with 4.5, artillery with 10.5, a frigate with " + nations.frigatePower + ", a brave with 1.5 (tribes: estimated from their settlements).</div>" +
       "</div>" +
-      '<div class="mbox"><h3>Army <span class="sub">in soldiers</span></h3>' + rows("soldiers", "") + "</div>" +
+      '<div class="mbox"><h3>Army <span class="sub">in soldiers · tribes in italics</span></h3>' + rows("soldiers", "") + "</div>" +
       '<div class="mbox"><h3>Navy <span class="sub">in frigates</span></h3>' + rows("frigates", "") + "</div>" +
       '<div class="mbox"><h3>Sea fights <span class="sub">last 10 turns</span></h3>' + (fights || '<div class="m">None recorded yet (counted from now on).</div>') + "</div>" +
       "</div>";

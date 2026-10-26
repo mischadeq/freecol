@@ -1288,33 +1288,7 @@ public class ServerPlayer extends Player implements TurnTaker {
             int incomeBeforeTaxes = market.getSalePrice(type, a);
             int incomeAfterTaxes = ((100 - tax) * incomeBeforeTaxes) / 100;
             
-            if (isAI()) {
-                /*
-                 * TODO: The multiplier here should be a part of the difficulty setting.
-                 * 
-                 * Having a multiplier for the income is a great way of doing AI
-                 * cheating, since it feels natural and often not like cheating at
-                 * all.
-                 * 
-                 * For example, the human player can still actively reduce the amount of
-                 * money the AI gets by stopping cargo / capture colonies with custom houses.
-                 */
-                
-                final int tradeProfitMultiplierCheat = getSpecification().getInteger(GameOptions.TRADE_PROFIT_MULTIPLIER_CHEAT);
-                final int tradeProfitMultiplierCheatTurns = getSpecification().getInteger(GameOptions.TRADE_PROFIT_MULTIPLIER_CHEAT_TURNS);
-                
-                /*
-                 * Linear reduction of the tradeProfitMultiplierCheat from the first year
-                 * until turn number tradeProfitMultiplierCheatTurns.
-                 */
-                final double currentMultiplier = Math.max(1.0D,
-                        tradeProfitMultiplierCheat * ((double) tradeProfitMultiplierCheatTurns - getGame().getTurn().getNumber()) / tradeProfitMultiplierCheatTurns);
-                
-                final int adjustedGoldAfterCheating = (int) (incomeAfterTaxes * currentMultiplier);
-                modifyGold(adjustedGoldAfterCheating);
-            } else {
-                modifyGold(incomeAfterTaxes);
-            }
+            modifyGold(incomeAfterTaxes);
             
             market.modifySales(type, a);
             if (container != null) container.addGoods(type, -a);
@@ -1353,17 +1327,22 @@ public class ServerPlayer extends Player implements TurnTaker {
         boolean change = false;
         Stance old = getStance(otherPlayer);
 
+        // A war the King orders is nobody's own choice: it adds no
+        // anger on either side (mod; the fighting still does).
+        final boolean kings = stance == Stance.WAR
+            && WarDeclarations.isKingsOrder();
         if (old != stance) {
             // Who declared it, and was it the King (mod)?
             if (stance == Stance.WAR) WarDeclarations.record(this, otherPlayer);
-            int modifier = old.getTensionModifier(stance);
+            int modifier = (kings) ? 0 : old.getTensionModifier(stance);
             setStance(otherPlayer, stance);
             if (modifier != 0) {
                 csModifyTension(otherPlayer, modifier, cs);//+til
             }
-            cs.addHistory(this, new HistoryEvent(getGame().getTurn(),
+            cs.addHistory(this, warTag(new HistoryEvent(getGame().getTurn(),
                     HistoryEvent.getEventTypeFromStance(stance), otherPlayer)
-                .addStringTemplate("%nation%", otherPlayer.getNationLabel()));
+                .addStringTemplate("%nation%", otherPlayer.getNationLabel()),
+                stance, kings));
             logger.info("Stance modification " + getName()
                 + " " + old + " -> " + stance + " wrt " + otherPlayer.getName());
             this.addStanceChange(otherPlayer);
@@ -1378,14 +1357,15 @@ public class ServerPlayer extends Player implements TurnTaker {
             change = true;
         }
         if (symmetric && (old = otherPlayer.getStance(this)) != stance) {
-            int modifier = old.getTensionModifier(stance);
+            int modifier = (kings) ? 0 : old.getTensionModifier(stance);
             otherPlayer.setStance(this, stance);
             if (modifier != 0) {
                 ((ServerPlayer)otherPlayer).csModifyTension(this, modifier, cs);//+til
             }
-            cs.addHistory(otherPlayer, new HistoryEvent(getGame().getTurn(),
+            cs.addHistory(otherPlayer, warTag(new HistoryEvent(getGame().getTurn(),
                     HistoryEvent.getEventTypeFromStance(stance), this)
-                .addStringTemplate("%nation%", this.getNationLabel()));
+                .addStringTemplate("%nation%", this.getNationLabel()),
+                stance, kings));
             logger.info("Stance modification " + otherPlayer.getName()
                 + " " + old + " -> " + stance
                 + " wrt " + getName() + " (symmetric)");
@@ -1416,6 +1396,50 @@ public class ServerPlayer extends Player implements TurnTaker {
      */
     public void csModifyTension(Player player, int add, ChangeSet cs) {
         csModifyTension(player, add, null, cs);
+    }
+
+    /** History tag: who declared a war (a nation id) (mod). */
+    public static final String DECLARER_TAG = "%declarer%";
+    /** History tag: the war was the King's order (mod). */
+    public static final String KINGS_TAG = "%kingsWar%";
+
+    /**
+     * Tag a war in the history with who declared it and whether the
+     * King ordered it, so a nation's memory knows (mod).  The tags are
+     * not in the history text.
+     *
+     * @param h The {@code HistoryEvent}.
+     * @param stance The new stance.
+     * @param kings True if the King ordered the war.
+     * @return The event.
+     */
+    private HistoryEvent warTag(HistoryEvent h, Stance stance,
+                                boolean kings) {
+        if (stance != Stance.WAR) return h;
+        h.addName(DECLARER_TAG, getNationId());
+        if (kings) h.addName(KINGS_TAG, "true");
+        return h;
+    }
+
+    /** Anger between European nations at peace fades by this much a
+        turn (mod): without it a few forced wars left hatred for good. */
+    public static final int TENSION_FADE = 10;
+
+    /**
+     * Let anger towards other European nations fade while at peace
+     * (mod).
+     */
+    void csFadeTension() {
+        if (!isEuropean() || isREF()) return;
+        for (Player p : getGame().getLiveEuropeanPlayerList(this)) {
+            if (p == this || p.isREF()) continue;
+            final Stance st = getStance(p);
+            if (st != Stance.PEACE && st != Stance.ALLIANCE) continue;
+            final Tension t = getTension(p);
+            if (t.getValue() > 0) {
+                t.modify(-Math.min(TENSION_FADE, t.getValue()));
+            }
+        }
     }
 
     /**
@@ -1868,12 +1892,17 @@ outer:  for (Effect effect : effects) {
                 }
 
                 // Look at the uses of tiles surrounding the settlement.
+                // Only land taken from us counts, and soldiers inside our
+                // borders or at the village's gate; a colony that just
+                // shares a border does not (mod, step 8.3).
                 int alarmRadius = is.getRadius() + ALARM_RADIUS;
                 for (Tile tile : is.getTile().getSurroundingTiles(alarmRadius)) {
                     Colony colony = tile.getColony();
                     if (tile.getFirstUnit() != null) { // Military units
                         Player enemy =  tile.getFirstUnit().getOwner();
-                        if (enemy.isEuropean()) {
+                        if (enemy.isEuropean()
+                            && (tile.getOwner() == this
+                                || tile.getDistanceTo(is.getTile()) <= 1)) {
                             Integer alarm = extra.get(enemy);
                             if (alarm == null) continue;
                             alarm += (int)sumDouble(tile.getUnits(),
@@ -1883,12 +1912,17 @@ outer:  for (Effect effect : effects) {
                         }
                     } else if (colony != null) { // Colonies
                         Player enemy = colony.getOwner();
-                        extra.put(enemy, extra.get(enemy)
-                                  + ALARM_TILE_IN_USE
-                                  + colony.getUnitCount());
+                        if (extra.containsKey(enemy)
+                            && LandClaims.taken(this, tile, enemy)) {
+                            extra.put(enemy, extra.get(enemy)
+                                      + ALARM_TILE_IN_USE
+                                      + colony.getUnitCount());
+                        }
                     } else if (tile.getOwningSettlement() != null) { // Control
                         Player enemy = tile.getOwningSettlement().getOwner();
-                        if (enemy != null && enemy.isEuropean()) {
+                        if (enemy != null && enemy.isEuropean()
+                            && extra.containsKey(enemy)
+                            && LandClaims.taken(this, tile, enemy)) {
                             extra.put(enemy, extra.get(enemy)
                                       + ALARM_TILE_IN_USE);
                         }
@@ -2156,6 +2190,10 @@ outer:  for (Effect effect : effects) {
                             ChangeSet cs) {
         final Player owner = tile.getOwner();
         Settlement ownerSettlement = tile.getOwningSettlement();
+        // Land got from a tribe: bought (or free) or taken (mod).
+        if (owner != null && owner.isIndian() && isEuropean()) {
+            LandClaims.record(owner, tile, this, price < 0);
+        }
         tile.cacheUnseen();//+til
         tile.changeOwnership(this, settlement);//-vis(?),-til
 
@@ -4595,6 +4633,7 @@ outer:  for (Effect effect : effects) {
     public void csNewTurn(Random random, LogBuilder lb, ChangeSet cs) {
         lb.add("PLAYER ", getName(), ": ");
         final Game game = getGame();
+        csFadeTension();
         final Specification spec = getSpecification();
         int oldImmigration = getImmigration(), oldLiberty = getLiberty(),
             newSoL = 0, newImmigration = 0, newLiberty = 0;

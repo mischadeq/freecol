@@ -1135,17 +1135,26 @@ public final class InGameController extends FreeColClientHolder {
      *     reached their destination and are free to move again.
      */
     private boolean doExecuteGotoOrders() {
+        // Not while the turn report is open: the trade routes and other
+        // orders wait until the player has read it and pressed OK (mod).
+        if (getGUI().isTurnReportShowing()) {
+            gotoOrdersAfterReport();
+            return false;
+        }
         final Player player = getMyPlayer();
         Unit active = getGUI().getActiveUnit();
         boolean ret = true;
 
         // Ensure the goto mode sticks.
+        final MoveMode modeBefore = moveMode;
         moveMode = moveMode.maximize(MoveMode.EXECUTE_GOTO_ORDERS);
 
-        // Deal with the trade route units first.
+        // Deal with the trade route units first: only when the player
+        // asks (the execute-orders button, or the end of the turn), not
+        // whenever no unit needs attention (mod).
         List<ModelMessage> messages = new ArrayList<>();
-        final Predicate<Unit> tradePred = u ->
-            u.isReadyToTrade() && player.owns(u);
+        final Predicate<Unit> tradePred = u -> this.routesReleased
+            && u.isReadyToTrade() && player.owns(u);
         for (Unit unit : transform(player.getUnits(), tradePred,
                                    Function.<Unit>identity(),
                                    tradeRouteUnitComparator)) {
@@ -1165,6 +1174,19 @@ public final class InGameController extends FreeColClientHolder {
 
         // Wait for user to close outstanding panels.
         if (getGUI().isPanelShowing()) return false;
+
+        // Other units with go-to orders also wait for the player's go
+        // (the execute-orders button, or the end of the turn): a unit
+        // given an order now has already moved (mod).
+        if (!this.routesReleased) {
+            // Nothing was carried out, so the turn goes on as before:
+            // a unit that is free to move later (out of a colony, off
+            // a ship) is still picked as the next active unit (mod).
+            moveMode = modeBefore;
+            nextModelMessage();
+            changeView(active, false);
+            return true;
+        }
 
         // The active unit might also be a going-to unit.  Make sure it
         // gets processed first.  setNextGoingToUnit will fail harmlessly
@@ -1215,6 +1237,8 @@ public final class InGameController extends FreeColClientHolder {
 
         // Ensure end-turn mode sticks.
         moveMode = moveMode.maximize(MoveMode.END_TURN);
+        // Trade routes not run yet this turn go now (mod).
+        this.routesReleased = true;
 
         changeView(null);
         final List<Unit> units = transform(player.getUnits(), Unit::couldMove);
@@ -1265,6 +1289,7 @@ public final class InGameController extends FreeColClientHolder {
      */
     private boolean moveToDestination(Unit unit, List<ModelMessage> messages) {
         final Player player = getMyPlayer();
+        this.ordersTried.add(unit); // tried this turn (mod)
         Location destination = unit.getDestination();
         PathNode path;
         Tile pace;
@@ -1504,6 +1529,8 @@ public final class InGameController extends FreeColClientHolder {
             }
             break;
         case MOVE_NO_ACCESS_SETTLEMENT:
+            if (deliverAt(unit, direction)) break; // an empty carrier fetching (mod)
+            if (nothingToDeliver(unit, direction, interactive || destinationImminent)) break;
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -1524,6 +1551,10 @@ public final class InGameController extends FreeColClientHolder {
             }
             break;
         case MOVE_NO_ACCESS_TRADE:
+            // Mod: moving into their colony hands over a notice-board
+            // deal taken there (no Jan de Witt needed for that).
+            if (deliverAt(unit, direction)) break;
+            if (nothingToDeliver(unit, direction, interactive || destinationImminent)) break;
             if (interactive || destinationImminent) {
                 sound("sound.event.illegalMove");
                 StringTemplate nation = getNationAt(unit.getTile(), direction);
@@ -2172,6 +2203,7 @@ public final class InGameController extends FreeColClientHolder {
      */
     private boolean moveTrade(Unit unit, Direction direction) {
         if (!askClearGotoOrders(unit)) return false;
+        if (deliverAt(unit, direction)) return false; // mod
 
         Settlement settlement = getSettlementAt(unit.getTile(), direction);
         if (settlement instanceof Colony) {
@@ -3668,36 +3700,113 @@ public final class InGameController extends FreeColClientHolder {
         if (currentPlayerIsMyPlayer()) showOffers();
     }
 
-    /** Ask about every waiting offer, one dialog each. */
+    /** Runs the orders once the turn report is closed (mod). */
+    private javax.swing.Timer gotoTimer = null;
+
+    /** Run the goto orders when the turn report closes (mod). */
+    private void gotoOrdersAfterReport() {
+        invokeLater(() -> {
+                if (this.gotoTimer == null) {
+                    this.gotoTimer = new javax.swing.Timer(300, e -> {
+                            if (getGUI().isTurnReportShowing()) return;
+                            this.gotoTimer.stop();
+                            if (!currentPlayerIsMyPlayer()) return;
+                            updateGUI(null, false);
+                        });
+                }
+                if (!this.gotoTimer.isRunning()) this.gotoTimer.start();
+            });
+    }
+
+    /** Shows the waiting offers when the screen is free (mod). */
+    private javax.swing.Timer offerTimer = null;
+
+    /**
+     * Ask about every waiting offer, one dialog at a time, and only
+     * when no panel or dialog is showing: an offer dialog opened under
+     * the turn report blocked every click (it is modal, but was hidden
+     * behind the report).
+     */
     private void showOffers() {
-        final java.util.List<net.sf.freecol.common.diplomacy.Offer> l;
         synchronized (this.pendingOffers) {
-            l = new java.util.ArrayList<>(this.pendingOffers);
-            this.pendingOffers.clear();
+            if (this.pendingOffers.isEmpty()) return;
         }
-        for (net.sf.freecol.common.diplomacy.Offer o : l) {
-            final StringTemplate t = offerTemplate(o);
-            if (t == null) continue;
-            if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
-                // How many to sell under a price agreement (step 4).
-                invokeLater(() -> {
-                        final String a = getGUI().modalInputDialog(null, t,
-                            String.valueOf(o.amount), "ok", "cancel");
-                        int n = 0;
-                        try {
-                            n = (a == null) ? 0 : Integer.parseInt(a.trim());
-                        } catch (NumberFormatException e) {
-                            n = 0;
-                        }
-                        askServer().answerOffer(o.id, Math.max(0, n));
-                    });
-                continue;
+        invokeLater(() -> {
+                if (this.offerTimer == null) {
+                    this.offerTimer = new javax.swing.Timer(700, e -> nextOffer());
+                    this.offerTimer.setInitialDelay(1500);
+                }
+                if (!this.offerTimer.isRunning()) this.offerTimer.start();
+            });
+    }
+
+    /** One waiting offer, if the screen is free (on the Swing thread). */
+    private void nextOffer() {
+        final GUI gui = getGUI();
+        if (gui.isPanelShowing() || gui.isDialogShowing()) return; // later
+        final net.sf.freecol.common.diplomacy.Offer o;
+        synchronized (this.pendingOffers) {
+            if (this.pendingOffers.isEmpty()) {
+                this.offerTimer.stop();
+                return;
             }
-            invokeLater(() -> {
-                    final boolean yes = getGUI().modalConfirmDialog(t,
-                        "offer.accept", "offer.decline");
-                    askServer().answerOffer(o.id, yes);
-                });
+            o = this.pendingOffers.remove(0);
+        }
+        final StringTemplate t = offerTemplate(o);
+        if (t == null) return;
+        this.offerTimer.stop(); // no second dialog while this one is open
+        try {
+            if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN
+                && !o.id.endsWith(net.sf.freecol.common.diplomacy.Offer.COUNTER)) {
+                // A ship loan: the rent and term are ours to set (mod).
+                final int terms = gui.showLoanDialog(o);
+                if (terms < 0) {
+                    askServer().answerOffer(o.id, false);
+                } else {
+                    askServer().answerOffer(o.id, true, terms);
+                }
+            } else if (o.kind
+                       == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN_DEFAULT) {
+                // They defaulted: seize the ship (a war loan: the goods
+                // the player picks), forgive, or wait (mod).
+                final java.util.List<ChoiceItem<Integer>> choices
+                    = new java.util.ArrayList<>();
+                if (o.goods == null) {
+                    choices.addAll(loanGoodsChoices(o.placeName));
+                    choices.add(new ChoiceItem<>(Messages.message(
+                        "loan.choice.leave"), 3));
+                } else {
+                    choices.add(new ChoiceItem<>(Messages.message(
+                        "loan.choice.seize"), 0).defaultOption());
+                }
+                choices.add(new ChoiceItem<>(Messages.message("loan.choice.forgive"),
+                                             1));
+                choices.add(new ChoiceItem<>(Messages.message("loan.choice.wait"),
+                                             2));
+                final Integer c = gui.modalChoiceDialog(t, "loan.choice.wait",
+                                                        choices);
+                askServer().answerOffer(o.id, true, (c == null) ? 2 : c);
+            } else if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
+                // How many to sell under a price agreement (step 4).
+                final String a = gui.modalInputDialog(null, t,
+                    String.valueOf(o.amount), "ok", "cancel");
+                int n = 0;
+                try {
+                    n = (a == null) ? 0 : Integer.parseInt(a.trim());
+                } catch (NumberFormatException e) {
+                    n = 0;
+                }
+                askServer().answerOffer(o.id, Math.max(0, n));
+            } else {
+                final boolean yes = gui.modalConfirmDialog(t,
+                    "offer.accept", "offer.decline");
+                askServer().answerOffer(o.id, yes);
+            }
+            // The answer's news ("agreement accepted") now, not after
+            // the next move.
+            displayModelMessages(false, false);
+        } finally {
+            this.offerTimer.restart();
         }
     }
 
@@ -3732,18 +3841,40 @@ public final class InGameController extends FreeColClientHolder {
      * @param gui The {@code GUI}.
      */
     private void proposeAgreement(Player player, GUI gui) {
+        proposeAgreement(player, gui, null);
+    }
+
+    /**
+     * Can we propose a price agreement to a nation?
+     *
+     * @param player Our {@code Player}.
+     * @param p The other nation.
+     * @return True if so.
+     */
+    private static boolean agreementPartner(Player player, Player p) {
+        return p != player && !p.isREF() && p.isAI() && p.isEuropean()
+            && player.hasContacted(p) && player.getStance(p) != Stance.WAR;
+    }
+
+    /**
+     * Propose a price agreement, to a nation already chosen (from the
+     * envoy window, 8.4) or chosen here.
+     *
+     * @param player Our {@code Player}.
+     * @param gui The {@code GUI}.
+     * @param preset The nation, or null to choose.
+     */
+    private void proposeAgreement(Player player, GUI gui, Player preset) {
         java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
         for (Player p : getGame().getLiveEuropeanPlayerList()) {
-            if (p == player || p.isREF() || !p.isAI()
-                || !player.hasContacted(p)
-                || player.getStance(p) == Stance.WAR) continue;
+            if (!agreementPartner(player, p)) continue;
             nations.add(new ChoiceItem<>(Messages.message(p.getNationLabel()), p));
         }
-        if (nations.isEmpty()) {
+        if (preset == null && nations.isEmpty()) {
             showInformationPanel(null, StringTemplate.template("offer.post.noNation"));
             return;
         }
-        final Player to = gui.modalChoiceDialog(
+        final Player to = (preset != null) ? preset : gui.modalChoiceDialog(
             StringTemplate.template("offer.post.nation"), "cancel", nations);
         if (to == null) return;
         final net.sf.freecol.common.model.Market market = player.getMarket();
@@ -3790,6 +3921,16 @@ public final class InGameController extends FreeColClientHolder {
      * Called from PostOfferAction.
      */
     public void postOffer() {
+        postOffer(null);
+    }
+
+    /**
+     * Post a trade offer on the notice board, of a kind already chosen
+     * (from the envoy window, 8.4) or chosen here.
+     *
+     * @param preset {@code WANT}, {@code SELL}, or null to choose.
+     */
+    private void postOffer(net.sf.freecol.common.diplomacy.Offer.Kind preset) {
         final Player player = getMyPlayer();
         if (!requireOurTurn() || player == null) return;
         final GUI gui = getGUI();
@@ -3809,7 +3950,8 @@ public final class InGameController extends FreeColClientHolder {
             net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
         kinds.add(new ChoiceItem<>(Messages.message("offer.post.agreement"),
             net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT));
-        final net.sf.freecol.common.diplomacy.Offer.Kind kind = gui
+        final net.sf.freecol.common.diplomacy.Offer.Kind kind
+            = (preset != null) ? preset : gui
             .modalChoiceDialog(StringTemplate.template("offer.post.kind"),
                                "cancel", kinds);
         if (kind == null) return;
@@ -3879,6 +4021,36 @@ public final class InGameController extends FreeColClientHolder {
     }
 
     /**
+     * The goods a borrower in default on a war loan has, as choices:
+     * what each is worth to us; goods boycotted for us are shown but
+     * can not be taken (mod).
+     *
+     * @param list The offer's "index:amount:worth:boycotted" list.
+     * @return The choices (100 + goods index).
+     */
+    private java.util.List<ChoiceItem<Integer>> loanGoodsChoices(String list) {
+        final java.util.List<ChoiceItem<Integer>> ret = new java.util.ArrayList<>();
+        final java.util.List<GoodsType> all = getSpecification().getGoodsTypeList();
+        for (String rec : list.split(",")) {
+            final String[] f = rec.split(":");
+            if (f.length != 4) continue;
+            try {
+                final int i = Integer.parseInt(f[0]);
+                if (i < 0 || i >= all.size()) continue;
+                final boolean boycott = "1".equals(f[3]);
+                final String text = Messages.message(StringTemplate
+                    .template((boycott) ? "loan.choice.goodsBoycott"
+                        : "loan.choice.goods")
+                    .addAmount("%amount%", Integer.parseInt(f[1]))
+                    .addNamed("%goods%", all.get(i))
+                    .addAmount("%gold%", Integer.parseInt(f[2])));
+                ret.add(new ChoiceItem<>(text, 100 + i, !boycott));
+            } catch (NumberFormatException e) {} // skip
+        }
+        return ret;
+    }
+
+    /**
      * The question for an offer.
      *
      * @param o The {@code Offer}.
@@ -3892,7 +4064,16 @@ public final class InGameController extends FreeColClientHolder {
         final String key;
         switch (o.kind) {
         case PEACE:
-            key = (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
+            key = (o.amount > 0) ? "offer.peaceDebt"
+                : (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
+            break;
+        case LOAN:
+            key = (o.goods == null) ? "offer.loanCounterWar"
+                : "offer.loanCounter";
+            break;
+        case LOAN_DEFAULT:
+            key = (o.goods == null) ? "offer.loanDefaultWar"
+                : "offer.loanDefault";
             break;
         case CALL_TO_ARMS:
             key = (from.isIndian()) ? "offer.tribeCall" : "offer.callToArms";
@@ -3924,6 +4105,14 @@ public final class InGameController extends FreeColClientHolder {
         case BUYOUT:
             key = "offer.buyout";
             break;
+        case TERMS:
+            key = (from.isIndian())
+                ? (("ENVOY_WAR".equals(o.goods)) ? ((o.amount == 0)
+                        ? "offer.tribeTermsWar" : "offer.tribeTermsWarAlly")
+                    : (o.amount == 0) ? "offer.tribeTerms"
+                    : "offer.tribeTermsConditions")
+                : "offer.terms." + o.goods;
+            break;
         case WANT:
             key = "offer.want";
             break;
@@ -3938,9 +4127,39 @@ public final class InGameController extends FreeColClientHolder {
             .addAmount("%turns%", o.deadline)
             .addName("%colony%", o.placeName);
         if (gt != null) t.addNamed("%goods%", gt);
+        if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN
+            || o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN_DEFAULT) {
+            final net.sf.freecol.common.model.UnitType ut
+                = getSpecification().getUnitType(o.goods);
+            t.addName("%ship%", (ut == null) ? "" : Messages.getName(ut))
+                .addName("%rent%", o.delivered / 10 + "." + o.delivered % 10 + "%")
+                .addAmount("%missed%", o.delivered)
+                .addAmount("%total%", (o.kind
+                        == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN)
+                    ? net.sf.freecol.common.diplomacy.Loan.totalRent(o.amount,
+                        o.delivered, o.deadline) : 0);
+        }
         final Player enemy = (o.against == null) ? null
             : getGame().getPlayerByNationId(o.against);
         if (enemy != null) t.addStringTemplate("%enemy%", enemy.getNationLabel());
+        if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.TERMS
+            && from.isIndian()) {
+            // The tribe's conditions, in words (8.3b).
+            final java.util.List<String> cond = new java.util.ArrayList<>();
+            final int c = o.amount;
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.LAND) != 0) {
+                cond.add(Messages.message("envoy.tribe.cond.land"));
+            }
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.COLONY) != 0) {
+                cond.add(Messages.message(StringTemplate
+                    .template("envoy.tribe.cond.colony")
+                    .addName("%colony%", o.placeName)));
+            }
+            if ((c & net.sf.freecol.common.diplomacy.TribeEnvoyRules.TROOPS) != 0) {
+                cond.add(Messages.message("envoy.tribe.cond.troops"));
+            }
+            t.addName("%conditions%", String.join("; ", cond));
+        }
         return t;
     }
 
@@ -4115,6 +4334,404 @@ public final class InGameController extends FreeColClientHolder {
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
      */
+    /** The answer to the last delivery (mod). */
+    private volatile String deliverResult = null;
+
+    /**
+     * The server's word on a delivery (mod).
+     *
+     * Called from DeliverMessage.
+     *
+     * @param result "done", "part" or "none".
+     */
+    public void deliverHandler(String result) {
+        this.deliverResult = result;
+    }
+
+    /**
+     * Is a tile another European nation's colony a carrier could deliver
+     * a notice-board deal to (mod)?
+     *
+     * @param unit The {@code Unit}.
+     * @param tile The {@code Tile}.
+     * @return True if so.
+     */
+    public boolean isDeliveryTarget(Unit unit, Tile tile) {
+        if (unit == null || tile == null || !unit.canCarryGoods()) return false;
+        final Settlement s = tile.getSettlement();
+        return s instanceof Colony && s.getOwner() != unit.getOwner()
+            && s.getOwner().isEuropean();
+    }
+
+    /**
+     * The quickest path to a tile next to another nation's colony, for
+     * a carrier going there to deliver (mod: the map's goto can not end
+     * in a foreign colony).
+     *
+     * @param unit The carrier.
+     * @param tile The colony tile.
+     * @return The path, or null if none (or the unit is next to it).
+     */
+    public PathNode pathNextTo(Unit unit, Tile tile) {
+        if (!isDeliveryTarget(unit, tile) || unit.getTile() == null
+            || unit.getTile().isAdjacent(tile)) return null;
+        PathNode best = null;
+        for (Tile t : tile.getSurroundingTiles(1)) {
+            if (t.hasSettlement() || t.isLand() != !unit.isNaval()) continue;
+            final PathNode p = unit.findPath(t);
+            if (p == null) continue;
+            if (best == null || p.getTotalTurns() < best.getTotalTurns()
+                || (p.getTotalTurns() == best.getTotalTurns()
+                    && p.getLength() < best.getLength())) best = p;
+        }
+        return best;
+    }
+
+    /**
+     * The player sent a carrier (map goto) to another nation's colony
+     * (mod): go next to it, and if it gets there with moves left, hand
+     * over the notice-board deal taken there; else it waits there and the
+     * deal is done at the start of their turn.
+     *
+     * @param unit The carrier.
+     * @param tile The colony tile.
+     * @param path The path next to it, or null if already there.
+     * @return True if this was a delivery goto (handled here).
+     */
+    public boolean deliverTo(Unit unit, Tile tile, PathNode path) {
+        if (!isDeliveryTarget(unit, tile)) return false;
+        if (path != null) goToTile(unit, path);
+        if (unit.isDisposed() || unit.getTile() == null
+            || !unit.getTile().isAdjacent(tile)) return true;
+        if (unit.getMovesLeft() <= 0) return true; // waits next to it
+        final Direction d = unit.getTile().getDirection(tile);
+        if (d != null && !deliverAt(unit, d)) {
+            nothingToDeliver(unit, d, true);
+        }
+        return true;
+    }
+
+    /**
+     * Say so when a carrier moves into another nation's colony with no
+     * deal to hand over (mod): plainer than the game's "no trading
+     * rights" message, which suggested the deal itself needs them.
+     *
+     * @param unit The carrier.
+     * @param direction The direction of the colony.
+     * @param show Show the message.
+     * @return True if it was such a colony (message shown).
+     */
+    private boolean nothingToDeliver(Unit unit, Direction direction,
+                                     boolean show) {
+        final Tile t = (unit.getTile() == null) ? null
+            : unit.getTile().getNeighbourOrNull(direction);
+        if (!isDeliveryTarget(unit, t)) return false;
+        if (show) {
+            sound("sound.event.illegalMove");
+            showInformationPanel(unit, StringTemplate
+                .template("deliver.nothing")
+                .addStringTemplate("%nation%",
+                    t.getSettlement().getOwner().getNationLabel())
+                .addName("%colony%", t.getSettlement().getName()));
+        }
+        return true;
+    }
+
+    /**
+     * A ship or wagon train moves into another European nation's colony:
+     * if the player took a notice-board deal there, hand it over now
+     * (mod). Otherwise nothing happens here.
+     *
+     * @param unit The {@code Unit} moving.
+     * @param direction The direction of the colony.
+     * @return True if a delivery was made (the move is done).
+     */
+    private boolean deliverAt(Unit unit, Direction direction) {
+        if (unit == null || !unit.canCarryGoods() || unit.getTile() == null) {
+            return false;
+        }
+        final Settlement s = getSettlementAt(unit.getTile(), direction);
+        if (!(s instanceof Colony) || s.getOwner() == unit.getOwner()
+            || !s.getOwner().isEuropean()) return false;
+        this.deliverResult = null;
+        askServer().deliver(s.getId());
+        final String r = this.deliverResult;
+        if (r == null || "none".equals(r)) return false;
+        invokeLater(() -> displayModelMessages(false, false));
+        updateGUI(null, false);
+        return true;
+    }
+
+    // The player's envoys (step 8, mod).
+
+    /** The envoy status from the server: nation id to {wait, readyTurn,
+        coalition (0 none against us, 1 member, 2 leader)}. */
+    private final java.util.Map<String, int[]> envoyStatus
+        = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Why the last envoy could not go (a message key), or null. */
+    private volatile String envoyError = null;
+
+    /**
+     * The server's word on the envoys.
+     *
+     * Called from EnvoyMessage.
+     *
+     * @param status Lines "nation:wait:readyTurn" joined by ';'.
+     * @param error Why the envoy could not go, or null.
+     */
+    public void envoyHandler(String status, String error) {
+        this.envoyStatus.clear();
+        if (status != null && !status.isEmpty()) {
+            for (String line : status.split(";")) {
+                final String[] f = line.split(":");
+                if (f.length < 3) continue;
+                try {
+                    this.envoyStatus.put(f[0], new int[] {
+                            Integer.parseInt(f[1]), Integer.parseInt(f[2]),
+                            (f.length > 3) ? Integer.parseInt(f[3]) : 0 });
+                } catch (NumberFormatException e) {
+                    // skip
+                }
+            }
+        }
+        this.envoyError = error;
+    }
+
+    /**
+     * Ask the server how the envoys stand.
+     *
+     * @return Nation id to {turns to wait, turn the wait ends (-1 never
+     *     sent)}.
+     */
+    public java.util.Map<String, int[]> envoyStatus() {
+        askServer().envoy(null, null, 0, null);
+        return new java.util.HashMap<>(this.envoyStatus);
+    }
+
+    /**
+     * At the start of the turn: tell the player which nations an envoy
+     * can go to again (their wait ended this turn).
+     *
+     * @param player The player.
+     */
+    private void envoyAlerts(Player player) {
+        final int now = getGame().getTurn().getNumber();
+        for (java.util.Map.Entry<String, int[]> e : envoyStatus().entrySet()) {
+            if (e.getValue()[1] != now) continue;
+            final Player p = getGame().getPlayerByNationId(e.getKey());
+            if (p == null) continue;
+            player.addModelMessage(new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY, "envoy.ready",
+                player).addStringTemplate("%nation%", p.getNationLabel()));
+        }
+    }
+
+    /**
+     * Send an envoy to another nation (step 8): pick the nation, what
+     * to propose, and the gold to send with it.  The answer comes at
+     * the start of the next turn.
+     *
+     * Called from SendEnvoyAction.
+     */
+    public void sendEnvoy() {
+        final Player player = getMyPlayer();
+        if (!requireOurTurn() || player == null) return;
+        final GUI gui = getGUI();
+        final java.util.Map<String, int[]> status = envoyStatus();
+        java.util.List<ChoiceItem<Player>> nations = new java.util.ArrayList<>();
+        final java.util.List<Player> others
+            = new java.util.ArrayList<>(getGame().getLiveEuropeanPlayerList());
+        others.addAll(getGame().getLiveNativePlayerList()); // tribes (8.3b)
+        for (Player p : others) {
+            final int[] st = status.get(p.getNationId());
+            if (st == null) continue;
+            final String text = Messages.message(StringTemplate
+                .template((st[0] <= 0) ? "envoy.choose.ready"
+                          : "envoy.choose.wait")
+                .addStringTemplate("%nation%", p.getNationLabel())
+                .addStringTemplate("%stance%", StringTemplate.key(
+                    "model." + player.getStance(p).getKey() + ".name"))
+                .addAmount("%turns%", st[0]));
+            // Waiting nations stay selectable: trade needs no envoy (8.4).
+            nations.add(new ChoiceItem<>(text, p,
+                st[0] <= 0 || agreementPartner(player, p)));
+        }
+        if (nations.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("envoy.none"));
+            return;
+        }
+        final Player to = gui.modalChoiceDialog(
+            StringTemplate.template("envoy.choose"), "cancel", nations);
+        if (to == null) return;
+        final Stance stance = player.getStance(to);
+        final int[] toStatus = status.get(to.getNationId());
+        final boolean ready = toStatus == null || toStatus[0] <= 0;
+        java.util.List<ChoiceItem<net.sf.freecol.common.diplomacy.Offer.Kind>> kinds
+            = new java.util.ArrayList<>();
+        if (stance == Stance.WAR || stance == Stance.CEASE_FIRE) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_PEACE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_PEACE));
+        }
+        if (stance == Stance.PEACE && !to.isIndian()) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_ALLIANCE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_ALLIANCE));
+        }
+        // Join my war (8.2): against a nation we fight that they do not.
+        final java.util.List<ChoiceItem<Player>> enemies
+            = new java.util.ArrayList<>();
+        if (stance == Stance.PEACE || stance == Stance.ALLIANCE
+            || (stance == Stance.CEASE_FIRE && !to.isIndian())) {
+            for (Player e : getGame().getLivePlayerList()) {
+                if (e == player || e == to || e.isREF()
+                    || e.isUnknownEnemy() || e.isUndead()
+                    || player.getStance(e) != Stance.WAR
+                    || to.getStance(e) == Stance.WAR
+                    || to.getStance(e) == Stance.ALLIANCE
+                    || !to.hasContacted(e)) continue;
+                enemies.add(new ChoiceItem<>(
+                    Messages.message(e.getNationLabel()), e));
+            }
+        }
+        if (!enemies.isEmpty()) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_WAR"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR));
+        }
+        if (!to.isIndian() && toStatus != null && toStatus[2] == 1) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_LEAVE"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_LEAVE));
+        }
+        kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_GIFT"),
+            net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT));
+        if (!ready) { // only trade while the envoy waits
+            kinds.clear();
+        }
+        // Trade (8.4): a price agreement with this nation; the notice
+        // board (seen by all nations).  Neither needs an envoy.
+        if (agreementPartner(player, to)) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.AGREEMENT"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.AGREEMENT));
+        }
+        if (!to.isIndian()) {
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.WANT"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.WANT));
+            kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.SELL"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.SELL));
+        }
+        if (kinds.isEmpty()) {
+            showInformationPanel(null, StringTemplate.template("envoy.error.wait")
+                .addStringTemplate("%nation%", to.getNationLabel()));
+            return;
+        }
+        final net.sf.freecol.common.diplomacy.Offer.Kind kind
+            = gui.modalChoiceDialog(StringTemplate.template("envoy.kind")
+                .addStringTemplate("%nation%", to.getNationLabel()),
+                "cancel", kinds);
+        if (kind == null) return;
+        switch (kind) {
+        case AGREEMENT:
+            proposeAgreement(player, gui, to);
+            return;
+        case WANT: case SELL:
+            postOffer(kind);
+            return;
+        default:
+            break;
+        }
+        Player against = null;
+        if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR) {
+            against = (enemies.size() == 1) ? enemies.get(0).getObject()
+                : gui.modalChoiceDialog(StringTemplate.template("envoy.enemy")
+                    .addStringTemplate("%nation%", to.getNationLabel()),
+                    "cancel", enemies);
+            if (against == null) return;
+        }
+        final boolean gift = kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT;
+        final String g = gui.modalInputDialog(null,
+            StringTemplate.template((gift) ? "envoy.gold.gift" : "envoy.gold")
+                .addAmount("%have%", Math.max(0, player.getGold())),
+            (gift) ? "100" : "0", "ok", "cancel");
+        if (g == null) return;
+        int gold;
+        try {
+            gold = Integer.parseInt(g.trim());
+        } catch (RuntimeException e) {
+            return;
+        }
+        gold = Math.max(0, Math.min(Math.max(0, player.getGold()), gold));
+        if (gift && gold <= 0) return;
+        this.envoyError = null;
+        askServer().envoy(to.getNationId(), kind.name(), gold,
+                          (against == null) ? null : against.getNationId());
+        if (this.envoyError != null) {
+            showInformationPanel(null, StringTemplate.template(this.envoyError)
+                .addStringTemplate("%nation%", to.getNationLabel()));
+        } else {
+            invokeLater(() -> displayModelMessages(false, false));
+        }
+        updateGUI(null, false);
+    }
+
+    /** The last sale terms heard, by colony id (mod). */
+    private final java.util.Map<String,
+        List<net.sf.freecol.common.diplomacy.SaleTerms.Line>> saleTerms
+        = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * What another nation sells at one of its colonies (mod): asks the
+     * server, which answers on the nation's behalf.
+     *
+     * Called from NegotiationDialog.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @return The terms, empty if there are none.
+     */
+    public List<net.sf.freecol.common.diplomacy.SaleTerms.Line>
+        getSaleTerms(Colony colony) {
+        if (colony == null) return new ArrayList<>();
+        this.saleTerms.remove(colony.getId());
+        askServer().saleTerms(colony);
+        final List<net.sf.freecol.common.diplomacy.SaleTerms.Line> ret
+            = this.saleTerms.get(colony.getId());
+        return (ret == null) ? new ArrayList<>() : ret;
+    }
+
+    /**
+     * The server's answer about sale terms (mod).
+     *
+     * Called from SaleTermsMessage.
+     *
+     * @param colonyId The colony id.
+     * @param lines The terms.
+     */
+    public void saleTermsHandler(String colonyId,
+        List<net.sf.freecol.common.diplomacy.SaleTerms.Line> lines,
+        String result) {
+        if (colonyId != null && lines != null) {
+            this.saleTerms.put(colonyId, lines);
+        }
+        this.haggleResult = (result == null || result.isEmpty()) ? null
+            : result;
+    }
+
+    /** What came of the last haggle (mod). */
+    private volatile String haggleResult = null;
+
+    /**
+     * Haggle over goods at another nation's colony (mod).
+     *
+     * Called from NegotiationDialog.
+     *
+     * @param colony The other nation's {@code Colony}.
+     * @param goodsId The goods.
+     * @param off Percent more off asked.
+     * @return "AGREED", "REFUSED" or "CLOSED" (null if no answer).
+     */
+    public String haggle(Colony colony, String goodsId, int off) {
+        this.haggleResult = null;
+        askServer().haggle(colony, goodsId, off);
+        return this.haggleResult;
+    }
+
     /**
      * Count the units with orders that have not been carried out
      * yet this turn: a go-to order or a trade route, and moves left.
@@ -4122,16 +4739,54 @@ public final class InGameController extends FreeColClientHolder {
      * @return The number of such units, 0 if it is not our turn.
      */
     public int countPendingOrders() {
+        return getOrderUnits(false).size();
+    }
+
+    /**
+     * The units with orders they could carry out by themselves this
+     * turn (mod).
+     *
+     * @param tried If true, the units that already tried this turn and
+     *     could get no further (waiting for a ship, a blocked path);
+     *     if false, the units that have not tried yet.
+     * @return The units, empty if it is not our turn.
+     */
+    public List<Unit> getOrderUnits(boolean tried) {
+        final List<Unit> ret = new ArrayList<>();
         final Player player = getMyPlayer();
         if (player == null || !getFreeColClient().currentPlayerIsMyPlayer()) {
-            return 0;
+            return ret;
         }
-        int n = 0;
         for (Unit u : player.getUnitSet()) {
-            if (u.goingToDestination() || u.isReadyToTrade()) n++;
+            if (hasOrdersToCarryOut(u)
+                && this.ordersTried.contains(u) == tried) ret.add(u);
         }
-        return n;
+        return ret;
     }
+
+    /**
+     * Does a unit have orders it could carry out by itself (mod)?
+     * Not a ship sailing between the map and Europe, nor one in Europe
+     * that is to stay there: they have nothing to do until they
+     * arrive.  Not a land unit in Europe either: it waits for a ship.
+     *
+     * @param u The {@code Unit} to check.
+     * @return True if it has a go-to order or a trade route to follow.
+     */
+    static boolean hasOrdersToCarryOut(Unit u) {
+        if (u.isAtSea()) return false;
+        if (u.isInEurope() && (!u.isNaval()
+                || u.getDestination() instanceof Europe)) return false;
+        return u.goingToDestination() || u.isReadyToTrade();
+    }
+
+    /**
+     * The units whose orders were tried this turn: they no longer count
+     * as waiting, so a unit that cannot get further (waiting for a
+     * ship, a blocked path) does not keep the warning up (mod).
+     */
+    private final java.util.Set<Unit> ordersTried
+        = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * Execute all orders that are planned but not carried out yet:
@@ -4145,8 +4800,16 @@ public final class InGameController extends FreeColClientHolder {
         if (!requireOurTurn()
             || getGUI().isPanelShowing()) return false;
 
+        this.routesReleased = true; // the player's go for the trade routes
         return doExecuteGotoOrders();
     }
+
+    /**
+     * May the trade routes and go-to orders move this turn: the player
+     * pressed the execute-orders button or ended the turn (mod).  Reset
+     * each turn.
+     */
+    private boolean routesReleased = false;
 
     /**
      * Handle feature changes.
@@ -5975,6 +6638,9 @@ public final class InGameController extends FreeColClientHolder {
             noteFights();
             // Offers that came during the others' turns (mod).
             showOffers();
+            // The trade routes wait for the player's go (mod).
+            this.routesReleased = false;
+            this.ordersTried.clear();
             // Keep the route history in step with the turn (and forget
             // turns that are being played again).
             try {
@@ -5991,6 +6657,12 @@ public final class InGameController extends FreeColClientHolder {
                 }
             } catch (RuntimeException re) {
                 logger.log(Level.WARNING, "Supply watch failed", re);
+            }
+            // Envoys that can go again (step 8, mod).
+            try {
+                envoyAlerts(player);
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Envoy alerts failed", re);
             }
             displayModelMessages(true, true);
 

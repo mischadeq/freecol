@@ -700,13 +700,89 @@ public class ServerGame extends Game implements TurnTaker {
 
         final Specification spec = getSpecification();
         Event succession = spec.getEvent("model.event.spanishSuccession");
-        if (succession != null && !getSpanishSuccession()) {
-            @SuppressWarnings("unused")
-            ServerPlayer loser = csSpanishSuccession(cs, lb, succession);
-            // TODO: send update to loser.  It will not see anything
-            // because it is no longer a live player.
-            // if (loser != null) sendElement(loser, cs);
+        if (succession != null && !getSpanishSuccession()
+            && successionOn(spec)) {
+            // Mod: a war in Europe first, a partial cession later
+            // (see SuccessionRules), not the old all-at-once handover.
+            csSuccession(cs, lb, succession, random);
         }
+    }
+
+    /** Is the War of Spanish Succession switched on (mod)? */
+    private static boolean successionOn(Specification spec) {
+        return !spec.hasOption(GameOptions.SPANISH_SUCCESSION,
+                net.sf.freecol.common.option.BooleanOption.class)
+            || spec.getBoolean(GameOptions.SPANISH_SUCCESSION);
+    }
+
+    /**
+     * The War of Spanish Succession (mod): announce the war in Europe
+     * once a nation passes the line, settle it a few turns later.
+     *
+     * @param cs A {@code ChangeSet} to update.
+     * @param lb A {@code LogBuilder} to log to.
+     * @param event The Spanish Succession {@code Event}.
+     * @param random A random source.
+     */
+    private void csSuccession(ChangeSet cs, LogBuilder lb, Event event,
+                              Random random) {
+        final int now = getTurn().getNumber();
+        final String[] pending = net.sf.freecol.common.diplomacy
+            .SuccessionRules.parse(getSuccessionPending());
+        if (pending == null) {
+            List<Player> ail = new ArrayList<>();
+            if (!spanishSuccessionReady(event, ail, lb)) return;
+            // Mischa: any two computer nations, at random, not always
+            // the weakest against the strongest.
+            final List<Player> ais = new ArrayList<>();
+            for (Player p : getLiveEuropeanPlayerList()) {
+                if (p.isAI() && !p.isREF() && !p.getColonyList().isEmpty()) {
+                    ais.add(p);
+                }
+            }
+            if (ais.size() < 2) return;
+            final Player a = ais.remove(random.nextInt(ais.size()));
+            final Player b = ais.get(random.nextInt(ais.size()));
+            final int turns = net.sf.freecol.common.diplomacy
+                .SuccessionRules.TREATY_TURNS;
+            setSuccessionPending(net.sf.freecol.common.diplomacy
+                .SuccessionRules.pending(a.getNationId(),
+                    b.getNationId(), now + turns));
+            lb.add(" War of Spanish Succession: ", a.getName(), " vs ",
+                   b.getName());
+            cs.addGlobalMessage(this, null,
+                new ModelMessage(MessageType.FOREIGN_DIPLOMACY,
+                                 "model.game.successionWar", b)
+                    .addStringTemplate("%nation%", a.getNationLabel())
+                    .addStringTemplate("%otherNation%", b.getNationLabel())
+                    .addAmount("%turns%", turns));
+            return;
+        }
+        if (now < Integer.parseInt(pending[2])) return;
+        setSuccessionPending(null);
+        setSpanishSuccession(true);
+        cs.addPartial(See.all(), this,
+            "spanishSuccession", Boolean.TRUE.toString());
+        final Player a = getPlayerByNationId(pending[0]);
+        final Player b = getPlayerByNationId(pending[1]);
+        if (!(a instanceof ServerPlayer) || !(b instanceof ServerPlayer)
+            || a.isDead() || b.isDead()) {
+            cs.addGlobalMessage(this, null,
+                new ModelMessage(MessageType.FOREIGN_DIPLOMACY,
+                                 "model.game.successionNone", (Player)null));
+            return;
+        }
+        // The war is decided: the stronger more likely wins.
+        final double chance = net.sf.freecol.common.diplomacy
+            .SuccessionRules.winChance(
+                a.calculateStrength(false) + a.calculateStrength(true),
+                b.calculateStrength(false) + b.calculateStrength(true));
+        final boolean aWins = random.nextDouble() < chance;
+        final ServerPlayer winner = (ServerPlayer)((aWins) ? a : b);
+        final ServerPlayer loser = (ServerPlayer)((aWins) ? b : a);
+        lb.add(" Treaty: ", winner.getName(), " wins (chance ",
+               Math.round(100 * ((aWins) ? chance : 1 - chance)), "%)");
+        new Succession(loser, winner, random).csTreaty(cs, lb);
     }
 
     // Override Object

@@ -590,6 +590,9 @@ public class SwingGUI extends GUI {
         setUnitPath(path);
     }
 
+    /** The tile the current goto points at (mod). */
+    private Tile gotoTarget = null;
+
     /**
      * Starts a goto operation.
      */
@@ -638,6 +641,13 @@ public class SwingGUI extends GUI {
                 || !tile.isExplored()
                 || !unit.getSimpleMoveType(tile).isLegal()) ? null
                 : unit.findPath(tile);
+            // Mod: a carrier dragged onto another nation's colony goes
+            // next to it (to deliver a notice-board deal).
+            this.gotoTarget = tile;
+            if (newPath == null && tile.isExplored()
+                && igc().isDeliveryTarget(unit, tile)) {
+                newPath = igc().pathNextTo(unit, tile);
+            }
             if (this.mapViewer.getMapViewerState().changeGotoPath(newPath)) {
                 repaint();
             }
@@ -1134,6 +1144,14 @@ public class SwingGUI extends GUI {
         if (this.mapControls == null) return;
         this.mapControls.update(getViewMode(), getActiveUnit(),
                                 getSelectedTile());
+        // Unit buttons made after the controls went on the canvas
+        // (they are thrown away and made again when the window changes
+        // size) must go on it too, or the bar stays empty until the
+        // next resize (mod).
+        if (this.canvas != null && !getFreeColClient().isMapEditor()
+            && this.mapControls.isOnCanvas()) {
+            invokeNowOrLater(() -> this.canvas.addMapControls());
+        }
     }
 
     /**
@@ -1280,8 +1298,12 @@ public class SwingGUI extends GUI {
         
         setUnitPath(null);
 
+        final Tile target = this.gotoTarget;
+        this.gotoTarget = null;
         final PathNode path = stopGoto();
-        if (path == null) {
+        if (target != null && igc().isDeliveryTarget(unit, target)) {
+            igc().deliverTo(unit, target, path); // mod
+        } else if (path == null) {
             igc().clearGotoOrders(unit);
         } else {
             igc().goToTile(unit, path);
@@ -1764,6 +1786,15 @@ public class SwingGUI extends GUI {
     @Override
     public boolean isPanelShowing() {
         return this.canvas != null && this.canvas.getShowingPanel() != null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isTurnReportShowing() {
+        return this.canvas != null && this.canvas.getExistingFreeColPanel(
+            net.sf.freecol.client.gui.panel.report.ReportTurnPanel.class) != null;
     }
 
     /**
@@ -2747,6 +2778,14 @@ public class SwingGUI extends GUI {
     @Override
     public Dimension showScaleMapSizeDialog() {
         return this.widgets.showScaleMapSizeDialog();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int showLoanDialog(net.sf.freecol.common.diplomacy.Offer offer) {
+        return this.widgets.showLoanDialog(offer);
     }
 
     /**

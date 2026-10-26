@@ -1170,6 +1170,7 @@ public final class NativeAIPlayer extends MissionAIPlayer {
     private static final String OFFERS_TAG = "offers";
     private static final String MISSION_SINCE_TAG = "missionSince";
     private static final String UNREST_TAG = "unrest";
+    private static final String LAND_CLAIMS_TAG = "landClaims";
 
     /**
      * {@inheritDoc}
@@ -1209,6 +1210,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
             }
             xw.writeAttribute(UNREST_TAG, sb.toString());
         }
+        // Land got from us, bought or taken (step 8.3).
+        final String lc = net.sf.freecol.server.model.LandClaims
+            .serialize(getPlayer());
+        if (!lc.isEmpty()) xw.writeAttribute(LAND_CLAIMS_TAG, lc);
     }
 
     /**
@@ -1256,6 +1261,10 @@ public final class NativeAIPlayer extends MissionAIPlayer {
                                Integer.parseInt(rec.substring(i + 1)));
                 } catch (NumberFormatException nfe) {} // skip
             }
+        }
+        if (getPlayer() != null) {
+            net.sf.freecol.server.model.LandClaims.load(getPlayer(),
+                xr.getAttribute(LAND_CLAIMS_TAG, (String)null));
         }
     }
 }

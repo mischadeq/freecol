@@ -227,4 +227,53 @@ public final class Estimates {
             : (r <= 2.0) ? ABOVE
             : FAR_ABOVE;
     }
+
+    // Tribes (companion page, mod): the game tells how many settlements
+    // a tribe has (the Native Affairs report); the rules tell how many
+    // braves a settlement holds; braves in sight count as they are.
+
+    /**
+     * About how many braves a tribe has: its capital and other
+     * settlements at the middle of the sizes the rules give them, or
+     * the braves in sight if more.
+     *
+     * @param settlements Its settlements (the Native Affairs report).
+     * @param size The middle size of one of its settlements.
+     * @param capitalSize The middle size of its capital.
+     * @param seen Braves in sight now.
+     * @return The estimate.
+     */
+    public static double tribeBraves(int settlements, double size,
+                                     double capitalSize, int seen) {
+        final double est = (settlements <= 0) ? 0
+            : capitalSize + (settlements - 1) * size;
+        return Math.max(seen, est);
+    }
+
+    /**
+     * A tribe's attack strength: the braves in sight as they are
+     * (armed, mounted), the others counted as plain braves.
+     *
+     * @param braves The braves ({@link #tribeBraves}).
+     * @param seen Braves in sight.
+     * @param seenPower Their attack power together.
+     * @param bravePower The attack power of a plain brave.
+     * @return The strength, comparable with a nation's military
+     *     strength.
+     */
+    public static double tribeStrength(double braves, int seen,
+                                       double seenPower, double bravePower) {
+        return Math.max(0, seenPower)
+            + Math.max(0, braves - seen) * Math.max(0, bravePower);
+    }
+
+    /**
+     * The attack power of a plain brave.
+     *
+     * @param brave The tribe's brave {@code UnitType}, may be null.
+     * @return The attack power.
+     */
+    public static double bravePower(UnitType brave) {
+        return ATTACK_BONUS * ((brave == null) ? 1 : brave.getOffence());
+    }
 }

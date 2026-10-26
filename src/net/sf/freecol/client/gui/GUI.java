@@ -1821,6 +1821,15 @@ public class GUI extends FreeColClientHolder {
     }
 
     /**
+     * Is the turn report showing (mod)?
+     *
+     * @return True if it is.
+     */
+    public boolean isTurnReportShowing() {
+        return false;
+    }
+
+    /**
      * Refresh the whole GUI.
      * 
      * This is done by invalidating any cached rendering and then repainting the
@@ -2545,6 +2554,16 @@ public class GUI extends FreeColClientHolder {
                                       boolean sale) {
         return showSelectAmountDialog(goodsType, available, defaultAmount,
                                       needToPay);
+    }
+
+    /**
+     * Show the dialog for a ship loan request (mod).
+     *
+     * @param offer The LOAN {@code Offer}.
+     * @return Rent * 100 + term, or -1 to decline.
+     */
+    public int showLoanDialog(net.sf.freecol.common.diplomacy.Offer offer) {
+        return -1;
     }
 
     /**

@@ -318,6 +318,9 @@ img.gi[data-g] { cursor: help; }
 .oclock i.ok { background: var(--ok); }
 .oclock i.warn { background: var(--warn); }
 .oclock i.alarm { background: var(--alarm); }
+.offers > .k { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.ocard.loan { border-color: #2e5c46; }
+.ocard.loan .chips { margin: 6px 0 0; }
 
 /* Expansion replay */
 .exptools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -521,3 +524,12 @@ input[type=range], input[type=checkbox] { accent-color: var(--gold); }
 .dgraph text { fill: var(--text); font-size: 12px; }
 .dgraph .gl { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .dgraph .gl i { display: inline-block; width: 22px; height: 0; vertical-align: middle; margin-right: 4px; border-top: 2px solid; }
+
+/* Log: the important words (mod) */
+.hb { font-weight: 700; color: #fff7ea; }
+.hgood { color: var(--ok); font-weight: 600; }
+.hbad { color: var(--alarm); font-weight: 600; }
+
+/* Tribes next to the nations (mod) */
+.ncard.tribe { border-style: dashed; }
+.mrow.tribe .mname { font-style: italic; }
