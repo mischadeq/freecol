@@ -1813,6 +1813,22 @@ public final class ImageLibrary {
                                 false, false, this.scaleFactor);
     }
 
+    /**
+     * A unit type's picture in a role, at the normal scale (mod: the
+     * combat screens).
+     *
+     * @param unitType The {@code UnitType}.
+     * @param roleId The role id, or null for the type's display role.
+     * @param grayscale Grey it out.
+     * @return The image.
+     */
+    public BufferedImage getScaledUnitTypeImage(UnitType unitType, String roleId,
+                                                boolean grayscale) {
+        return getUnitTypeImage(unitType, null,
+            (roleId == null) ? unitType.getDisplayRoleId() : roleId,
+            false, grayscale, this.scaleFactor);
+    }
+
     public BufferedImage getSmallUnitTypeImage(UnitType unitType, String roleId,
                                                boolean grayscale) {
         return getUnitTypeImage(unitType, null, roleId, false,

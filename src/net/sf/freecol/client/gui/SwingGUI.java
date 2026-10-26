@@ -2445,6 +2445,35 @@ public class SwingGUI extends GUI {
     @Override
     public FreeColPanel showModelMessages(List<ModelMessage> modelMessages) {
         if (modelMessages.isEmpty()) return null;
+        // Battles get their own card (mod); the rest as before.
+        final List<ModelMessage> battles = new java.util.ArrayList<>();
+        final List<ModelMessage> rest = new java.util.ArrayList<>();
+        for (ModelMessage m : modelMessages) {
+            (net.sf.freecol.client.gui.panel.CombatView.isBattle(m.getId(),
+                m.getMessageType()) ? battles : rest).add(m);
+        }
+        FreeColPanel shown = null;
+        if (!battles.isEmpty()) {
+            try {
+                Tile where = null;
+                for (ModelMessage m : battles) {
+                    final FreeColObject o = getGame().getMessageSource(m);
+                    if (o instanceof Location) {
+                        where = ((Location)o).getTile();
+                        break;
+                    }
+                }
+                shown = this.canvas.showFreeColPanel(
+                    new net.sf.freecol.client.gui.panel.CombatResultPanel(
+                        getFreeColClient(), battles),
+                    getPopupPosition(where), false);
+            } catch (RuntimeException re) {
+                logger.log(Level.WARNING, "Battle card failed", re);
+                rest.addAll(0, battles); // The plain panel will do
+            }
+        }
+        if (rest.isEmpty()) return shown;
+        modelMessages = rest;
         final Game game = getGame();
         int n = modelMessages.size();
         String[] texts = new String[n];

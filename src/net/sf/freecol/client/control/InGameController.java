@@ -2933,6 +2933,26 @@ public final class InGameController extends FreeColClientHolder {
     public void animateAttackHandler(Unit attacker, Unit defender,
                                      Tile attackerTile, Tile defenderTile,
                                      boolean success) {
+        // Who fought for (or came out of) another nation's settlement
+        // (mod): "last seen there" on the pre-combat screen.
+        try {
+            final Player me = getMyPlayer();
+            final int turn = getGame().getTurn().getNumber();
+            if (defenderTile != null && defenderTile.hasSettlement()
+                && defender != null && defender.getOwner() != me) {
+                this.defenderSightings.note(defenderTile.getSettlement(),
+                    defender, defender.getDescription(Unit.UnitLabelType.NATIONAL),
+                    turn);
+            }
+            if (attackerTile != null && attackerTile.hasSettlement()
+                && attacker != null && attacker.getOwner() != me) {
+                this.defenderSightings.note(attackerTile.getSettlement(),
+                    attacker, attacker.getDescription(Unit.UnitLabelType.NATIONAL),
+                    turn);
+            }
+        } catch (RuntimeException re) {
+            // Only a note for the player, never in the way.
+        }
         invokeLater(() -> {
             getGUI().animateUnitAttack(attacker, defender, attackerTile, defenderTile, success);
         });
@@ -4334,6 +4354,18 @@ public final class InGameController extends FreeColClientHolder {
      * @return True if all goto orders have been performed and no units
      *     reached their destination and are free to move again.
      */
+    /** Defenders seen at other nations' settlements (mod). */
+    private final DefenderSightings defenderSightings = new DefenderSightings();
+
+    /**
+     * The defenders seen at other nations' settlements (mod).
+     *
+     * @return The {@code DefenderSightings}.
+     */
+    public DefenderSightings getDefenderSightings() {
+        return this.defenderSightings;
+    }
+
     /** The answer to the last delivery (mod). */
     private volatile String deliverResult = null;
 

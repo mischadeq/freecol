@@ -96,6 +96,10 @@ Aim: release the mod once Mischa is content with it.
 
 Short list of what has not been seen working yet, newest first.
 
+- **Combat screens:** attack something: the duel window (bars grow,
+  chance or "?", last seen there, stakes); after a battle the card
+  with the clash, Victory/Defeat and the one-line change.
+
 - **Alerts and fetching:** strike an alert (sweep, "Show done"); fix
   something and watch its alert flash "Solved"; a wagon at a deal
   colony without the gold says what is missing.
@@ -2542,3 +2546,35 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   tests green. Strike, done list and un-strike tried on the live page
   (turn 211) in a separate browser. **Not checked:** the "Solved"
   flash in the game; the new fetch messages in the game.
+
+### The combat screens (2026-10-26)
+- **Why (Mischa):** the pre-combat table and the battle message ("Defeat
+  at ...: Dragoon (Indian Convert) has been demoted to ...") were hard
+  to read; he wanted something more visual, in the game's own style.
+- **Before the attack** (`PreCombatDialog`, same parchment dialog):
+  the two sides as a duel, names and pictures, the chance to win
+  between them (the game's own odds, only when the defender is in
+  sight; else "?"), two strength bars that grow in (base, green for
+  bonuses, red stripes for what penalties take, the total), the
+  bonuses of each side in a short list, "If you lose: your Dragoon
+  becomes Soldier" / "If you win: ...". A settlement hides its
+  defender: "Last seen fighting there: Russian Veteran Dragoon, 3
+  turns ago" (`client/control/DefenderSightings`, noted from the
+  battles you saw there; kept while the game runs, not in the save).
+- **After the battle** (`CombatResultPanel`, the information panel's
+  parchment and advisor): one card per battle: the two units ride at
+  each other, a flash, the loser falls back greyed (about a second, a
+  click skips it); a big "Victory" / "Defeat" / "Skirmish", "at
+  <place>, against <enemy>", and one bold line: "Your Dragoon (Indian
+  Convert) became Soldier (Indian Convert)", or the game's sentence
+  without its "Defeat at ...:" opening; a button to show the place.
+  Other messages of the turn come in the usual panel.
+  `SwingGUI.showModelMessages` splits them; `CombatView` holds the
+  pieces (which messages are battles, unit pictures from the message's
+  unit labels, the strength split, the stakes, the two animations).
+- **Tested:** `CombatViewTest` (who won, unit and role from labels,
+  sentence opening, strength adds up to the game's total, stakes for
+  dragoon, soldier, artillery, ship); all 810 tests green. The bars
+  and the clash drawn offscreen on the parchment with the real unit
+  pictures and checked. **Not checked:** the two windows in the game
+  (needs FreeCol closed for the jar rebuild).
