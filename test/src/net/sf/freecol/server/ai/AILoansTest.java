@@ -62,6 +62,7 @@ public class AILoansTest extends FreeColTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        LoanRules.computerLenders = false;
         ServerTestHelper.stopServerGame();
         super.tearDown();
     }
@@ -264,6 +265,7 @@ public class AILoansTest extends FreeColTestCase {
         nextTurn();
         plan();
         assertEquals(Loan.State.PAID_EARLY, l.state);
+        assertEquals("counted as got back", payoff, l.received);
         assertEquals(gold + payoff, english.getGold());
         assertEquals(1, CreditRecords.of(dutch).early);
     }
@@ -408,7 +410,17 @@ public class AILoansTest extends FreeColTestCase {
         assertEquals(LoanRules.debtValue(1000), 500);
     }
 
+    public void testNoComputerLendersYet() {
+        setUpGame();
+        english.setGold(0);
+        french.setGold(20000);
+        plan();
+        assertTrue("switched off", ai.getLoans().isEmpty());
+        assertNull(open(ai, Offer.Kind.LOAN));
+    }
+
     public void testComputerLender() {
+        LoanRules.computerLenders = true;
         setUpGame();
         english.setGold(0); // the player cannot lend
         french.setGold(20000);
@@ -438,6 +450,7 @@ public class AILoansTest extends FreeColTestCase {
     }
 
     public void testComputerLendersRefuseBadPayers() {
+        LoanRules.computerLenders = true;
         setUpGame();
         english.setGold(0);
         french.setGold(20000);
@@ -550,6 +563,7 @@ public class AILoansTest extends FreeColTestCase {
     }
 
     public void testWarLoanComputerLenderTakesGoods() {
+        LoanRules.computerLenders = true;
         atWar();
         english.setGold(0);
         french.setGold(20000);

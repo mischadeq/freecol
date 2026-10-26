@@ -174,6 +174,10 @@ final class CompanionState {
         colonies(j, player, colonies, goodsTypes, forecast, alerts);
         routes(j, player, routes, alerts);
         units(j, game, player, routes, alerts);
+        // Ship and war loans (mod): decisions waiting, late payers.
+        final List<String[]> loanAlerts = new ArrayList<>();
+        CompanionOffers.alerts(this.fcc, player, loanAlerts);
+        for (String[] a : loanAlerts) alerts.add(alert(a[0], a[1], null, null));
         others(j, game, player);
         alerts(j, alerts);
         goods(j, game, colonies, goodsTypes);

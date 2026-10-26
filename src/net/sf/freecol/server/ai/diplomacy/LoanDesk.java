@@ -230,6 +230,7 @@ public final class LoanDesk {
         if (l.paysOffEarly(spendable)) {
             final int gold = l.payOff(now);
             transfer(lender, gold, cs);
+            l.received += gold;
             final CreditRecord r = CreditRecords.of(me());
             r.early++;
             remember(lender, Memory.Kind.LOAN_PAID, me(), 8);
@@ -243,6 +244,7 @@ public final class LoanDesk {
             final boolean cure = l.state == Loan.State.WAITING;
             l.pay(now);
             transfer(lender, due, cs);
+            l.received += due;
             remember(lender, Memory.Kind.LOAN_PAID, me(), 1);
             if (l.state == Loan.State.PAID) {
                 CreditRecords.of(me()).repaid++;
@@ -388,6 +390,7 @@ public final class LoanDesk {
         if (taken <= 0) return 0;
         final int got = Math.min(l.claim(), taken * unit);
         gold(lender, got, cs);
+        l.received += got;
         l.balance = l.claim() - got;
         l.rentOwed = 0;
         if (!lender.isAI()) {
@@ -503,6 +506,7 @@ public final class LoanDesk {
         final int claim = l.claim();
         if (ai.spendable() < claim + Loan.CUSHION) return;
         transfer(lender, claim, cs);
+        l.received += claim;
         l.balance = 0;
         l.rentOwed = 0;
         l.closed = now();
@@ -698,7 +702,8 @@ public final class LoanDesk {
             if (no != null && now - no < LoanRules.REFUSAL_TURNS) continue;
             final AIPlayer pa = aiMain.getAIPlayer(p);
             final boolean human = !p.isAI();
-            if (!human && !(pa instanceof EuropeanAIPlayer)) continue;
+            if (!human && (!LoanRules.computerLenders
+                           || !(pa instanceof EuropeanAIPlayer))) continue;
             final LoanRules.Lender l = new LoanRules.Lender(p.getNationId(), human);
             l.contact = me.hasContacted(p);
             l.atWar = me.getStance(p) == Stance.WAR;

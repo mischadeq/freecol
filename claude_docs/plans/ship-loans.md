@@ -6,6 +6,9 @@ bought in the borrower's Europe at once, and the borrower pays it back
 with rent. The human player is the main lender; computer nations may
 lend to each other (second stage).
 
+Note (2026-10-26): computer lenders are switched off for now
+(`LoanRules.computerLenders`); only the player lends.
+
 Why: the AI cheats are gone (branch `claude/remove-ai-cheats`, merged
 into this branch). An AI with no ships and no gold could stay stuck.
 

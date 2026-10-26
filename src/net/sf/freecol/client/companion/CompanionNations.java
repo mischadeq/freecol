@@ -492,13 +492,27 @@ final class CompanionNations {
                 .put("me", p == me)
                 .put("met", (Boolean)r[2])
                 .put("knownColonies", (Integer)r[3]);
-            if (p == me) j.put("score", me.getScore());
+            if (p == me) {
+                j.put("score", me.getScore());
+                // Gold out on loans (mod).
+                final int[] lent = CompanionOffers.lentOut(fcc, me);
+                if (lent != null) {
+                    j.key("lent").obj().put("owed", lent[0])
+                        .put("open", lent[1]).put("lent", lent[2])
+                        .put("received", lent[3]).end();
+                }
+            }
             else {
                 final net.sf.freecol.common.model.Stance st = me.getStance(p);
                 if (st != null) j.put("stance", st.getKey().replace("stance.", ""));
                 // Public credit record (mod, ship loans).
                 final String credit = CompanionOffers.standing(fcc, p.getNationId());
-                if (credit != null) j.put("credit", credit);
+                if (credit != null) {
+                    j.put("credit", credit);
+                    final String rec = CompanionOffers.recordText(fcc,
+                                                                  p.getNationId());
+                    if (rec != null) j.put("creditText", rec);
+                }
             }
             j.key("sizes").arr();
             for (Object x : (List<?>)r[4]) j.val((Integer)x);

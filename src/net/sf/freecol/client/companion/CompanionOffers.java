@@ -146,6 +146,115 @@ final class CompanionOffers {
     }
 
     /**
+     * A nation's credit record in words, for a hover (mod), or null.
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param nationId The nation.
+     * @return E.g. "2 repaid (1 early), 1 default 14 turns ago
+     *     (forgiven), 1 seizure", or "no loans yet".
+     */
+    static String recordText(FreeColClient fcc, String nationId) {
+        if (standing(fcc, nationId) == null) return null;
+        final Game sg = fcc.getFreeColServer().getGame();
+        final Player p = sg.getPlayerByNationId(nationId);
+        try {
+            final net.sf.freecol.common.diplomacy.CreditRecord r
+                = net.sf.freecol.server.model.CreditRecords.of(p);
+            final int now = sg.getTurn().getNumber();
+            final List<String> parts = new ArrayList<>();
+            if (r.repaid + r.early > 0) {
+                parts.add((r.repaid + r.early) + " repaid"
+                    + ((r.early > 0) ? " (" + r.early + " early)" : ""));
+            }
+            for (net.sf.freecol.common.diplomacy.CreditRecord.Default d
+                     : r.recentDefaults(now)) {
+                parts.add("a default " + (now - d.turn) + " turns ago"
+                    + ((d.mark == net.sf.freecol.common.diplomacy.CreditRecord
+                        .Mark.PLAIN) ? "" : " (" + d.mark.name().toLowerCase() + ")"));
+            }
+            if (r.seized > 0) {
+                parts.add(r.seized + ((r.seized == 1) ? " seizure" : " seizures"));
+            }
+            if (r.inDefault) parts.add("in default now");
+            return (parts.isEmpty()) ? "no loans yet" : String.join(", ", parts);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * What the player has out on loans (mod): owed now, loans open, gold
+     * lent and got back (loans of the last turns).
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param me The client {@code Player}.
+     * @return { owed, open loans, lent, received }, or null if none.
+     */
+    static int[] lentOut(FreeColClient fcc, Player me) {
+        final List<Object[]> loans = loans(fcc, me);
+        if (loans.isEmpty()) return null;
+        final int[] ret = new int[4];
+        for (Object[] x : loans) {
+            final net.sf.freecol.common.diplomacy.Loan l
+                = (net.sf.freecol.common.diplomacy.Loan)x[0];
+            if (!l.over()) {
+                ret[0] += l.claim();
+                ret[1]++;
+            }
+            ret[2] += l.principal;
+            ret[3] += l.received;
+        }
+        return ret;
+    }
+
+    /**
+     * Alerts for the player's loans (mod): a decision waiting in the
+     * game, payments missed, a ship to be seized.
+     *
+     * @param fcc The {@code FreeColClient}.
+     * @param me The client {@code Player}.
+     * @param out The alerts: { level, text }.
+     */
+    static void alerts(FreeColClient fcc, Player me, List<String[]> out) {
+        final Game game = (fcc == null) ? null : fcc.getGame();
+        if (game == null) return;
+        final int now = game.getTurn().getNumber();
+        for (Offer o : known(fcc, me)) {
+            if (o.state != Offer.State.OPEN || (o.kind != Offer.Kind.LOAN
+                && o.kind != Offer.Kind.LOAN_DEFAULT)) continue;
+            final Player from = game.getPlayerByNationId(o.from);
+            if (from == null) continue;
+            out.add(new String[] {
+                (o.kind == Offer.Kind.LOAN_DEFAULT) ? "alarm" : "info",
+                Messages.message(net.sf.freecol.common.model.StringTemplate
+                    .template((o.kind == Offer.Kind.LOAN_DEFAULT)
+                        ? "companion.alert.loanDefault"
+                        : "companion.alert.loanRequest")
+                    .addStringTemplate("%nation%", from.getNationLabel())
+                    .addAmount("%gold%", o.amount)) });
+        }
+        for (Object[] x : loans(fcc, me)) {
+            final net.sf.freecol.common.diplomacy.Loan l
+                = (net.sf.freecol.common.diplomacy.Loan)x[0];
+            final Player b = game.getPlayerByNationId(l.borrower);
+            if (b == null || l.over()) continue;
+            String key = null, level = "warn";
+            if (l.state == net.sf.freecol.common.diplomacy.Loan.State.SEIZURE_PENDING) {
+                key = "companion.alert.loanSeize";
+                level = "info";
+            } else if (l.missed > 0 && l.state.running()) {
+                key = "companion.alert.loanLate";
+            }
+            if (key == null) continue;
+            out.add(new String[] { level, Messages.message(
+                net.sf.freecol.common.model.StringTemplate.template(key)
+                    .addStringTemplate("%nation%", b.getNationLabel())
+                    .addAmount("%amount%", l.missed)
+                    .addAmount("%gold%", l.claim())) });
+        }
+    }
+
+    /**
      * The offers and the player's loans as JSON.
      *
      * @param fcc The {@code FreeColClient}.
@@ -167,6 +276,7 @@ final class CompanionOffers {
                 = (net.sf.freecol.common.diplomacy.Loan)x[0];
             final Player b = game.getPlayerByNationId(l.borrower);
             final String st = standing(fcc, l.borrower);
+            final String rec = recordText(fcc, l.borrower);
             j.obj().put("id", l.id)
                 .put("from", (b == null) ? l.borrower
                     : Messages.message(b.getNationLabel()))
@@ -183,6 +293,8 @@ final class CompanionOffers {
                 .put("next", (Integer)x[1])
                 .put("over", l.over())
                 .put("credit", (st == null) ? "" : st)
+                .put("creditText", (rec == null) ? "" : rec)
+                .put("received", l.received)
                 .put("signed", Messages.message(
                     new net.sf.freecol.common.model.Turn(l.signed).getLabel()))
                 .end();

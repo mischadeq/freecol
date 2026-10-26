@@ -87,7 +87,7 @@ Aim: release the mod once Mischa is content with it.
 | 8 | The player's envoys (nations and tribes), encroaching means taking land | to check |
 | - | The King's wars no longer poison relations; tension fades in peace | in use |
 | - | AI cheats removed (no free units, gold or sales multiplier) | to check |
-| - | Ship loans: a nation without ships borrows from you (or another nation); rent, default, seizure, public credit record | to check |
+| - | Ship loans: a nation without ships borrows from you; rent, default, seizure, public credit record | to check |
 | - | War loans: a nation at war borrows gold for soldiers; on a default you pick goods to take | to check |
 
 ## To check in the game
@@ -2305,3 +2305,23 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   787 tests green.
 - **Not done:** the goods do not move the Europe market; the player
   can not offer a loan himself.
+
+### Loans: only from you for now; companion additions (2026-10-26)
+- **Computer nations no longer lend to each other** (Mischa: "we
+  shouldn't have loans between AIs yet"). Switched off with
+  `LoanRules.computerLenders`; the rules and their tests stay (the
+  tests switch it on). Only the player is asked.
+- **Companion page:**
+  - Alerts (Overview): a loan request or a default waiting for your
+    answer in the game, payments missed, a ship to be seized when it
+    docks.
+  - Your nation card: a "Lent out" row: gold still owed to you, loans
+    open, and what came back so far against what you lent (a bar).
+    Each loan now counts the gold you got back (payments with rent,
+    payoffs, goods taken).
+  - Credit chips (nation cards and loan cards) show the record on
+    hover: "2 repaid (1 early), a default 14 turns ago (forgiven), 1
+    seizure".
+- **Tested:** `AILoansTest.testNoComputerLendersYet`, gold got back on
+  an early payoff; all 788 tests green. The page itself not checked in
+  the game.

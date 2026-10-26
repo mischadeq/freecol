@@ -31,6 +31,11 @@ import java.util.List;
  */
 public final class LoanRules {
 
+    /** Computer nations lend to each other: off for now (Mischa,
+        2026-10-26: "we shouldn't have loans between AIs yet").  The
+        rules stay, and the tests switch it on. */
+    public static boolean computerLenders = false;
+
     /** Least and rounding of a loan. */
     public static final int MIN_PRINCIPAL = 100, ROUND = 50;
     /** Loans a lender may have running. */

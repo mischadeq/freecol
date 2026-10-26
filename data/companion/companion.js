@@ -2048,6 +2048,14 @@
           " · tax " + v("tax") + "% " + natSpark(n, "gold", n.color),
           "Gold in the treasury (Foreign Affairs report); the change per turn is the average over the last turns: sales and taxes minus purchases."]);
       }
+      // Gold out on loans (yours only)
+      if (n.me && n.lent) {
+        const L = n.lent;
+        const back = L.lent ? Math.max(0, Math.min(1, L.received / L.lent)) : 0;
+        rows.push(["Lent out", (L.open ? "<b>" + num(L.owed) + "</b> owed to you (" + L.open + (L.open === 1 ? " loan" : " loans") + ") · " : "") +
+          num(L.received) + " back of " + num(L.lent) + ' lent <span class="nbar"><i class="ok" style="width:' + Math.round(100 * back) + '%;background:var(--ok)"></i></span>',
+          "Ship and war loans you made (the last 60 turns): what they still owe you, and what came back so far (payments with rent, payoffs, goods taken) against what you lent."]);
+      }
       // Army and navy
       if (n.soldiers != null && n.soldiers >= 0) {
         let tip = "Attack strength " + v("military") + ", as many soldiers as that (a soldier attacks with " + sp + ").";
@@ -2086,7 +2094,7 @@
       return '<div class="ncard' + (n.me ? " me" : "") + '"><div class="nhead"><i class="sw" style="background:' + esc(n.color) + '"></i>' +
         "<b>" + esc(n.name) + "</b>" + (n.me ? ' <span class="tag m">you</span>' : n.met ? "" : ' <span class="tag m">not met</span>') +
         (n.stance && n.stance !== "unContacted" ? ' <span class="tag ' + (STANCE_CLASS[n.stance] || "m") + '">' + esc(cap(n.stance.replace("ceaseFire", "cease fire"))) + "</span>" : "") +
-        (n.credit ? " " + creditChip(n.credit) : "") + "</div>" +
+        (n.credit ? " " + creditChip(n.credit, n.creditText) : "") + "</div>" +
         moodChips(n) + verdictChips(n, me) +
         '<dl class="nrows">' + rows.map((r) => '<dt title="' + esc(r[2]) + '">' + r[0] + '</dt><dd title="' + esc(r[2]) + '">' + r[1] + "</dd>").join("") + "</dl>" +
         (cols ? '<div class="ncols">' + cols + "</div>" : "") + "</div>";
@@ -2359,9 +2367,9 @@
     seized: ["alarm", "seized"], forgiven: ["m", "forgiven"], cancelled: ["m", "cancelled"], void: ["m", "void"]
   };
   const CREDIT = { good: ["ok", "good payer"], new: ["m", "new borrower"], wary: ["warn", "wary"], bad: ["alarm", "bad payer"] };
-  function creditChip(c) {
+  function creditChip(c, text) {
     const k = CREDIT[c];
-    return k ? '<span class="tag ' + k[0] + '" title="Public credit record: loans repaid, defaults, ships seized">' + k[1] + "</span>" : "";
+    return k ? '<span class="tag ' + k[0] + '" title="Public credit record: ' + esc(text || "loans repaid, defaults, seizures") + '">' + k[1] + "</span>" : "";
   }
   function pct(t) { return Math.floor(t / 10) + "." + (t % 10) + "%"; }
   function loanCard(l) {
@@ -2372,7 +2380,7 @@
     const cls = st[0] === "alarm" ? "alarm" : st[0] === "warn" ? "warn" : "ok";
     const late = l.missed > 0 ? ' <span class="tag warn" title="Payments missed in a row; 3 is a default">' + l.missed + " missed</span>" : "";
     return '<div class="ocard loan"><div class="ohead"><i class="sw" style="background:' + esc(l.color) + '"></i><b>' + esc(l.from) + "</b>" +
-      '<span class="tag ' + st[0] + '">' + st[1] + "</span>" + late + creditChip(l.credit) + '<span class="m">' + esc(l.signed) + "</span></div>" +
+      '<span class="tag ' + st[0] + '">' + st[1] + "</span>" + late + creditChip(l.credit, l.creditText) + '<span class="m">' + esc(l.signed) + "</span></div>" +
       '<div class="oclock" title="What they still owe you, of the ' + num(l.principal) + ' gold lent">' +
       '<span class="nbar"><i class="' + cls + '" style="width:' + Math.round(100 * left) + '%"></i></span> <b>' + num(l.balance) + "</b> / " + num(l.principal) + "</div>" +
       '<div class="chips"><span class="tag m" title="' + (l.war ? "Gold for soldiers; on a default you take goods" : "Gold for a ship; the ship is the collateral") + '">' +

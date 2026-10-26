@@ -114,6 +114,8 @@ public final class Loan {
     public int asked = -1;
     /** The turn it was closed, -1 while open. */
     public int closed = -1;
+    /** Gold the lender got back so far (payments, payoff, goods). */
+    public int received;
 
 
     public Loan(String id, String lender, String borrower, int principal,
@@ -389,7 +391,7 @@ public final class Loan {
             String.valueOf(rentOwed), state.name(), String.valueOf(signed),
             (shipType == null) ? "" : shipType,
             (shipId == null) ? "" : shipId, String.valueOf(asked),
-            String.valueOf(closed));
+            String.valueOf(closed), String.valueOf(received));
     }
 
     /**
@@ -400,7 +402,7 @@ public final class Loan {
      */
     public static Loan parse(String s) {
         final String[] f = s.split("\\|", -1);
-        if (f.length != 16) return null;
+        if (f.length != 16 && f.length != 17) return null;
         try {
             Loan l = new Loan(f[0], f[1], f[2], Integer.parseInt(f[3]),
                 Integer.parseInt(f[5]), Integer.parseInt(f[6]),
@@ -413,6 +415,7 @@ public final class Loan {
             l.shipId = f[13].isEmpty() ? null : f[13];
             l.asked = Integer.parseInt(f[14]);
             l.closed = Integer.parseInt(f[15]);
+            if (f.length > 16) l.received = Integer.parseInt(f[16]);
             return l;
         } catch (IllegalArgumentException e) {
             return null;

@@ -178,6 +178,7 @@ public final class GrievancePlanner {
                     && l.lender.equals(me().getNationId())
                     && l.state == net.sf.freecol.common.diplomacy.Loan.State.SEIZED
                     && !l.over()) {
+                    l.received += Math.min(gold, l.claim());
                     l.balance = Math.max(0, l.claim() - gold);
                     l.rentOwed = 0;
                     if (l.balance == 0) l.closed = now();

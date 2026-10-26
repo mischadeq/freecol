@@ -112,6 +112,7 @@ Read these first, in this order:
   `server/model/CreditRecords`); the borrower's turn and the player's
   answers in `server/ai/diplomacy/LoanDesk`; loans are saved in the
   borrower's `EuropeanAIPlayer.getLoans()`. Plan: `plans/ship-loans.md`.
+  Computer lenders are off (`LoanRules.computerLenders`).
 - Treasury: `common/diplomacy/Treasury`, `EuropeanAIPlayer.reserve()` /
   `spendable()`: shopping in Europe only spends gold above the reserve
   (deals may spend it).
