@@ -198,6 +198,33 @@ public class MemoriesTest extends TestCase {
         assertEquals(0, remember(FRENCH, a, c).size());
     }
 
+    public void testWarSoonAfterLeavingIsBetrayal() {
+        // English and French allies from turn 5; the English leave at
+        // turn 8 and attack at turn 11: still a betrayal.
+        Snapshot a = snap(10), b = snap(11);
+        peace(a, FRENCH, ENGLISH);
+        a.events.add(ENGLISH + "|FORM_ALLIANCE|" + FRENCH + "|5");
+        a.events.add(ENGLISH + "|MAKE_PEACE|" + FRENCH + "|8");
+        war(b, FRENCH, ENGLISH);
+        b.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        assertEquals(8, a.allianceEnded(ENGLISH, FRENCH));
+        assertEquals(8, a.allianceEnded(FRENCH, ENGLISH));
+        assertHas(remember(DUTCH, a, b), Memory.Kind.BETRAYER, ENGLISH, 1);
+        assertHas(remember(FRENCH, a, b), Memory.Kind.DEAL_BROKEN, ENGLISH, 1);
+        // Long after leaving: a war like any other.
+        Snapshot c = snap(40), d = snap(41);
+        c.events.addAll(a.events);
+        peace(c, FRENCH, ENGLISH);
+        war(d, FRENCH, ENGLISH);
+        d.declared.add(Snapshot.key(ENGLISH, FRENCH));
+        assertEquals(0, remember(DUTCH, c, d).size());
+        // A peace after a war is no ended alliance.
+        Snapshot e = snap(10);
+        e.events.add(ENGLISH + "|DECLARE_WAR|" + FRENCH + "|5");
+        e.events.add(ENGLISH + "|MAKE_PEACE|" + FRENCH + "|8");
+        assertEquals(-1, e.allianceEnded(ENGLISH, FRENCH));
+    }
+
     public void testSeparatePeaceIsBrokenWord() {
         // The Dutch and the French, allies, at war with Spain; the
         // French make peace alone.

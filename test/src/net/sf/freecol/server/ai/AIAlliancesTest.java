@@ -188,6 +188,62 @@ public class AIAlliancesTest extends FreeColTestCase {
         assertTrue(remembers(fai, Memory.Kind.DEAL_BROKEN, ENGLISH));
     }
 
+    /** Allied to both sides: stays out, peace with the attacker. */
+    public void testAlliedToBothStaysOut() {
+        setUpGame();
+        ally(french, dutch);
+        ally(french, english);
+        EuropeanAIPlayer fai = ai(french);
+        fai.rememberTurn();
+        dutch.csChangeStance(Stance.WAR, english, true, new ChangeSet());
+        nextTurn(fai);
+        assertTrue(new AlliancePlanner(fai).plan(fai.getOutlook(),
+                                                 new LogBuilder(64)));
+        assertEquals(Stance.PEACE, french.getStance(dutch));
+        assertEquals(Stance.ALLIANCE, french.getStance(english));
+        assertFalse(remembers(fai, Memory.Kind.DEAL_BROKEN, ENGLISH));
+    }
+
+    /** An alliance with no reason left lapses; a young one holds. */
+    public void testAllianceLapses() {
+        setUpGame();
+        ally(french, dutch);
+        // The French have come to hate the Dutch.
+        french.getTension(dutch).setValue(
+            net.sf.freecol.common.model.Tension.TENSION_MAX);
+        EuropeanAIPlayer fai = ai(french);
+        fai.rememberTurn();
+        nextTurn(fai);
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(Stance.PEACE, french.getStance(dutch));
+
+        // Made this turn: it holds for a while.
+        french.csChangeStance(Stance.ALLIANCE, dutch, true, new ChangeSet());
+        nextTurn(fai);
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(Stance.ALLIANCE, french.getStance(dutch));
+        for (int i = 0; i < AlliancePlanner.ALLIANCE_HOLD; i++) nextTurn(fai);
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(Stance.PEACE, french.getStance(dutch));
+    }
+
+    /** Not while fighting side by side. */
+    public void testNoLapseInAWarTogether() {
+        setUpGame();
+        ally(french, dutch);
+        french.getTension(dutch).setValue(
+            net.sf.freecol.common.model.Tension.TENSION_MAX);
+        french.setStance(spanish, Stance.WAR);
+        spanish.setStance(french, Stance.WAR);
+        dutch.setStance(spanish, Stance.WAR);
+        spanish.setStance(dutch, Stance.WAR);
+        EuropeanAIPlayer fai = ai(french);
+        fai.rememberTurn();
+        nextTurn(fai);
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        assertEquals(Stance.ALLIANCE, french.getStance(dutch));
+    }
+
     /** A loyal ally keeps a local truce when the King orders war. */
     public void testLoyalAllyKeepsTheTruce() {
         setUpGame();

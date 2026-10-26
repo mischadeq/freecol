@@ -41,6 +41,9 @@ public final class Memories {
 
     /** Turns a peace must hold before it counts as a kept deal. */
     public static final int PROBATION = 20;
+    /** Turns after an alliance ends in which a war between the two is
+        still a betrayal (leaving first does not make it clean). */
+    public static final int FORMER_ALLY = 20;
 
     private final List<Memory> list = new ArrayList<>();
 
@@ -140,18 +143,17 @@ public final class Memories {
                 }
                 break;
             case WAR:
+                final boolean allies = o.other != null
+                    && before.alliesLately(o.actor, o.other, turn, FORMER_ALLY);
                 if (!o.forced && !me.equals(o.other) && !me.equals(o.actor)
-                    && o.other != null
-                    && before.stance(o.actor, o.other) == Stance.ALLIANCE) {
+                    && allies) {
                     // Everyone sees a nation turn on its ally.
                     add(new Memory(Memory.Kind.BETRAYER, o.actor, turn, 1));
                 }
                 if (me.equals(o.other) || me.equals(o.actor)) {
                     final String them = me.equals(o.actor) ? o.other : o.actor;
                     final boolean treaty = removeTreaty(them);
-                    if (!o.forced && me.equals(o.other)
-                        && (treaty
-                            || before.stance(me, them) == Stance.ALLIANCE)) {
+                    if (!o.forced && me.equals(o.other) && (treaty || allies)) {
                         add(new Memory(Memory.Kind.DEAL_BROKEN, them, turn, 1));
                     }
                 }

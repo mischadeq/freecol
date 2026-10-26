@@ -141,6 +141,59 @@ public final class Snapshot {
     }
 
     /**
+     * Allies now, or until lately (the alliance ended in peace no more
+     * than some turns ago): a war between them is a betrayal.  From the
+     * history, so it survives a save; alliances are public.
+     *
+     * @param a A nation id.
+     * @param b The other nation id.
+     * @param turn The current turn.
+     * @param lately Turns an ended alliance still counts.
+     * @return True if so.
+     */
+    public boolean alliesLately(String a, String b, int turn, int lately) {
+        if (stance(a, b) == Stance.ALLIANCE) return true;
+        final int ended = allianceEnded(a, b);
+        return ended >= 0 && turn - ended <= lately;
+    }
+
+    /**
+     * The turn the last alliance between two nations ended in peace
+     * (not in war), from either one's history.
+     *
+     * @param a A nation id.
+     * @param b The other nation id.
+     * @return The turn, or -1 if none did.
+     */
+    public int allianceEnded(String a, String b) {
+        int ended = -1;
+        for (String[] pq : new String[][] { { a, b }, { b, a } }) {
+            String last = null;
+            for (String ev : events) { // each nation's history in order
+                final String[] f = ev.split("\\|", -1);
+                if (f.length < 4 || !pq[0].equals(f[0])
+                    || !pq[1].equals(f[2])) continue;
+                switch (f[1]) {
+                case "MAKE_PEACE":
+                    if ("FORM_ALLIANCE".equals(last)) {
+                        try {
+                            ended = Math.max(ended, Integer.parseInt(f[3]));
+                        } catch (NumberFormatException e) {} // skip
+                    }
+                    last = f[1];
+                    break;
+                case "FORM_ALLIANCE": case "DECLARE_WAR": case "CEASE_FIRE":
+                    last = f[1];
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        return ended;
+    }
+
+    /**
      * Take a snapshot of a game.
      *
      * @param game The {@code Game}.

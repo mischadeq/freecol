@@ -2396,3 +2396,41 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   `testNoAllianceWithAStranger`; all tests green (795). **Not done:**
   alliances made under the old rule stay (all six score 6-18 now, none
   would be made today); nothing yet makes a nation leave an alliance.
+
+### Alliances: stay out, lapse, no clean exit (2026-10-26)
+- **Why (Mischa):** he wants to attack Russia, his ally. Denmark,
+  allied to both, would have joined Russia (army 30 against his 9).
+  And the alliance web from the old rule needed a way to thin out.
+- **Stay out:** a computer nation allied to both sides of a war (not
+  the King's) stays out: its alliance with the attacker ends in peace,
+  the one with the victim stays, and nobody remembers a broken word.
+  Messages `alliance.staysOut` (to a human attacker),
+  `alliance.staysOutOfYours` (to a human victim).
+  `AlliancePlanner.callToArms`.
+- **Lapse:** each turn a computer nation leaves an alliance that
+  scores under 5 (`AlliancePlanner.KEEP_ALLIANCE`; making one takes 20,
+  so no flip-flopping). Not in the first 10 turns of an alliance
+  (`ALLIANCE_HOLD`, from the history), not while both fight the same
+  enemy. It ends in peace; a human partner gets `alliance.lapses`.
+  `AlliancePlanner.lapse`.
+- **No clean exit:** a war within 20 turns after an alliance ended in
+  peace is a betrayal, like a war on an ally (the victim: broken deal;
+  everyone else: betrayer). Read from both nations' history, so it
+  survives a save. `Snapshot.alliesLately` / `allianceEnded`,
+  `Memories.FORMER_ALLY`.
+- **In Mischa's game (turn 193, worked out with a probe on the save):**
+  nothing lapses yet (all alliances score 6-18; Denmark with him is
+  closest, 6.5). If he attacks Russia: Denmark stays out (peace with
+  him), then leaves Russia too (its alliance with Russia drops to 2);
+  Sweden and France stay his allies (11-13); Russia (trust 11) attacks
+  Fort Oranje and arms the Sioux and Aztecs against him, and wants
+  peace (34).
+- **Tested:** `AIAlliancesTest.testAlliedToBothStaysOut`,
+  `testAllianceLapses` (old one lapses, a new one holds 10 turns),
+  `testNoLapseInAWarTogether`; `MemoriesTest.
+  testWarSoonAfterLeavingIsBetrayal` (also: long after is a normal
+  war, a peace after a war is no ended alliance). All 799 tests green.
+  **Not done:** not tried in the game; the companion page does not
+  show "lapsed" or "stayed out" (only the stance change); a human
+  allied to both sides still decides alone (no rule); tribes'
+  alliances unchanged.

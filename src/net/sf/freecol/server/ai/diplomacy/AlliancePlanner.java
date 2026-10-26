@@ -48,8 +48,10 @@ import net.sf.freecol.server.ai.EuropeanAIPlayer;
  * defensive pact.  When war is declared on an ally (not by the King),
  * its allies are called to arms: a computer ally decides with its
  * diplomat, a human ally gets the call as an offer.  Refusing ends the
- * alliance and is remembered.  When a King's war sets two New World
- * allies against each other, a loyal ally keeps a local truce.
+ * alliance and is remembered; a nation allied to both sides stays out.
+ * When a King's war sets two New World allies against each other, a
+ * loyal ally keeps a local truce.  An alliance with no reason left
+ * lapses into peace.
  */
 public final class AlliancePlanner {
 
@@ -101,6 +103,7 @@ public final class AlliancePlanner {
         changed |= buyOut(outlook, cs, lb);
         inciteTribes(lb);
         changed |= startCoalition(outlook, cs, lb);
+        changed |= lapse(outlook, cs, lb);
         ((net.sf.freecol.server.model.ServerGame)game()).sendToAll(cs);
         return changed;
     }
@@ -138,6 +141,16 @@ public final class AlliancePlanner {
         }
         if (me.getStance(victim) != Stance.ALLIANCE
             || me.getStance(attacker) == Stance.WAR) return false;
+        if (me.getStance(attacker) == Stance.ALLIANCE) {
+            // Allied to both: we stay out, and the alliance with the
+            // one who started it ends (peace).  Nobody's word is broken.
+            changeStance(Stance.PEACE, attacker);
+            tell(cs, attacker, "alliance.staysOut", victim);
+            tell(cs, victim, "alliance.staysOutOfYours", attacker);
+            lb.add("\n  Allied to both ", attacker.getDebugName(), " and ",
+                   victim.getDebugName(), ": stays out");
+            return true;
+        }
         final NationView enemy = outlook.view.others.get(attacker.getNationId());
         if (enemy == null) return false; // never met: nothing we can do
         final ScoredAction sa = Diplomat.score(Action.joinWar(
@@ -156,6 +169,66 @@ public final class AlliancePlanner {
             lb.add("\n  Refuses ", victim.getDebugName(), "'s call (", sa, ")");
         }
         return true;
+    }
+
+
+    // Alliances that lapse
+
+    /**
+     * An alliance is kept while it scores this (making one takes
+     * {@link Diplomat#THRESHOLD}, so alliances do not flip-flop).
+     */
+    public static final double KEEP_ALLIANCE = Diplomat.SMALL_THRESHOLD;
+    /** Turns a new alliance holds before it can lapse. */
+    public static final int ALLIANCE_HOLD = 10;
+
+    /**
+     * Leave the alliances that have no reason left (score under
+     * {@link #KEEP_ALLIANCE}): not a young one, not while we fight a
+     * war side by side.  It ends in peace; a war on the former ally
+     * soon after counts as betrayal (see {@code Memories}).
+     */
+    private boolean lapse(Outlook outlook, ChangeSet cs, LogBuilder lb) {
+        final Player me = me();
+        boolean changed = false;
+        for (NationView v : outlook.view.others.values()) {
+            if (!v.european || v.stance != Stance.ALLIANCE) continue;
+            final Player p = game().getPlayerByNationId(v.id);
+            if (p == null || p.isREF() || me.getStance(p) != Stance.ALLIANCE
+                || fightTogether(me, p)) continue;
+            final int made = allianceTurn(me, p);
+            if (made >= 0 && now() - made < ALLIANCE_HOLD) continue;
+            final ScoredAction sa = Diplomat.score(Action.alliance(v.id),
+                                                   outlook.situation);
+            if (sa.total >= KEEP_ALLIANCE) continue;
+            changeStance(Stance.PEACE, p);
+            tell(cs, p, "alliance.lapses", p);
+            lb.add("\n  Alliance with ", p.getDebugName(), " lapses (", sa, ")");
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** The turn our alliance with a nation was made (-1 if unknown). */
+    static int allianceTurn(Player me, Player p) {
+        int turn = -1;
+        for (net.sf.freecol.common.model.HistoryEvent h : me.getHistory()) {
+            if (h.getEventType() == net.sf.freecol.common.model.HistoryEvent
+                    .HistoryEventType.FORM_ALLIANCE
+                && p.getId().equals(h.getPlayerId())) {
+                turn = Math.max(turn, h.getTurn().getNumber());
+            }
+        }
+        return turn;
+    }
+
+    /** Are two nations at war with the same enemy? */
+    static boolean fightTogether(Player a, Player b) {
+        for (Player q : a.getGame().getLivePlayerList()) {
+            if (q != a && q != b && a.getStance(q) == Stance.WAR
+                && b.getStance(q) == Stance.WAR) return true;
+        }
+        return false;
     }
 
 
