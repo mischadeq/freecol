@@ -539,6 +539,19 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Answer an offer with an amount (mod, ship loans: the terms, or
+     * the choice after a default).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @param amount The amount.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, boolean accept, int amount) {
+        return ask(new OfferMessage(offerId, accept, amount));
+    }
+
+    /**
      * Post an offer on the notice board (mod).
      *
      * @param offer The {@code Offer}.

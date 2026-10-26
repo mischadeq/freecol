@@ -32,6 +32,9 @@ import java.util.List;
  */
 public final class Offer {
 
+    /** The end of a loan counter offer's id. */
+    public static final String COUNTER = ":counter";
+
     /** Turns before the others in the audience see a notice. */
     public static final int FIRST_LOOK = 3;
     /** Turns a notice stays up if nobody takes it. */
@@ -97,7 +100,17 @@ public final class Offer {
         ENVOY_LEAVE,
         /** Our answer to an envoy: we agree for {@code gold} in all;
             {@code goods} holds the envoy's kind. */
-        TERMS;
+        TERMS,
+        /** We ask for a ship loan (mod): {@code amount} gold for a ship
+            of type {@code goods} costing {@code gold}; rent (tenths of a
+            percent) in {@code delivered}, turns in {@code deadline};
+            {@code placeName} holds our gold, fleet and credit for the
+            dialog.  An id ending in {@link #COUNTER} is our counter. */
+        LOAN,
+        /** We defaulted on a loan: the lender seizes the ship, forgives
+            or waits ({@code amount} owed, {@code gold} the ship's worth,
+            {@code delivered} payments missed, {@code place} the loan). */
+        LOAN_DEFAULT;
 
         /** One of the player's envoys (answered on our next turn). */
         public boolean envoy() {
@@ -112,7 +125,8 @@ public final class Offer {
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
                 || this == SETTLEMENT_JOINS || this == ULTIMATUM
                 || this == DEFEND_SETTLEMENT || this == AGREEMENT
-                || this == SALE || this == TERMS;
+                || this == SALE || this == TERMS || this == LOAN
+                || this == LOAN_DEFAULT;
         }
 
         /** Answered in the game's trade screen when the ship arrives. */

@@ -107,6 +107,11 @@ Read these first, in this order:
 - War of Spanish Succession (mod): `common/diplomacy/SuccessionRules`,
   `server/model/Succession`, `ServerGame.csSuccession` (game option
   `model.option.spanishSuccession`).
+- Ship loans: rules in `common/diplomacy/Loan`, `LoanRules`,
+  `CreditRecord` (public, stored game-wide in
+  `server/model/CreditRecords`); the borrower's turn and the player's
+  answers in `server/ai/diplomacy/LoanDesk`; loans are saved in the
+  borrower's `EuropeanAIPlayer.getLoans()`. Plan: `plans/ship-loans.md`.
 - Treasury: `common/diplomacy/Treasury`, `EuropeanAIPlayer.reserve()` /
   `spendable()`: shopping in Europe only spends gold above the reserve
   (deals may spend it).

@@ -86,10 +86,18 @@ Aim: release the mod once Mischa is content with it.
 | 7 | Tribes: know each other, rivals, calls for help, refugees, allied settlements, tribes as allies, unrest and uprisings, Pontiac | in use |
 | 8 | The player's envoys (nations and tribes), encroaching means taking land | to check |
 | - | The King's wars no longer poison relations; tension fades in peace | in use |
+| - | AI cheats removed (no free units, gold or sales multiplier) | to check |
+| - | Ship loans: a nation without ships borrows from you (or another nation); rent, default, seizure, public credit record | to check |
 
 ## To check in the game
 
 Short list of what has not been seen working yet, newest first.
+
+- **Ship loans:** a computer nation that lost its ships asks for a
+  loan (dialog with rent and term sliders), the ship in their Europe,
+  payments in the turn report, a default (seize / forgive / wait), the
+  ship arriving in your Europe dock, the loans list and credit chips on
+  the companion page.
 
 - **Envoys** (Report > Send an Envoy): a gift, a peace envoy with gold,
   terms in the popup, "join my war" with a nation and with a tribe
@@ -2204,3 +2212,63 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   sometimes 2 or 3, never all, often nobody; win chances; the treaty
   with fixed rolls; war then treaty with either side winning). All 755
   tests green.
+
+### Ship loans (2026-10-26)
+- **Why:** with the AI cheats gone, a nation whose navy is sunk must
+  buy a ship with its own gold, and a broke one stays stuck. Now it
+  can borrow; you earn rent and goodwill ("they come crawling to me").
+  Plan: `plans/ship-loans.md` (all numbers there).
+- **Branch:** `claude/ship-loans`, made from `claude/fix-offer-freeze`
+  with `claude/remove-ai-cheats` merged in (the cheats branch was 31
+  commits behind: no envoys, no succession).
+- **What you see:**
+  - A dialog: "Spain has lost its ships and asks you for a loan of 650
+    gold to buy a caravel". It shows their gold, ships, a credit chip
+    (good payer / new / wary / bad payer) and their record, and two
+    sliders: rent per turn (0-6%, default 2%) and turns to repay
+    (15-40, default 30), with the first payment and the total rent
+    (2% over 30 turns is about 31%) updating as you slide.
+  - Too high a rent: they answer at once with the most they pay
+    (about 3%, more when they have no ship at all or a bad record),
+    and you accept or decline. Accept: your gold goes, their ship is
+    in their Europe the same turn.
+  - Each turn a line in the report: payment received, or missed. Rich
+    borrowers pay off early (the rent to that turn only). At war with
+    them: payments stop until peace. A borrower that won the war may
+    ask you to cancel the debt in its peace terms.
+  - Three missed payments: default. You choose: seize the ship (when
+    it docks in Europe it goes to your dock; passengers stay theirs;
+    half its price comes off the debt), forgive (they remember it
+    warmly), or wait 10 turns for the arrears. No answer in 5 turns
+    counts as waiting.
+  - Companion page, Offers widget: "Your ship loans" cards (balance
+    bar, rent, next payment, state and credit chips); credit chips on
+    the nation cards.
+- **Computer nations lend too:** traders, balance keepers and settlers,
+  to friends only, at 2% (traders 2.5%, +1% for a wary borrower),
+  never from their reserve; they seize at once on a default and press
+  what is left as a grievance (complaint, demand, a reason for war).
+- **Public credit record** per nation, saved with the game: repaid,
+  repaid early, defaults (forgiven, cured), ships seized. Bad payers
+  get no loans from computer nations; everyone who knows them hears of
+  a default (a small "bad payer" memory) or a repayment.
+- **Code:** rules in `common/diplomacy/Loan`, `LoanRules`,
+  `CreditRecord`; the store `server/model/CreditRecords`; the turn and
+  the answers in `server/ai/diplomacy/LoanDesk` (called before
+  `OfferPlanner.plan`, so payments come before shopping);
+  `Offer.Kind.LOAN` / `LOAN_DEFAULT`; the next payment is a promise
+  in the treasury; dialog `client/gui/dialog/LoanDialog`.
+- **Tested:** `LoanTest` (13: schedule and total cost, means filter,
+  ceiling and counter, war freeze, default, void, seizure value,
+  forgive and wait, early payoff, credit standing, save lines) and
+  `AILoansTest` (13: asks / rich does not ask / poor player not asked,
+  the gold and the ship, the counter, refusal tries the next lender
+  and then waits, payments from gold above the reserve and the promise,
+  early payoff, default and seizure with both unit lists and AI units
+  right also after save and load, forgive, wait and cure, unanswered
+  = wait, war freeze, peace terms cancel the debt, a computer lender,
+  bad payers refused). All 783 tests green.
+- **Not done:** loans offered by you on your own; loans for anything
+  but one ship; computer lenders forgiving or waiting; partial early
+  payoff; your own peace envoy cannot offer to cancel their debt (only
+  their peace terms ask for it); Europe price differences.

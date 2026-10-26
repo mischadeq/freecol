@@ -2557,6 +2557,16 @@ public class GUI extends FreeColClientHolder {
     }
 
     /**
+     * Show the dialog for a ship loan request (mod).
+     *
+     * @param offer The LOAN {@code Offer}.
+     * @return Rent * 100 + term, or -1 to decline.
+     */
+    public int showLoanDialog(net.sf.freecol.common.diplomacy.Offer offer) {
+        return -1;
+    }
+
+    /**
      * Show a dialog allowing the user to select a destination for
      * a given unit.
      *

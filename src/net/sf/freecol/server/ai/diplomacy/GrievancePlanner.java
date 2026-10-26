@@ -171,6 +171,19 @@ public final class GrievancePlanner {
         g.since = now();
         ai.getMemories().add(new Memory(Memory.Kind.DEAL_KEPT,
                                         p.getNationId(), now(), 1));
+        if (g.cause == Grievance.Cause.DEBT) { // the claim is paid (mod)
+            for (net.sf.freecol.common.diplomacy.Loan l
+                     : LoanDesk.all(ai.getAIMain())) {
+                if (l.borrower.equals(p.getNationId())
+                    && l.lender.equals(me().getNationId())
+                    && l.state == net.sf.freecol.common.diplomacy.Loan.State.SEIZED
+                    && !l.over()) {
+                    l.balance = Math.max(0, l.claim() - gold);
+                    l.rentOwed = 0;
+                    if (l.balance == 0) l.closed = now();
+                }
+            }
+        }
         if (p.isAI()) {
             final AIPlayer pa = ai.getAIMain().getAIPlayer(p);
             if (pa instanceof EuropeanAIPlayer) {
@@ -178,6 +191,44 @@ public final class GrievancePlanner {
                     Memory.Kind.REFUSED_OFFER, me().getNationId(), now(), 2));
             }
         }
+    }
+
+    /**
+     * A claim left from a ship loan (mod): we complain, then demand it;
+     * the borrower (a computer nation) pays if it has the gold above
+     * its reserve, else it is a reason for war like any grievance.
+     *
+     * @param p The borrower.
+     * @param claim The gold still owed.
+     * @param lb A {@code LogBuilder} to log to.
+     */
+    public void pressDebt(Player p, int claim, LogBuilder lb) {
+        final Map<String, Grievance> book = ai.getGrievances();
+        final int now = now();
+        final String id = p.getNationId();
+        Grievance g = book.get(id);
+        if (g == null || g.stale(now)) {
+            book.put(id, new Grievance(id, Grievance.Cause.DEBT, now));
+            lb.add(" claims its loan from ", p.getDebugName());
+            return;
+        }
+        if (g.cause != Grievance.Cause.DEBT
+            || g.stage != Grievance.Stage.COMPLAINT
+            || g.turnsLeft(now) > 0) return;
+        g.stage = Grievance.Stage.ULTIMATUM;
+        g.since = now;
+        g.demand = claim;
+        final AIPlayer pa = ai.getAIMain().getAIPlayer(p);
+        final ChangeSet cs = new ChangeSet();
+        if (pa instanceof EuropeanAIPlayer
+            && ((EuropeanAIPlayer)pa).spendable() >= claim) {
+            settle(g, p, cs);
+        } else {
+            g.stage = Grievance.Stage.WAR;
+            ai.getMemories().add(new Memory(Memory.Kind.REFUSED_OFFER,
+                                            id, now, 1));
+        }
+        ((ServerGame)game()).sendToAll(cs);
     }
 
     /**

@@ -2784,6 +2784,14 @@ public class SwingGUI extends GUI {
      * {@inheritDoc}
      */
     @Override
+    public int showLoanDialog(net.sf.freecol.common.diplomacy.Offer offer) {
+        return this.widgets.showLoanDialog(offer);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public int showSelectAmountDialog(GoodsType goodsType, int available,
                                       int defaultAmount, boolean needToPay) {
         return this.widgets.showSelectAmountDialog(goodsType, available,

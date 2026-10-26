@@ -1211,6 +1211,19 @@ public final class Widgets {
     }
 
     /**
+     * Show the dialog for a ship loan request (mod).
+     *
+     * @param offer The LOAN {@code Offer}.
+     * @return Rent * 100 + term, or -1 to decline.
+     */
+    public int showLoanDialog(net.sf.freecol.common.diplomacy.Offer offer) {
+        final Integer result = this.canvas.displayModalDialog(
+            net.sf.freecol.client.gui.dialog.LoanDialog.create(freeColClient,
+                                                               offer));
+        return (result == null) ? -1 : result;
+    }
+
+    /**
      * Show a dialog allowing the user to select a destination for
      * a given unit.
      *

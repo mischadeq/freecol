@@ -3756,7 +3756,30 @@ public final class InGameController extends FreeColClientHolder {
         if (t == null) return;
         this.offerTimer.stop(); // no second dialog while this one is open
         try {
-            if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
+            if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN
+                && !o.id.endsWith(net.sf.freecol.common.diplomacy.Offer.COUNTER)) {
+                // A ship loan: the rent and term are ours to set (mod).
+                final int terms = gui.showLoanDialog(o);
+                if (terms < 0) {
+                    askServer().answerOffer(o.id, false);
+                } else {
+                    askServer().answerOffer(o.id, true, terms);
+                }
+            } else if (o.kind
+                       == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN_DEFAULT) {
+                // They defaulted: seize the ship, forgive, or wait (mod).
+                final java.util.List<ChoiceItem<Integer>> choices
+                    = new java.util.ArrayList<>();
+                choices.add(new ChoiceItem<>(Messages.message("loan.choice.seize"),
+                                             0).defaultOption());
+                choices.add(new ChoiceItem<>(Messages.message("loan.choice.forgive"),
+                                             1));
+                choices.add(new ChoiceItem<>(Messages.message("loan.choice.wait"),
+                                             2));
+                final Integer c = gui.modalChoiceDialog(t, "loan.choice.wait",
+                                                        choices);
+                askServer().answerOffer(o.id, true, (c == null) ? 2 : c);
+            } else if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
                 // How many to sell under a price agreement (step 4).
                 final String a = gui.modalInputDialog(null, t,
                     String.valueOf(o.amount), "ok", "cancel");
@@ -4004,7 +4027,14 @@ public final class InGameController extends FreeColClientHolder {
         final String key;
         switch (o.kind) {
         case PEACE:
-            key = (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
+            key = (o.amount > 0) ? "offer.peaceDebt"
+                : (o.gold > 0) ? "offer.peaceGold" : "offer.peace";
+            break;
+        case LOAN:
+            key = "offer.loanCounter";
+            break;
+        case LOAN_DEFAULT:
+            key = "offer.loanDefault";
             break;
         case CALL_TO_ARMS:
             key = (from.isIndian()) ? "offer.tribeCall" : "offer.callToArms";
@@ -4058,6 +4088,18 @@ public final class InGameController extends FreeColClientHolder {
             .addAmount("%turns%", o.deadline)
             .addName("%colony%", o.placeName);
         if (gt != null) t.addNamed("%goods%", gt);
+        if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN
+            || o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN_DEFAULT) {
+            final net.sf.freecol.common.model.UnitType ut
+                = getSpecification().getUnitType(o.goods);
+            t.addName("%ship%", (ut == null) ? "" : Messages.getName(ut))
+                .addName("%rent%", o.delivered / 10 + "." + o.delivered % 10 + "%")
+                .addAmount("%missed%", o.delivered)
+                .addAmount("%total%", (o.kind
+                        == net.sf.freecol.common.diplomacy.Offer.Kind.LOAN)
+                    ? net.sf.freecol.common.diplomacy.Loan.totalRent(o.amount,
+                        o.delivered, o.deadline) : 0);
+        }
         final Player enemy = (o.against == null) ? null
             : getGame().getPlayerByNationId(o.against);
         if (enemy != null) t.addStringTemplate("%enemy%", enemy.getNationLabel());

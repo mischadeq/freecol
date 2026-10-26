@@ -119,6 +119,19 @@ public final class DealValue {
         return NO_OPINION;
     }
 
-    /** An alliance we would never make. */
+    /**
+     * A ship loan's debt in a peace deal (mod): what cancelling it is
+     * worth, to the lender a loss, to the borrower a gain.
+     *
+     * @param balance The gold still owed.
+     * @param weOwe True for the borrower.
+     * @return Its worth in gold.
+     */
+    public static int debt(int balance, boolean weOwe) {
+        final int v = LoanRules.debtValue(balance);
+        return (weOwe) ? v : -v;
+    }
+
+        /** An alliance we would never make. */
     public static final int NEVER = Integer.MIN_VALUE + 1;
 }

@@ -41,7 +41,9 @@ public final class Grievance {
         SOLDIERS("your soldiers stand near our colonies"),
         HARM("you have harmed us"),
         CROWDING("your colonies crowd our land"),
-        RIVALRY("you stand in the way of our plans");
+        RIVALRY("you stand in the way of our plans"),
+        /** A ship loan left unpaid after the ship was seized (mod). */
+        DEBT("you owe us for a ship loan");
 
         public final String words;
 

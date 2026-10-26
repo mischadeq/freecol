@@ -2178,6 +2178,52 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         return g;
     }
 
+    // Ship loans (mod): we are the borrower; saved; no initializers.
+
+    /** Our loans (as the borrower), running or lately finished. */
+    private List<net.sf.freecol.common.diplomacy.Loan> loans;
+    /** Lenders that said no, by nation id, to the turn; "*" is the turn
+        we may ask again at all. */
+    private java.util.Map<String, Integer> loanAsks;
+
+    public List<net.sf.freecol.common.diplomacy.Loan> getLoans() {
+        if (loans == null) loans = new ArrayList<>();
+        return loans;
+    }
+
+    public java.util.Map<String, Integer> getLoanAsks() {
+        if (loanAsks == null) loanAsks = new HashMap<>();
+        return loanAsks;
+    }
+
+    /**
+     * Our character.
+     *
+     * @return The {@code NationCharacter}.
+     */
+    public net.sf.freecol.common.diplomacy.NationCharacter character() {
+        return net.sf.freecol.common.diplomacy.NationCharacter.forNationType(
+            (getPlayer().getNationType() == null) ? null
+                : getPlayer().getNationType().getId(), true);
+    }
+
+    /**
+     * Gold our loans will want next turn: kept back as a promise, so we
+     * do not spend it on soldiers and then miss the payment.
+     *
+     * @return The gold.
+     */
+    public int loanPromise() {
+        int g = 0;
+        for (net.sf.freecol.common.diplomacy.Loan l : getLoans()) {
+            final Player lender = getGame().getPlayerByNationId(l.lender);
+            if (l.over() || lender == null) continue;
+            g += (l.collectible(getPlayer().getStance(lender) == Stance.WAR))
+                ? l.due() : 0;
+        }
+        return g;
+    }
+
     /** Turns back we look for a lost war. */
     public static final int LOSING_TURNS = 10;
 
@@ -2212,7 +2258,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 (getPlayer().getNationType() == null) ? null
                     : getPlayer().getNationType().getId(), true);
         return net.sf.freecol.common.diplomacy.Treasury.reserve(
-            getPlayer().getColonyList().size(), ch, promisedGold(), losingWar());
+            getPlayer().getColonyList().size(), ch,
+            promisedGold() + loanPromise(), losingWar());
     }
 
     /**
@@ -2542,6 +2589,8 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 }
             }
             mood = m;
+            // Ship loans first: pay what is due before shopping (mod).
+            new net.sf.freecol.server.ai.diplomacy.LoanDesk(this).plan(lb);
             new OfferPlanner(this).plan(outlook, lb);
         }
 
@@ -3425,6 +3474,12 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
     private static final String STANCE_CHOICES_TAG = "stanceChoices";
     /** Our grievances (mod), see {@code Grievance.serialize}, ';' separated. */
     private static final String GRIEVANCES_TAG = "grievances";
+    /** Our loans (mod), see {@code Loan.serialize}, ';' separated. */
+    private static final String LOANS_TAG = "loans";
+    /** Lenders that said no (mod): "nation=turn;...". */
+    private static final String LOAN_ASKS_TAG = "loanAsks";
+    /** Our public credit record (mod), see {@code CreditRecord}. */
+    private static final String CREDIT_TAG = "credit";
 
     /**
      * {@inheritDoc}
@@ -3474,6 +3529,27 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
             }
             xw.writeAttribute(OFFERS_TAG, sb.toString());
         }
+        if (!getLoans().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (net.sf.freecol.common.diplomacy.Loan l : getLoans()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(l.serialize());
+            }
+            xw.writeAttribute(LOANS_TAG, sb.toString());
+        }
+        if (!getLoanAsks().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (java.util.Map.Entry<String, Integer> e : getLoanAsks().entrySet()) {
+                if (sb.length() > 0) sb.append(';');
+                sb.append(e.getKey()).append('=').append(e.getValue());
+            }
+            xw.writeAttribute(LOAN_ASKS_TAG, sb.toString());
+        }
+        final String credit = net.sf.freecol.server.model.CreditRecords
+            .serialize(getPlayer());
+        if (!net.sf.freecol.common.diplomacy.CreditRecord.parse(credit).empty()) {
+            xw.writeAttribute(CREDIT_TAG, credit);
+        }
     }
 
     /**
@@ -3511,6 +3587,31 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 final Offer o = Offer.parse(rec);
                 if (o != null) offers.add(o);
             }
+        }
+        loans = new ArrayList<>();
+        final String ls = xr.getAttribute(LOANS_TAG, (String)null);
+        if (ls != null && !ls.isEmpty()) {
+            for (String rec : ls.split(";")) {
+                final net.sf.freecol.common.diplomacy.Loan l
+                    = net.sf.freecol.common.diplomacy.Loan.parse(rec);
+                if (l != null) loans.add(l);
+            }
+        }
+        loanAsks = new HashMap<>();
+        final String la = xr.getAttribute(LOAN_ASKS_TAG, (String)null);
+        if (la != null && !la.isEmpty()) {
+            for (String rec : la.split(";")) {
+                final int i = rec.lastIndexOf('=');
+                if (i <= 0) continue;
+                try {
+                    loanAsks.put(rec.substring(0, i),
+                                 Integer.parseInt(rec.substring(i + 1)));
+                } catch (NumberFormatException nfe) {} // skip
+            }
+        }
+        if (getPlayer() != null) {
+            net.sf.freecol.server.model.CreditRecords.load(getPlayer(),
+                xr.getAttribute(CREDIT_TAG, (String)null));
         }
         keptArmed = new HashMap<>();
         final String kept = xr.getAttribute(KEPT_ARMED_TAG, (String)null);

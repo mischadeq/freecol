@@ -432,8 +432,12 @@ public final class OfferPlanner {
                 ? 50 * (Math.min(MAX_PEACE_GOLD, Math.max(0, me().getGold()) / 5) / 50)
                 : 0;
             final Colony capital = biggest(me().getColonyList(), null);
+            // We owe them for a ship and won the war: peace if they
+            // cancel the debt (mod, ship loans).
+            final int debt = new LoanDesk(ai).debtToCancel(h);
             Offer o = new Offer(id(now), Offer.Kind.PEACE, me().getNationId(),
-                null, 0, gold, (capital == null) ? null : capital.getId(),
+                null, debt, (debt > 0) ? 0 : gold,
+                (capital == null) ? null : capital.getId(),
                 (capital == null) ? "" : capital.getName(), now, 0);
             o.audience.add(h.getNationId());
             return o;
@@ -1028,6 +1032,9 @@ public final class OfferPlanner {
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         if (o.kind == Offer.Kind.SALE) return sell(o, human, accept, amount, cs);
+        if (o.kind == Offer.Kind.LOAN || o.kind == Offer.Kind.LOAN_DEFAULT) {
+            return new LoanDesk(ai).answer(o, human, accept, amount, cs);
+        }
         if (o.kind == Offer.Kind.TERMS) {
             return new EnvoyDesk(ai).answerTerms(o, human, accept, cs);
         }
@@ -1121,6 +1128,7 @@ public final class OfferPlanner {
             if (me().getStance(human) == Stance.WAR) {
                 ((ServerPlayer)me()).csChangeStance(Stance.PEACE, human, true, cs);
             }
+            if (o.amount > 0) new LoanDesk(ai).cancelForPeace(human, cs);
             final int gold = Math.min(o.gold, Math.max(0, me().getGold()));
             gold(me(), -gold, cs);
             gold(human, gold, cs);
