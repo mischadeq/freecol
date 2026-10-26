@@ -76,6 +76,33 @@ public class DiplomacyTest extends TestCase {
         assertEquals(-100.0, Relations.opinion(100, m, FRENCH, 100), 1e-9);
     }
 
+    public void testFriendshipMustBeEarned() {
+        // No tension: opinion is full, friendship only half.
+        assertEquals(50.0, Relations.friendship(0, null, FRENCH, 1), 1e-9);
+        assertEquals(-50.0, Relations.friendship(1100, null, FRENCH, 1), 1e-9);
+        assertEquals(0.0, Relations.friendship(-1, null, FRENCH, 1), 1e-9);
+        // What they did counts on top (the opinion is stuck at 100).
+        List<Memory> m = new ArrayList<>();
+        m.add(new Memory(Memory.Kind.GIFT, FRENCH, 100, 4));
+        assertEquals(70.0, Relations.friendship(0, m, FRENCH, 100), 1e-9);
+        assertEquals(100.0, Relations.opinion(0, m, FRENCH, 100), 1e-9);
+    }
+
+    public void testNoAllianceWithAStranger() {
+        // A nation that never did us wrong, but never did anything for
+        // us either: no alliance (it used to score 29, every turn).
+        WorldView w = world(DUTCH, NationCharacter.BALANCE_KEEPER, 10, 400);
+        NationView fr = other(w, FRENCH, 10, 300, Stance.PEACE, 0.5);
+        fr.opinion = 100;
+        fr.friendship = 50;
+        ScoredAction sa = Diplomat.score(Action.alliance(FRENCH), new Situation(w));
+        assertTrue(sa.toString(), sa.total < Diplomat.THRESHOLD);
+        // A real friend (trade, gifts, deals kept): yes.
+        fr.friendship = 90;
+        sa = Diplomat.score(Action.alliance(FRENCH), new Situation(w));
+        assertTrue(sa.toString(), sa.total >= Diplomat.THRESHOLD);
+    }
+
     public void testFear() {
         assertEquals(0.0, Relations.fear(10, 0, 1), 1e-9);
         assertEquals(50.0, Relations.fear(10, 10, 1), 1e-9);

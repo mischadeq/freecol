@@ -61,6 +61,31 @@ public final class Relations {
     }
 
     /**
+     * Friendship with another nation, -100..100: what counts for an
+     * alliance.  No complaints (no tension) is only half way there;
+     * the rest must be earned (trade, gifts, help, deals kept).  The
+     * opinion itself sits at +100 for every nation that never did us
+     * wrong, so it cannot tell a friend from a stranger.
+     *
+     * @param tension The tension towards it, or negative if none.
+     * @param memories Memories (only those about this nation count).
+     * @param about The nation id.
+     * @param now The current turn.
+     * @return The friendship.
+     */
+    public static double friendship(int tension, Collection<Memory> memories,
+                                    String about, int now) {
+        double f = (tension < 0) ? 0
+            : 50.0 - Math.min(tension, TENSION_MAX) * 100.0 / TENSION_MAX;
+        if (memories != null) {
+            for (Memory m : memories) {
+                if (about.equals(m.about)) f += m.value(now);
+            }
+        }
+        return Math.max(-100, Math.min(100, f));
+    }
+
+    /**
      * Trust in another nation, 0..100: {@link #DEFAULT_TRUST} plus what
      * kept and broken deals, gifts and help did to it.
      *

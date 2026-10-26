@@ -132,10 +132,16 @@ public final class Diplomat {
         }
         // Liking or hating a nation weighs on war, peace, alliances and
         // attacks; for trade it only changes the chance they accept
-        // (see Effects.accept), it does not make a small deal big.
+        // (see Effects.accept), it does not make a small deal big.  An
+        // alliance needs friendship: liking without a history is not
+        // enough to tie ourselves to a nation.
         if (a.target != null && a.kind.side != 0 && a.kind.political) {
             NationView x = w.others.get(a.target);
-            if (x != null) sa.opinion = OPINION_WEIGHT * a.kind.side * x.opinion;
+            if (x != null) {
+                sa.opinion = OPINION_WEIGHT * a.kind.side
+                    * ((a.kind == Action.Kind.ALLIANCE) ? x.friendship
+                        : x.opinion);
+            }
         }
         return sa.score(w.character);
     }

@@ -53,6 +53,9 @@ public final class NationView {
     public int tension = -1;
     /** Opinion, -100..100 (tension and memories). */
     public double opinion;
+    /** Friendship, -100..100: opinion as it counts for an alliance
+        (see {@link Relations#friendship}). */
+    public double friendship;
     /** Trust, 0..100. */
     public double trust = Relations.DEFAULT_TRUST;
     /** How near it is to the observer, 0..1. */

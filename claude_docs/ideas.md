@@ -2374,3 +2374,25 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   computer wagons stay ashore); the upstream `UnitTest.testCanAdd`
   now expects the new rule. All 793 tests green. **Not checked:** in
   the game (moving on and off, the Europe dock, the colony screen).
+
+### Alliances need a friendship, not just no complaints (2026-10-26)
+- **Why (Mischa):** in his game (1640) every nation wanted an alliance
+  at once; he ended up allied to 4 of the 7.
+- **Cause:** opinion is the game's tension turned around, and tension
+  between European nations stays 0 unless someone does wrong. So every
+  nation sits at opinion +100 towards everyone, and the opinion term
+  alone gave an alliance +30: 5 relations + 30 opinion - 5 risk = 29-30,
+  over the bar of 20, with no shared enemy and no goal. Good deeds could
+  not even show (the opinion is capped at 100).
+- **Now:** an alliance is weighed by **friendship**
+  (`Relations.friendship`, `NationView.friendship`): no tension is only
+  half of it (+50); trade, gifts, deals kept, loans and help add the
+  rest, uncapped by the opinion. A stranger now scores about 15; an
+  alliance needs a shared enemy, or a real history (about +20 more
+  friendship, or better trust). War, peace and the rest still use the
+  opinion. Replay of turns 168-191: the Swedish offer (turn 177) no
+  longer comes; the French (who had real history) still asks, at 21-23.
+- **Tested:** `DiplomacyTest.testFriendshipMustBeEarned`,
+  `testNoAllianceWithAStranger`; all tests green (795). **Not done:**
+  alliances made under the old rule stay (all six score 6-18 now, none
+  would be made today); nothing yet makes a nation leave an alliance.
