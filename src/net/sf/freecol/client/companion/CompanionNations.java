@@ -524,6 +524,7 @@ final class CompanionNations {
             if (p != me) {
                 verdicts(j, v, mine(rows, me));
                 CompanionMoods.put(j, CompanionMoods.moodOf(fcc, p), game, me);
+                CompanionMoods.putNews(j, fcc, game, me, p);
             }
             j.end();
         }

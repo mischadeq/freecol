@@ -2434,3 +2434,30 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   show "lapsed" or "stayed out" (only the stance change); a human
   allied to both sides still decides alone (no rule); tribes'
   alliances unchanged.
+
+### Alliance news on the page; you stay out too (2026-10-26)
+- **Why (Mischa):** the leftovers of the entry above.
+- **Page:** a nation's card (Nations tab) gets a "Lately" row with
+  the alliance news everybody heard: "stayed out of your war on
+  Russia (allied to both)", "let its alliance with Sweden lapse"
+  (amber when it is about you). Nations you never met stay "a
+  nation". Kept 30 turns, not saved (like the tribes' news).
+  `server/model/NationNews`, `CompanionMoods.putNews` / `newsText`.
+- **You, allied to both:** when one of your allies declares war on
+  another, you are no longer called to arms: you stay out, your
+  alliance with the attacker ends in peace, and you get
+  `alliance.youStayOut`. Before, refusing the call cost the alliance
+  with the victim and a broken word.
+- **Save edit for Mischa (turn 202):** `2695f48e_Dutch_1646_2_
+  Autumn_edited.fsg`: you and Russia at peace (no history of the
+  alliance ending, so a war is not a betrayal); Denmark remembers a
+  kept deal and a gift from you (trust 23 to 43, alliance score 8 to
+  15). The original save is untouched.
+- **Tribes:** unchanged on purpose. Their alliances run on their own
+  rules (`TribePlanner`): a tribe already stays out when allied to
+  both sides, and leaves an alliance only when the ally ignores its
+  call for help. No lapse yet; asked Mischa.
+- **Tested:** `MoodsTest.testAllianceNewsInWords`,
+  `AIAlliancesTest.testHumanAlliedToBothStaysOut`, news in
+  `testAlliedToBothStaysOut`. All 801 tests green. **Not checked:**
+  the "Lately" row in the browser.

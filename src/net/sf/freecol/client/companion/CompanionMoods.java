@@ -35,6 +35,7 @@ import net.sf.freecol.common.model.Turn;
 import net.sf.freecol.server.FreeColServer;
 import net.sf.freecol.server.ai.AIPlayer;
 import net.sf.freecol.server.ai.EuropeanAIPlayer;
+import net.sf.freecol.server.model.NationNews;
 
 
 /**
@@ -198,6 +199,60 @@ final class CompanionMoods {
     private static String goods(Game game, String id) {
         final GoodsType gt = game.getSpecification().getGoodsType(id);
         return (gt == null) ? id : Messages.getName(gt).toLowerCase();
+    }
+
+    /**
+     * What everyone heard lately about a nation's alliances (public):
+     * it stayed out of a war between its allies, or let an alliance
+     * lapse.  Written as "lately", newest last.
+     *
+     * @param j The {@code Json} to write to.
+     * @param fcc The {@code FreeColClient}.
+     * @param game The client {@code Game}.
+     * @param me The client {@code Player}.
+     * @param p The nation.
+     */
+    static void putNews(Json j, FreeColClient fcc, Game game, Player me,
+                        Player p) {
+        if (fcc == null || fcc.getFreeColServer() == null) return;
+        j.key("lately").arr();
+        try {
+            for (NationNews.News n
+                     : NationNews.recent(fcc.getFreeColServer().getGame())) {
+                if (!p.getNationId().equals(n.nation)) continue;
+                j.obj().put("text", newsText(n, game, me))
+                    .put("year", Messages.message(new Turn(n.turn).getLabel()))
+                    .put("you", me.getNationId().equals(n.other)
+                         || me.getNationId().equals(n.victim))
+                    .end();
+            }
+        } catch (RuntimeException e) { // The server is busy with its turn
+            logger.log(Level.FINE, "News of " + p.getNationId(), e);
+        }
+        j.endArr();
+    }
+
+    /** A piece of alliance news in words, "you" for the player. */
+    static String newsText(NationNews.News n, Game game, Player me) {
+        switch (n.kind) {
+        case STAYED_OUT:
+            final String war = (me.getNationId().equals(n.other))
+                ? "your war on " + name(n.victim, game, me)
+                : name(n.other, game, me) + "'s war on " + name(n.victim, game, me);
+            return "stayed out of " + war + " (allied to both)";
+        case LAPSED:
+            return "let its alliance with " + name(n.other, game, me) + " lapse";
+        default:
+            return "";
+        }
+    }
+
+    /** A nation's name for the player: "you", or "a nation" if not met. */
+    private static String name(String id, Game game, Player me) {
+        if (me.getNationId().equals(id)) return "you";
+        final Player q = game.getPlayerByNationId(id);
+        return (q == null || !met(me, q)) ? "a nation"
+            : Messages.message(q.getNationLabel());
     }
 
     /** What they remember about the player, in words. */

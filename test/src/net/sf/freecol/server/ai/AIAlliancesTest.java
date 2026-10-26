@@ -32,6 +32,7 @@ import net.sf.freecol.server.ServerTestHelper;
 import net.sf.freecol.server.ai.diplomacy.AlliancePlanner;
 import net.sf.freecol.server.ai.diplomacy.OfferPlanner;
 import net.sf.freecol.server.ai.mission.Mission;
+import net.sf.freecol.server.model.NationNews;
 import net.sf.freecol.server.model.ServerPlayer;
 import net.sf.freecol.server.model.ServerUnit;
 import net.sf.freecol.server.model.WarDeclarations;
@@ -202,6 +203,31 @@ public class AIAlliancesTest extends FreeColTestCase {
         assertEquals(Stance.PEACE, french.getStance(dutch));
         assertEquals(Stance.ALLIANCE, french.getStance(english));
         assertFalse(remembers(fai, Memory.Kind.DEAL_BROKEN, ENGLISH));
+        // Everybody hears of it (the companion's nation cards).
+        boolean news = false;
+        for (NationNews.News n : NationNews.recent(game)) {
+            news |= n.kind == NationNews.Kind.STAYED_OUT
+                && FRENCH.equals(n.nation) && DUTCH.equals(n.other);
+        }
+        assertTrue(news);
+    }
+
+    /** The human allied to both is not called: stays out too. */
+    public void testHumanAlliedToBothStaysOut() {
+        setUpGame();
+        english.setAI(false);
+        ally(french, english);
+        ally(spanish, english);
+        EuropeanAIPlayer fai = ai(french);
+        fai.rememberTurn();
+        spanish.csChangeStance(Stance.WAR, french, true, new ChangeSet());
+        nextTurn(fai);
+        new AlliancePlanner(fai).plan(fai.getOutlook(), new LogBuilder(64));
+        for (Offer o : fai.getOffers()) {
+            assertFalse("no call to arms", o.kind == Offer.Kind.CALL_TO_ARMS);
+        }
+        assertEquals(Stance.PEACE, english.getStance(spanish));
+        assertEquals(Stance.ALLIANCE, english.getStance(french));
     }
 
     /** An alliance with no reason left lapses; a young one holds. */

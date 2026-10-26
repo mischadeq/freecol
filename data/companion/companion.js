@@ -1968,6 +1968,13 @@
   }
   function moodRows(n) {
     const m = n.mood, rows = [];
+    // Alliance news everyone heard (public): stayed out of a war between
+    // its allies, let an alliance lapse.
+    if (n.lately && n.lately.length) {
+      rows.push(["Lately", n.lately.slice(-3).map((x) => '<span class="tag ' + (x.you ? "warn" : "info") + '">' +
+        esc(x.year) + " " + esc(x.text) + "</span>").join(" "),
+        "Alliance news everybody heard: a nation allied to both sides of a war stays out of it and ends its alliance with the attacker; an alliance with no reason left lapses into peace."]);
+    }
     if (!m) return rows;
     if (m.goals.length) {
       rows.push(["Wants", m.goals.map((g) => '<span class="ncol">' + esc(g) + "</span>").join(""),

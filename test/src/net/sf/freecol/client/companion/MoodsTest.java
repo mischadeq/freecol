@@ -44,6 +44,34 @@ public class MoodsTest extends FreeColTestCase {
         SPANISH = "model.nation.spanish";
 
 
+    public void testAllianceNewsInWords() {
+        Game game = getGame();
+        Player me = game.getPlayerByNationId(DUTCH);
+        Player french = game.getPlayerByNationId(FRENCH);
+        Player english = game.getPlayerByNationId(ENGLISH);
+        me.setStance(french, Stance.PEACE);
+        me.setStance(english, Stance.PEACE);
+        final String fr = Messages.message(french.getNationLabel()),
+            en = Messages.message(english.getNationLabel());
+        assertEquals("stayed out of your war on " + fr + " (allied to both)",
+            CompanionMoods.newsText(new net.sf.freecol.server.model.NationNews.News(
+                10, net.sf.freecol.server.model.NationNews.Kind.STAYED_OUT,
+                SPANISH, DUTCH, FRENCH), game, me));
+        assertEquals("stayed out of " + en + "'s war on you (allied to both)",
+            CompanionMoods.newsText(new net.sf.freecol.server.model.NationNews.News(
+                10, net.sf.freecol.server.model.NationNews.Kind.STAYED_OUT,
+                SPANISH, ENGLISH, DUTCH), game, me));
+        assertEquals("let its alliance with you lapse",
+            CompanionMoods.newsText(new net.sf.freecol.server.model.NationNews.News(
+                10, net.sf.freecol.server.model.NationNews.Kind.LAPSED,
+                SPANISH, DUTCH, null), game, me));
+        // A nation we never met stays nameless.
+        assertEquals("let its alliance with a nation lapse",
+            CompanionMoods.newsText(new net.sf.freecol.server.model.NationNews.News(
+                10, net.sf.freecol.server.model.NationNews.Kind.LAPSED,
+                FRENCH, SPANISH, null), game, me));
+    }
+
     public void testMoodJson() {
         Game game = getGame();
         Player me = game.getPlayerByNationId(DUTCH);

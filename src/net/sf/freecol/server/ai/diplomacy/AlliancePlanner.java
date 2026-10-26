@@ -41,6 +41,8 @@ import net.sf.freecol.common.networking.ChangeSet;
 import net.sf.freecol.common.util.LogBuilder;
 import net.sf.freecol.server.ai.AIPlayer;
 import net.sf.freecol.server.ai.EuropeanAIPlayer;
+import net.sf.freecol.server.model.NationNews;
+import net.sf.freecol.server.model.ServerPlayer;
 
 
 /**
@@ -127,6 +129,18 @@ public final class AlliancePlanner {
                 if (h.isAI() || h.isREF() || h == attacker
                     || me.getStance(h) != Stance.ALLIANCE
                     || h.getStance(attacker) == Stance.WAR) continue;
+                if (h.getStance(attacker) == Stance.ALLIANCE) {
+                    // Allied to both, like a computer nation: the human
+                    // stays out, and its alliance with the attacker ends.
+                    ((ServerPlayer)h).csChangeStance(Stance.PEACE, attacker,
+                                                     true, cs);
+                    tell(cs, h, "alliance.youStayOut", attacker);
+                    NationNews.add(game(), new NationNews.News(now(),
+                        NationNews.Kind.STAYED_OUT, h.getNationId(),
+                        attacker.getNationId(), me.getNationId()));
+                    lb.add("\n  ", h.getDebugName(), " is allied to both: stays out");
+                    continue;
+                }
                 Offer c = new Offer("call:" + me.getNationId() + ":"
                     + attacker.getNationId() + ":" + now(),
                     Offer.Kind.CALL_TO_ARMS, me.getNationId(), null, 0, 0,
@@ -147,6 +161,9 @@ public final class AlliancePlanner {
             changeStance(Stance.PEACE, attacker);
             tell(cs, attacker, "alliance.staysOut", victim);
             tell(cs, victim, "alliance.staysOutOfYours", attacker);
+            NationNews.add(game(), new NationNews.News(now(),
+                NationNews.Kind.STAYED_OUT, me.getNationId(),
+                attacker.getNationId(), victim.getNationId()));
             lb.add("\n  Allied to both ", attacker.getDebugName(), " and ",
                    victim.getDebugName(), ": stays out");
             return true;
@@ -203,6 +220,9 @@ public final class AlliancePlanner {
             if (sa.total >= KEEP_ALLIANCE) continue;
             changeStance(Stance.PEACE, p);
             tell(cs, p, "alliance.lapses", p);
+            NationNews.add(game(), new NationNews.News(now(),
+                NationNews.Kind.LAPSED, me.getNationId(), p.getNationId(),
+                null));
             lb.add("\n  Alliance with ", p.getDebugName(), " lapses (", sa, ")");
             changed = true;
         }
