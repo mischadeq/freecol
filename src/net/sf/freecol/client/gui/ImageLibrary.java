@@ -1986,7 +1986,9 @@ public final class ImageLibrary {
         final Color background = unit.getOwner().getNationColor();
         final Color foreground = (unit.getState() == Unit.UnitState.FORTIFIED)
             ? Color.GRAY : makeForegroundColor(background);
-        return createChip(g, text, Color.BLACK,
+        // A breakaway tribe's braves: a rim of its protector's colour (mod).
+        final Color accent = unit.getOwner().getAccentColor();
+        return createChip(g, text, (accent == null) ? Color.BLACK : accent,
                           background, 0, Color.BLACK, foreground, true);
     }
 

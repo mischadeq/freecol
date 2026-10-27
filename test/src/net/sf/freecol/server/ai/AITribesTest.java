@@ -523,6 +523,89 @@ public class AITribesTest extends FreeColTestCase {
         assertEquals(tupi.getNationType().getId(), t2.getNationType().getId());
     }
 
+    /** Tupi villages 1 and 2 (of 4) break away under the Dutch. */
+    Player formBreakaway() {
+        dutch.setAI(false);
+        settlement(tupi, 9, 12, false);
+        settlement(tupi, 12, 3, false);
+        mission(tupi.getIndianSettlementList().get(1), dutch, 25);
+        mission(tupi.getIndianSettlementList().get(2), dutch, 25);
+        tupi.setStance(dutch, Stance.WAR);
+        dutch.setStance(tupi, Stance.WAR);
+        nextTurn();
+        plan(tupi);
+        final net.sf.freecol.common.diplomacy.Offer o = offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.BREAKAWAY);
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, o.id, true,
+            "Praying Tupi", new net.sf.freecol.common.networking.ChangeSet()));
+        return tupi.getIndianSettlementList().isEmpty() ? null
+            : game.getPlayerByNationId(net.sf.freecol.common.model.Nation
+                .BREAKAWAY_PREFIX + "1");
+    }
+
+    /** A later mission village asks to join the breakaway tribe. */
+    public void testLaterVillageJoins() {
+        setUpGame();
+        final Player tribe = formBreakaway();
+        assertEquals(2, tribe.getIndianSettlementList().size());
+        assertEquals(2, tupi.getIndianSettlementList().size());
+        final IndianSettlement late = tupi.getIndianSettlementList().get(1);
+        mission(late, dutch, 25);
+        nextTurn();
+        plan(tupi);
+        assertNull("not a second breakaway", offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
+        net.sf.freecol.common.diplomacy.Offer j = offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.JOIN_BREAKAWAY);
+        assertNotNull(j);
+        assertEquals(late.getId(), j.place);
+        assertEquals(tribe.getNationId(), j.against);
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, j.id, true,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertSame(tribe, late.getOwner());
+        assertEquals(3, tribe.getIndianSettlementList().size());
+        for (net.sf.freecol.common.model.Unit u : late.getOwnedUnitList()) {
+            assertSame(tribe, u.getOwner());
+        }
+    }
+
+    /**
+     * Abandoned (no missions left, two calls for help ignored), the
+     * breakaway tribe goes back with all its villages; one ignored call,
+     * or a mission still there, is not enough.  An ignored call does not
+     * end its alliance on the spot.
+     */
+    public void testAbandonedTribeRejoins() {
+        setUpGame();
+        final Player tribe = formBreakaway();
+        final java.util.List<IndianSettlement> vs = tribe.getIndianSettlementList();
+        // A call for help declined: still allied, counted.
+        final net.sf.freecol.common.diplomacy.Offer call
+            = new net.sf.freecol.common.diplomacy.Offer("tcall:test",
+                net.sf.freecol.common.diplomacy.Offer.Kind.CALL_TO_ARMS,
+                tribe.getNationId(), null, 0, 0, null, "", game.getTurn().getNumber(), 0);
+        call.against = TUPI;
+        call.audience.add(DUTCH);
+        ai(tribe).getOffers().add(call);
+        assertTrue(new TribePlanner(ai(tribe)).answer(dutch, call.id, false,
+            new net.sf.freecol.common.networking.ChangeSet()));
+        assertEquals(Stance.ALLIANCE, tribe.getStance(dutch));
+        assertEquals(1, new TribePlanner(ai(tribe)).ignoredCalls(dutch));
+        // The missions leave; one ignored call: it stays.
+        for (IndianSettlement is : vs) is.setMissionary(null);
+        plan(tribe);
+        assertSame(tribe, vs.get(0).getOwner());
+        // A second ignored call: it goes back.
+        ai(tribe).getCallsHeard().put("ignored|" + DUTCH, 2);
+        plan(tribe);
+        assertSame(tupi, vs.get(0).getOwner());
+        assertSame(tupi, vs.get(1).getOwner());
+        assertEquals(4, tupi.getIndianSettlementList().size());
+        assertEquals(0, tribe.getUnitCount());
+        assertNull("no accents any more", tribe.getAccentColor());
+        assertTrue(remembers(ai(tupi), Memory.Kind.DEAL_BROKEN, DUTCH));
+    }
+
     /** At most three breakaway tribes in a game; a new game has none. */
     public void testBreakawaySlots() {
         setUpGame();

@@ -78,6 +78,10 @@ public final class Offer {
             ({@code place} the settlement ids joined by '+',
             {@code placeName} their names). */
         BREAKAWAY,
+        /** One more of our settlements asks to join the breakaway tribe
+            ({@code against}) that left us under the player
+            ({@code place} the settlement). */
+        JOIN_BREAKAWAY,
         /** Our terms before war: pay {@code gold} (placeName holds the
             grievance in words). */
         ULTIMATUM,
@@ -129,6 +133,7 @@ public final class Offer {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
                 || this == SETTLEMENT_JOINS || this == BREAKAWAY
+                || this == JOIN_BREAKAWAY
                 || this == ULTIMATUM
                 || this == DEFEND_SETTLEMENT || this == AGREEMENT
                 || this == SALE || this == TERMS || this == LOAN

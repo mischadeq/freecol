@@ -4125,6 +4125,9 @@ public final class InGameController extends FreeColClientHolder {
         case BREAKAWAY:
             key = "offer.breakaway";
             break;
+        case JOIN_BREAKAWAY:
+            key = "offer.joinBreakaway";
+            break;
         case ULTIMATUM:
             key = "offer.ultimatum";
             break;

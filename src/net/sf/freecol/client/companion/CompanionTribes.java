@@ -222,6 +222,9 @@ final class CompanionTribes {
         case JOINED:
             return (actor) ? ((n.place.isEmpty()) ? "allied with " + e
                 : n.place + " broke off to " + e) : null;
+        case REJOINED:
+            return (actor) ? "went back to the " + o + " (" + n.place + ")"
+                : "the " + a + " came back (" + n.place + ")";
         case BROKE_AWAY:
             return (actor) ? "broke away from the " + o + " under " + e
                 + " (" + n.place + ")"

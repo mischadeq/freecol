@@ -1,7 +1,7 @@
 # Breakaway tribes: mission villages leave their tribe and found a new one
 
 Status: plan (2026-10-27), decisions taken. Step 1 (the trigger) built;
-step 2 built except the colour accents on the map; step 3 not yet. Builds on step 7d (a settlement
+step 2 built; step 3 built except computer nations founding them. Builds on step 7d (a settlement
 breaks off and joins you) and 7e (a whole tribe joins you) in
 `step5-step7.md`.
 

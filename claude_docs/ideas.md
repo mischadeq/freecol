@@ -2737,3 +2737,32 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   Mischa's decision of 2026-10-14 (`step5-step7.md`, decision 2), a
   King's war does not call allies to arms. He can ask them with an
   envoy (Report > Send an Envoy, "join me in my war").
+
+### Breakaway tribes: your colour, later villages, going back (2026-10-27)
+- **Why (Mischa):** the rest of step 2 and part of step 3 of
+  `plans/breakaway-tribe.md`.
+- **Your colour as accents:** a breakaway tribe keeps its old tribe's
+  colour (lighter) and shows its protector's colour: a thin line inside
+  its border on the map, a shadow under its village names (classic
+  labels) or a rim around them (modern labels), and the rim of its
+  braves' badges. `MapViewer.displayTerritorialBorders`,
+  `displaySettlementLabels`, `ImageLibrary.getOccupationIndicatorChip`,
+  from `Player.getAccentColor`. Gone when it goes back to its tribe.
+- **Later villages join it:** once a breakaway tribe exists under you,
+  another village of the old tribe that would break off to you (or is
+  already allied to you) asks to **join it** (`Offer.Kind.
+  JOIN_BREAKAWAY`): "Isanti asks to leave its tribe and join the Praying
+  Sioux". Accepted, it moves with its braves and land
+  (`Breakaway.join`).
+- **Going back when abandoned:** a breakaway tribe whose protector has
+  **no missions left in it** and has **ignored two of its calls for
+  help** (declined or let expire), or is gone, goes back to the tribe
+  it left with all its villages and braves (`Breakaway.rejoin`); both
+  remember it against you (`DEAL_BROKEN`). Declining one of its calls
+  no longer ends its alliance on the spot (it needs you); it counts.
+  `TribePlanner.rejoinIfAbandoned`, `ignoredCalls`.
+- **Tested:** `AITribesTest.testLaterVillageJoins`,
+  `testAbandonedTribeRejoins` (one call ignored, or a mission left: it
+  stays; two and no missions: it goes back); all 820 tests green.
+  **Not checked:** the accents on the real map (drawn, not seen).
+  **Not done:** computer nations founding breakaway tribes (step 3).

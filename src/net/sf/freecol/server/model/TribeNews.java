@@ -40,7 +40,9 @@ public final class TribeNews {
 
     public enum Kind { HELP, STAYED_HOME, SIDED_WITH, REFUGEES, UNREST, UPRISING, JOINED,
         /** Villages broke away and founded a tribe (mod). */
-        BROKE_AWAY }
+        BROKE_AWAY,
+        /** An abandoned breakaway tribe went back (mod). */
+        REJOINED }
 
     /** One piece of news. */
     public static final class News {

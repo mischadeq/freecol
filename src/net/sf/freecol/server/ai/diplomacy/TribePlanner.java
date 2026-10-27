@@ -134,6 +134,7 @@ public final class TribePlanner {
         tribeStances(lb);
         answerCalls(lb);
         trackMissions();
+        rejoinIfAbandoned(cs, lb);
         settlementsBreakOff(cs, lb);
         resent();
         takeBack(cs, lb);
@@ -701,6 +702,40 @@ public final class TribePlanner {
             : new ArrayList<>();
     }
 
+    /**
+     * The breakaway tribe that left us under a European, if any.
+     *
+     * @param p The European.
+     * @return The live breakaway tribe, or null.
+     */
+    Player breakawayOf(Player p) {
+        for (Player q : game().getLiveNativePlayerList()) {
+            if (me().getNationId().equals(q.getBreakawayFrom())
+                && p.getNationId().equals(q.getProtector())) return q;
+        }
+        return null;
+    }
+
+    /**
+     * Our villages that would break off to a European, or are allied to
+     * him, ask to join the tribe that broke away under him.
+     */
+    private void joinBreakaway(Player child, Player p, LogBuilder lb) {
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            if (is.getAlliedPlayer() != p && breaksOffTo(is) != p) continue;
+            if (askedLately(Offer.Kind.JOIN_BREAKAWAY, is.getId(),
+                            p.getNationId())) continue;
+            lb.add("\n  ", is.getName(), " asks to join ",
+                   child.getDebugName());
+            final Offer o = new Offer("joinb:" + is.getId() + ":" + now(),
+                Offer.Kind.JOIN_BREAKAWAY, me().getNationId(), null, 0, 0,
+                is.getId(), is.getName(), now(), 0);
+            o.against = child.getNationId();
+            o.audience.add(p.getNationId());
+            ai.getOffers().add(o);
+        }
+    }
+
     /** A breakaway tribe can not break away again. */
     private boolean mayBreakAway(Player p) {
         return me().getBreakawayFrom() == null && !p.isAI()
@@ -712,6 +747,14 @@ public final class TribePlanner {
         // Two or more together: a tribe of their own (mod, step 2).
         final Set<Player> together = new HashSet<>();
         for (Player p : game().getLiveEuropeanPlayerList()) {
+            if (me().getBreakawayFrom() != null || p.isAI()) continue;
+            // Villages that broke away under him before: join them.
+            final Player child = breakawayOf(p);
+            if (child != null) {
+                together.add(p);
+                joinBreakaway(child, p, lb);
+                continue;
+            }
             if (!mayBreakAway(p)) continue;
             final List<IndianSettlement> vs = breakawayVillages(p);
             if (vs.isEmpty()) continue;
@@ -820,6 +863,63 @@ public final class TribePlanner {
         ai.getMemories().add(new Memory(Memory.Kind.SETTLEMENT_DESTROYED,
             p.getNationId(), now(), 1));
         return tribe;
+    }
+
+    /** Calls for help a breakaway tribe's protector may ignore. */
+    public static final int ABANDON_CALLS = 2;
+    private static final String IGNORED = "ignored|";
+
+    /** A breakaway tribe notes a call its protector ignored. */
+    private void ignoredCall(Player p) {
+        if (me().getBreakawayFrom() == null
+            || !p.getNationId().equals(me().getProtector())) return;
+        ai.getCallsHeard().merge(IGNORED + p.getNationId(), 1, Integer::sum);
+    }
+
+    /**
+     * Calls for help the protector ignored (declined, or let expire).
+     *
+     * @param p The protector.
+     * @return The number.
+     */
+    public int ignoredCalls(Player p) {
+        final Integer n = ai.getCallsHeard().get(IGNORED + p.getNationId());
+        return (n == null) ? 0 : n;
+    }
+
+    /**
+     * A breakaway tribe its protector abandoned (no missions of his
+     * left in it and two calls for help ignored, or he is gone) goes
+     * back to the tribe it left.  Both remember him for it.
+     */
+    private void rejoinIfAbandoned(net.sf.freecol.common.networking.ChangeSet cs,
+                                   LogBuilder lb) {
+        final String from = me().getBreakawayFrom();
+        if (from == null || me().getProtector() == null) return;
+        final Player parent = game().getPlayerByNationId(from);
+        if (parent == null || parent.isDead()) return;
+        final Player p = game().getPlayerByNationId(me().getProtector());
+        boolean mission = false;
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            mission |= p != null && is.getMissionary() != null
+                && is.getMissionary().getOwner() == p;
+        }
+        if (p != null && !p.isDead()
+            && (mission || ignoredCalls(p) < ABANDON_CALLS)) return;
+        lb.add("\n  Abandoned: goes back to ", parent.getDebugName());
+        if (p != null) {
+            ai.getMemories().add(new Memory(Memory.Kind.DEAL_BROKEN,
+                p.getNationId(), now(), 1));
+            final net.sf.freecol.server.ai.AIPlayer pa
+                = ai.getAIMain().getAIPlayer(parent);
+            if (pa instanceof NativeAIPlayer) {
+                ((NativeAIPlayer)pa).getMemories().add(new Memory(
+                    Memory.Kind.DEAL_BROKEN, p.getNationId(), now(), 1));
+            }
+        }
+        net.sf.freecol.server.model.Breakaway.rejoin(
+            (net.sf.freecol.server.model.ServerPlayer)me(),
+            (net.sf.freecol.server.model.ServerPlayer)parent, cs);
     }
 
     /** An allied settlement is resented by its tribe and neighbours. */
@@ -1055,6 +1155,7 @@ public final class TribePlanner {
         switch (o.kind) {
         case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
         case BREAKAWAY: return "offer.postedBreakaway";
+        case JOIN_BREAKAWAY: return "offer.postedJoinBreakaway";
         case DEFEND_SETTLEMENT: return "offer.postedDefendSettlement";
         case CALL_TO_ARMS: return "offer.postedTribeCall";
         case TERMS: return "offer.postedTribeTerms";
@@ -1071,6 +1172,12 @@ public final class TribePlanner {
             if (o.stale(now)) {
                 o.state = Offer.State.EXPIRED;
                 if (o.kind == Offer.Kind.DEFEND_SETTLEMENT) giveBack(o, cs);
+                if (o.kind == Offer.Kind.CALL_TO_ARMS) {
+                    for (String id : o.audience) {
+                        final Player h = game().getPlayerByNationId(id);
+                        if (h != null) ignoredCall(h);
+                    }
+                }
                 continue;
             }
             for (String id : o.audience) {
@@ -1130,6 +1237,22 @@ public final class TribePlanner {
         switch (o.kind) {
         case TERMS:
             return new TribeEnvoyDesk(ai).answerTerms(o, human, accept, cs);
+        case JOIN_BREAKAWAY:
+            final IndianSettlement jv = game().getFreeColGameObject(o.place,
+                IndianSettlement.class);
+            final Player child = game().getPlayerByNationId(o.against);
+            if (jv == null || jv.getOwner() != me() || child == null
+                || child.isDead()) {
+                o.state = Offer.State.EXPIRED;
+            } else if (accept) {
+                o.state = Offer.State.DONE;
+                net.sf.freecol.server.model.Breakaway.join(jv,
+                    (net.sf.freecol.server.model.ServerPlayer)me(),
+                    (net.sf.freecol.server.model.ServerPlayer)child, human, cs);
+            } else {
+                o.state = Offer.State.DECLINED;
+            }
+            return true;
         case BREAKAWAY:
             if (!accept) {
                 o.state = Offer.State.DECLINED;
@@ -1191,7 +1314,11 @@ public final class TribePlanner {
                     human.getNationId(), now(), 1));
             } else {
                 o.state = Offer.State.DECLINED;
-                if (me().getStance(human) == Stance.ALLIANCE) leaveAlliance(human, cs);
+                if (me().getBreakawayFrom() != null) {
+                    ignoredCall(human); // it needs him: it counts instead
+                } else if (me().getStance(human) == Stance.ALLIANCE) {
+                    leaveAlliance(human, cs);
+                }
             }
             return true;
         default:

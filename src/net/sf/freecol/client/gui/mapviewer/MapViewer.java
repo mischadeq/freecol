@@ -956,6 +956,14 @@ public final class MapViewer extends FreeColClientHolder {
         case ClientOptions.COLONY_LABELS_CLASSIC:
             BufferedImage img = this.lib.getStringImage(g2d, name, backgroundColor,
                     mapViewerScaledUtils.getFontNormal());
+            // A breakaway tribe: its protector's colour as a shadow (mod).
+            final Color accent = settlement.getOwner().getAccentColor();
+            if (accent != null) {
+                final BufferedImage shade = this.lib.getStringImage(g2d, name,
+                    accent, mapViewerScaledUtils.getFontNormal());
+                g2d.drawImage(shade, rop,
+                    (tileBounds.getWidth() - img.getWidth())/2 + 2, yOffset + 1);
+            }
             g2d.drawImage(img, rop, (tileBounds.getWidth() - img.getWidth())/2 + 1,
                           yOffset);
             break;
@@ -980,6 +988,19 @@ public final class MapViewer extends FreeColClientHolder {
             specs[0] = new TextSpecification(name, mapViewerScaledUtils.getFontNormal());
 
             BufferedImage nameImage = createLabel(g2d, specs, backgroundColor);
+            // A breakaway tribe: a rim in its protector's colour (mod).
+            final Color rim = settlement.getOwner().getAccentColor();
+            if (rim != null) {
+                final Graphics2D rg = nameImage.createGraphics();
+                rg.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                    RenderingHints.VALUE_ANTIALIAS_ON);
+                rg.setColor(rim);
+                rg.setStroke(new BasicStroke(Math.max(2f, this.lib.scaleInt(2))));
+                rg.drawRoundRect(1, 1, nameImage.getWidth() - 3,
+                    nameImage.getHeight() - 3, nameImage.getHeight() / 2,
+                    nameImage.getHeight() / 2);
+                rg.dispose();
+            }
             int spacing = this.lib.scaleInt(3);
             BufferedImage leftImage = null;
             BufferedImage rightImage = null;
@@ -1527,6 +1548,19 @@ public final class MapViewer extends FreeColClientHolder {
                 }
             }
             g2d.draw(path);
+            // A breakaway tribe: a thin line of its protector's colour
+            // inside its border (mod).
+            final Color accent = (type == BorderType.COUNTRY)
+                ? owner.getAccentColor() : null;
+            if (accent != null) {
+                final Stroke s = g2d.getStroke();
+                final float w = (s instanceof BasicStroke)
+                    ? ((BasicStroke)s).getLineWidth() : 2f;
+                g2d.setStroke(new BasicStroke(Math.max(1f, w / 3)));
+                g2d.setColor(new Color(accent.getRed(), accent.getGreen(),
+                                       accent.getBlue(), (opaque) ? 255 : 140));
+                g2d.draw(path);
+            }
             g2d.setColor(oldColor);
             g2d.setStroke(oldStroke);
         }

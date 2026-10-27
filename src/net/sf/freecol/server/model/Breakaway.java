@@ -106,7 +106,11 @@ public final class Breakaway {
         // Everyone learns of the new player before anything refers to it.
         game.updatePlayers(List.of(tribe));
 
-        for (IndianSettlement is : villages) move(is, parent, tribe, protector, cs);
+        for (IndianSettlement is : villages) {
+            move(is, parent, tribe, cs);
+            is.setAlarm(protector, new Tension(Tension.TENSION_MIN));
+            is.setAlarm(parent, new Tension(Tension.Level.HATEFUL.getLimit()));
+        }
 
         tribe.csChangeStance(Stance.ALLIANCE, protector, true, cs);
         tribe.csChangeStance(Stance.WAR, parent, true, cs);
@@ -132,33 +136,102 @@ public final class Breakaway {
     }
 
     /**
-     * Move a village, its braves and its land to the new tribe.
+     * A later village joins a breakaway tribe (its mission is the
+     * protector's, it would break off to him).
      *
      * @param is The {@code IndianSettlement}.
-     * @param parent The old owner.
-     * @param tribe The new owner.
-     * @param protector The protector (the village is happy with him).
+     * @param parent The tribe it leaves.
+     * @param tribe The breakaway tribe.
+     * @param protector The protector.
      * @param cs A {@code ChangeSet} to update.
      */
-    static void move(IndianSettlement is, ServerPlayer parent,
-                     ServerPlayer tribe, Player protector, ChangeSet cs) {
+    public static void join(IndianSettlement is, ServerPlayer parent,
+                            ServerPlayer tribe, Player protector,
+                            ChangeSet cs) {
+        move(is, parent, tribe, cs);
+        is.setAlarm(protector, new Tension(Tension.TENSION_MIN));
+        is.setAlarm(parent, new Tension(Tension.Level.HATEFUL.getLimit()));
+        cs.addMessage(protector, new ModelMessage(
+            ModelMessage.MessageType.FOREIGN_DIPLOMACY, "breakaway.joined",
+            tribe)
+            .addName("%settlement%", is.getName())
+            .addStringTemplate("%nation%", tribe.getNationLabel())
+            .addStringTemplate("%old%", parent.getNationLabel()));
+        TribeNews.add(tribe.getGame(), new TribeNews.News(
+            tribe.getGame().getTurn().getNumber(), TribeNews.Kind.BROKE_AWAY,
+            tribe.getNationId(), parent.getNationId(),
+            protector.getNationId(), is.getName()));
+    }
+
+    /**
+     * An abandoned breakaway tribe goes back to the tribe it left, with
+     * all its villages and braves; it then has nothing left and leaves
+     * the game.
+     *
+     * @param tribe The breakaway tribe.
+     * @param parent The tribe it left.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    public static void rejoin(ServerPlayer tribe, ServerPlayer parent,
+                              ChangeSet cs) {
+        final Game game = tribe.getGame();
+        final Player protector = (tribe.getProtector() == null) ? null
+            : game.getPlayerByNationId(tribe.getProtector());
+        final List<String> names = new ArrayList<>();
+        for (IndianSettlement is : tribe.getIndianSettlementList()) {
+            names.add(is.getName());
+            move(is, tribe, parent, cs);
+            is.setAlarm(parent, new Tension(Tension.TENSION_MIN));
+        }
+        // Braves left without a home village go back too.
+        for (Unit u : tribe.getUnits().collect(java.util.stream.Collectors.toList())) {
+            if (tribe.csChangeOwner(u, parent, null, null, cs)
+                && u.getTile() != null) {
+                cs.add(See.perhaps(), u.getTile());
+            }
+        }
+        tribe.setProtector(null);
+        if (protector != null && !protector.isDead()) {
+            cs.addMessage(protector, new ModelMessage(
+                ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+                "breakaway.rejoined", parent)
+                .addStringTemplate("%nation%", tribe.getNationLabel())
+                .addStringTemplate("%old%", parent.getNationLabel()));
+        }
+        TribeNews.add(game, new TribeNews.News(game.getTurn().getNumber(),
+            TribeNews.Kind.REJOINED, tribe.getNationId(),
+            parent.getNationId(),
+            (protector == null) ? null : protector.getNationId(),
+            String.join(", ", names)));
+        logger.info("Breakaway " + tribe.getNationId() + " rejoins "
+            + parent.getNationId() + ": " + names);
+    }
+
+    /**
+     * Move a village, its braves and its land to another tribe.
+     *
+     * @param is The {@code IndianSettlement}.
+     * @param from The old owner.
+     * @param to The new owner.
+     * @param cs A {@code ChangeSet} to update.
+     */
+    static void move(IndianSettlement is, ServerPlayer from, ServerPlayer to,
+                     ChangeSet cs) {
         final Set<Unit> units = new LinkedHashSet<>(is.getUnitList());
         units.addAll(is.getOwnedUnitList());
         final Set<Tile> tiles = new HashSet<>(is.getOwnedTiles());
         tiles.add(is.getTile());
         for (Tile t : tiles) t.cacheUnseen();//+til
-        is.changeOwner(tribe);//-vis,-til
+        is.changeOwner(to);//-vis,-til
         is.setAlliedPlayer(null);
         for (Unit u : units) {
-            if (u.getOwner() != parent) continue;
+            if (u.getOwner() != from) continue;
             final IndianSettlement home = u.getHomeIndianSettlement();
-            if (!parent.csChangeOwner(u, tribe, null, null, cs)) continue;
+            if (!from.csChangeOwner(u, to, null, null, cs)) continue;
             // A change of owner clears the brave's home: it keeps it.
             if (home != null) u.changeHomeIndianSettlement(home);
             if (u.getTile() != null) tiles.add(u.getTile());
         }
-        is.setAlarm(protector, new Tension(Tension.TENSION_MIN));
-        is.setAlarm(parent, new Tension(Tension.Level.HATEFUL.getLimit()));
-        cs.add(See.perhaps().always(parent).always(tribe), tiles);
+        cs.add(See.perhaps().always(from).always(to), tiles);
     }
 }
