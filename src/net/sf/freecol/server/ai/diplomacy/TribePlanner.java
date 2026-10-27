@@ -614,25 +614,31 @@ public final class TribePlanner {
 
     /**
      * Calm enough to break off to a European: happy, or, while its
-     * tribe is at war with the European, content (a village with a
-     * mission takes only half the war's shock, see
-     * {@code ServerPlayer.missionShock}).
+     * tribe is at war with the European (or in a cease-fire, which is
+     * no peace), content (a village with a mission takes only half the
+     * war's shock, see {@code ServerPlayer.missionShock}).
      */
     private boolean calm(IndianSettlement is, Player p) {
         if (happy(is, p)) return true;
         final Tension t = is.getAlarm(p);
-        return t != null && me().getStance(p) == Stance.WAR
+        return t != null && fighting(p)
             && t.getLevel().compareTo(Tension.Level.CONTENT) <= 0;
     }
 
+    /** At war with a European, or only in a cease-fire with it. */
+    private boolean fighting(Player p) {
+        final Stance s = me().getStance(p);
+        return s == Stance.WAR || s == Stance.CEASE_FIRE;
+    }
+
     /**
-     * Our tribe is weak, or angry with the European: at war with it,
-     * lost a settlement to it, lost its capital, or down to two
-     * settlements.
+     * Our tribe is weak, or angry with the European: at war with it (or
+     * in a cease-fire), lost a settlement to it, lost its capital, or
+     * down to two settlements.
      */
     private boolean weakOrAngry(Player p) {
         final Player me = me();
-        if (me.getStance(p) == Stance.WAR) return true;
+        if (fighting(p)) return true;
         for (Memory m : ai.getMemories().list()) {
             if (m.kind == Memory.Kind.SETTLEMENT_DESTROYED
                 && p.getNationId().equals(m.about)) return true;

@@ -435,6 +435,11 @@ public class AITribesTest extends FreeColTestCase {
         // Angry, even at war: no.
         camp.setAlarm(dutch, new net.sf.freecol.common.model.Tension(800));
         assertNull(new TribePlanner(ai(tupi)).breaksOffTo(camp));
+        // A cease-fire is no peace: content is still enough.
+        camp.setAlarm(dutch, new net.sf.freecol.common.model.Tension(500));
+        tupi.setStance(dutch, Stance.CEASE_FIRE);
+        dutch.setStance(tupi, Stance.CEASE_FIRE);
+        assertSame(dutch, new TribePlanner(ai(tupi)).breaksOffTo(camp));
     }
 
     public void testWholeTribeJoins() {

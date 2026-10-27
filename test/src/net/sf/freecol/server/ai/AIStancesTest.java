@@ -131,6 +131,35 @@ public class AIStancesTest extends FreeColTestCase {
         assertNull(ai.getCommitments().get(ENGLISH));
     }
 
+    /**
+     * A war with the human player (say the King ordered it, so there is
+     * no anger) is not called off by a cease-fire the same turn: it
+     * ends only by peace terms the player accepts.  A cease-fire still
+     * turns into peace by itself.
+     */
+    public void testNoCeaseFireImposedOnTheHuman() {
+        Game game = ServerTestHelper.startServerGame(getTestMap(true));
+        AIMain aiMain = ServerTestHelper.getServer().getAIMain();
+        ServerPlayer dutch = getServerPlayer(game, DUTCH);
+        ServerPlayer english = getServerPlayer(game, ENGLISH);
+        english.setAI(false);
+        dutch.setStance(english, Stance.WAR);
+        english.setStance(dutch, Stance.WAR);
+        dutch.getTension(english).setValue(0);
+        EuropeanAIPlayer ai = (EuropeanAIPlayer)aiMain.getAIPlayer(dutch);
+        ai.determineStances(new LogBuilder(64));
+        assertEquals(Stance.WAR, dutch.getStance(english));
+        assertEquals(Stance.WAR, english.getStance(dutch));
+        // An old cease-fire drifts to peace as before.
+        dutch.setStance(english, Stance.CEASE_FIRE);
+        english.setStance(dutch, Stance.CEASE_FIRE);
+        ai.determineStances(new LogBuilder(64));
+        assertEquals(Stance.PEACE, dutch.getStance(english));
+        // Between computer nations nothing changes here.
+        assertFalse(EuropeanAIPlayer.endsWarAlone(dutch,
+            getServerPlayer(game, FRENCH), Stance.WAR, Stance.CEASE_FIRE));
+    }
+
     public void testChoicesAreSaved() throws Exception {
         Game game = ServerTestHelper.startServerGame(getTestMap(true));
         AIMain aiMain = ServerTestHelper.getServer().getAIMain();

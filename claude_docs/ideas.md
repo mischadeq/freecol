@@ -2666,3 +2666,25 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   `testBreaksOffInWarWhenContent` (content: no in peace, yes in war;
   angry: no); all 815 tests green. **Not checked:** a live run on his
   save (the 6-7 turns are worked out from the save's numbers).
+
+### No cease-fire forced on you; a cease-fire still counts for break-offs (2026-10-27)
+- **Why (Mischa):** "Russia declared war on us" and "Russia agreed to a
+  cease fire" came in the same turn, without him having a say; he
+  wanted that war. The King of Russia ordered the war (FreeCol's
+  monarch "declare war" action; the mod marks it as the King's, so it
+  adds no anger). In the same turn Russia's old tension rule, still
+  used towards the human player, saw no anger (0) and turned the war
+  into a cease-fire on its own. The Sioux did the same to him at
+  turn 230, which also stopped his mission villages from breaking off
+  (they needed "at war").
+- **What:** a computer nation at war with you **never turns it into a
+  cease-fire or peace on its own**: the war ends only by peace terms
+  you accept (its messenger, `OfferPlanner.peaceTerms`), which you may
+  decline. An existing cease-fire still drifts to peace as before.
+  `EuropeanAIPlayer.endsWarAlone`. And for villages breaking off, **a
+  cease-fire counts as war** (`TribePlanner.fighting`).
+- **Tested:** `AIStancesTest.testNoCeaseFireImposedOnTheHuman`,
+  `AITribesTest.testBreaksOffInWarWhenContent` (cease-fire part); all
+  816 tests green. **Not changed:** tribes may still turn a war with
+  you into a cease-fire on their own (the Sioux did); say if that
+  should go the same way.

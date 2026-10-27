@@ -1286,6 +1286,9 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
                 }
             } else {
                 newStance = determineStance(p);
+                if (endsWarAlone(player, p, player.getStance(p), newStance)) {
+                    newStance = player.getStance(p);
+                }
             }
             if (newStance != player.getStance(p)) {
                 if (newStance == Stance.WAR && peaceHolds(p)) {
@@ -1309,6 +1312,25 @@ public class EuropeanAIPlayer extends MissionAIPlayer {
         }
         if (lb.grew("\n  Stance changes:")) lb.shrink(", ");
         return changed;
+    }
+
+    /**
+     * Would this end a war with the human player on our own (the old
+     * tension rule turns a war into a cease-fire as soon as tension is
+     * low)?  Not allowed (mod): towards the player a war ends only by
+     * peace terms he accepts ({@code OfferPlanner}), so a war the King
+     * ordered is not called off the same turn.  A cease-fire still
+     * turns into peace by itself, as before.
+     *
+     * @param me The computer nation.
+     * @param p The other {@code Player}.
+     * @param old The current stance.
+     * @param next The stance the tension rule wants.
+     * @return True if the change must wait for the player's word.
+     */
+    static boolean endsWarAlone(Player me, Player p, Stance old, Stance next) {
+        return !me.isREF() && p.isEuropean() && !p.isREF() && !p.isAI()
+            && old == Stance.WAR && next != Stance.WAR;
     }
 
     /**
