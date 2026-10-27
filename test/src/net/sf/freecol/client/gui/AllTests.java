@@ -32,6 +32,7 @@ public class AllTests {
         suite.addTestSuite(FontTest.class);
         suite.addTestSuite(ScreenChooserTest.class);
         suite.addTestSuite(CombatViewTest.class);
+        suite.addTestSuite(NationArtTest.class);
         suite.addTestSuite(net.sf.freecol.client.gui.mapviewer.ParchmentPainterTest.class);
         suite.addTestSuite(net.sf.freecol.client.gui.mapviewer.ParchmentFadeTest.class);
         //$JUnit-END$

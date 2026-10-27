@@ -2578,3 +2578,32 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   and the clash drawn offscreen on the parchment with the real unit
   pictures and checked. **Not checked:** the two windows in the game
   (needs FreeCol closed for the jar rebuild).
+
+### Nation soldiers: Dutch, French, English (2026-10-27)
+- **Why (Mischa):** every nation's soldier looked the same, in a 1770s
+  tricorne. He wants each nation to look like itself, around 1600-1660,
+  and colonists and veterans easy to tell apart.
+- **What:** new soldier pictures per nation. The **colonist soldier is
+  militia**: his own plain clothes (dark grey, grey-brown, russet), a
+  soft brown felt hat, and the nation's sash (orange, white, red) as
+  the only marker, as militia went to war then. The **veteran** wears
+  the nation's kit: Dutch steel morion, grey coat, red breeches and
+  stockings, orange sash; French plumed hat, blue coat, white sash,
+  boots; English (Lord Wentworth's musketeer, 1661) wide black hat,
+  long hair, red coat with two crossed yellow belts, pale breeches.
+  Every colonist and expert type uses the militia picture, the veteran
+  type the kit. Inspiration: the gallery page "Soldiers of the eight
+  crowns" (all eight nations, public-domain pictures, sash colours).
+- **How:** `claude_docs/tools/nation_art.py` repaints the game's own
+  soldier pictures (new hat, coat and breeches colours, sash or belts),
+  softened to match the game's painterly style; files in
+  `data/default/resources/images/units/nation/<nation>/`. The game
+  already looks for a picture with the nation at the end of the key
+  (`image.unit.model.unit.<type>.soldier.dutch`,
+  `ImageLibrary.getUnitTypeImageKey`): only resource lines, no code.
+  Tried and dropped: wide puffed breeches (didn't fit the figure).
+- **Tested:** `NationArtTest` (every soldier type has the three nation
+  pictures and they load; the veteran differs from the colonist); GUI
+  tests green. Previews checked big and on a map tile. **Not done:**
+  the attack animation still shows the old soldier for a moment; the
+  English coat's dark cuffs; dragoons; the other five nations.
