@@ -32,8 +32,8 @@ import net.sf.freecol.util.test.FreeColTestCase;
 
 
 /**
- * The nation soldier pictures (mod): every unit type with a soldier
- * picture has one per nation, and it loads.
+ * The nation soldier and dragoon pictures (mod): every unit type with
+ * such a picture has one per nation, and it loads.
  */
 public class NationArtTest extends FreeColTestCase {
 
@@ -59,9 +59,19 @@ public class NationArtTest extends FreeColTestCase {
     }
 
     public void testEverySoldierHasNationPictures() {
+        assertTrue(check("soldier", 33) >= 20);
+    }
+
+    public void testEveryDragoonHasNationPictures() {
+        assertTrue(check("dragoon", 54) >= 20);
+    }
+
+    /** Every unit type with a picture in this role has the three
+     *  nation pictures, and they load at the game's width. */
+    private int check(String role, int width) {
         int checked = 0;
         for (UnitType type : spec().getUnitTypeList()) {
-            final String key = "image.unit." + type.getId() + ".soldier";
+            final String key = "image.unit." + type.getId() + "." + role;
             if (ResourceManager.getImageResource(key, false) == null
                 || OWN_PICTURE.contains(type.getId())) {
                 continue;
@@ -72,12 +82,11 @@ public class NationArtTest extends FreeColTestCase {
                 assertNotNull(key + "." + n, r);
                 final BufferedImage im = r.getImage();
                 assertNotNull(key + "." + n, im);
-                assertEquals(33, im.getWidth());
+                assertEquals(key + "." + n, width, im.getWidth());
             }
             checked++;
         }
-        // The colonist, the experts, the veteran...
-        assertTrue("checked " + checked, checked >= 20);
+        return checked;
     }
 
     public void testVeteranLooksDifferent() {

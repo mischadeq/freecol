@@ -2579,7 +2579,7 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   pictures and checked. **Not checked:** the two windows in the game
   (needs FreeCol closed for the jar rebuild).
 
-### Nation soldiers: Dutch, French, English (2026-10-27)
+### Nation soldiers and dragoons: Dutch, French, English (2026-10-27)
 - **Why (Mischa):** every nation's soldier looked the same, in a 1770s
   tricorne. He wants each nation to look like itself, around 1600-1660,
   and colonists and veterans easy to tell apart.
@@ -2592,7 +2592,8 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   boots; English (Lord Wentworth's musketeer, 1661) wide black hat,
   long hair, red coat with two crossed yellow belts, pale breeches.
   Every colonist and expert type uses the militia picture, the veteran
-  type the kit. Inspiration: the gallery page "Soldiers of the eight
+  type the kit. The **dragoons** wear the same looks on horseback (the
+  horse and its blue saddle cloth stay as they were). Inspiration: the gallery page "Soldiers of the eight
   crowns" (all eight nations, public-domain pictures, sash colours).
 - **How:** `claude_docs/tools/nation_art.py` repaints the game's own
   soldier pictures (new hat, coat and breeches colours, sash or belts),
@@ -2606,8 +2607,9 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   grey shading, too pale for the colour tests) are cleaned up: small
   pale islands inside recoloured cloth take the cloth's colour
   (`no_flecks`); stockings and breeches take their grey shading too.
-- **Tested:** `NationArtTest` (every soldier type has the three nation
-  pictures and they load; the veteran differs from the colonist); GUI
-  tests green. Previews checked big and on a map tile. **Not done:**
-  the attack animation still shows the old soldier for a moment; the
-  English coat's dark cuffs; dragoons; the other five nations.
+- **Tested:** `NationArtTest` (every soldier and dragoon type has the
+  three nation pictures and they load at the game's size; the veteran
+  differs from the colonist); all 813 tests green. Previews checked big
+  and on a map tile. **Not done:** the attack animation still shows the
+  old figure for a moment; the English coat's dark cuffs; the saddle
+  cloth in the nation's colour (an option); the other five nations.
