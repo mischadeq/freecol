@@ -33,6 +33,9 @@ import net.sf.freecol.common.i18n.Messages;
 import net.sf.freecol.common.model.Game;
 import net.sf.freecol.common.model.IndianSettlement;
 import net.sf.freecol.common.model.Player;
+import net.sf.freecol.common.model.Settlement;
+import net.sf.freecol.common.model.Tile;
+import net.sf.freecol.common.model.Unit;
 import net.sf.freecol.common.model.Turn;
 import net.sf.freecol.server.FreeColServer;
 import net.sf.freecol.server.ai.AIPlayer;
@@ -53,6 +56,54 @@ final class CompanionTribes {
     private static final Logger logger = Logger.getLogger(CompanionTribes.class.getName());
 
     private CompanionTribes() {}
+
+    /**
+     * A breakaway tribe we protect shares what it sees (mod): its braves,
+     * where they are and from which village, for its card.
+     *
+     * @param j The {@code Json} to write to.
+     * @param game The client {@code Game}.
+     * @param me The client {@code Player}.
+     * @param tribe The client tribe {@code Player}.
+     */
+    static void putBraves(Json j, Game game, Player me, Player tribe) {
+        if (!me.getNationId().equals(tribe.getProtector())) return;
+        j.key("braves").arr();
+        for (Unit u : tribe.getUnitSet()) {
+            final Tile t = u.getTile();
+            if (t == null) continue;
+            final IndianSettlement home = u.getHomeIndianSettlement();
+            final Settlement at = t.getSettlement();
+            String where;
+            boolean out = false;
+            if (at != null) {
+                where = "in " + at.getName();
+            } else {
+                Settlement near = null;
+                int best = Integer.MAX_VALUE;
+                for (Player p : game.getLivePlayerList()) {
+                    for (Settlement s : p.getSettlementList()) {
+                        final int d = s.getTile().getDistanceTo(t);
+                        if (d < best) {
+                            best = d;
+                            near = s;
+                        }
+                    }
+                }
+                out = true;
+                where = (near == null) ? "out on the land"
+                    : best + ((best == 1) ? " tile" : " tiles") + " from "
+                        + near.getName()
+                        + ((near.getOwner() == tribe) ? ""
+                            : " (" + Messages.message(near.getOwner()
+                                .getNationLabel()) + ")");
+            }
+            j.obj().put("what", u.getDescription(Unit.UnitLabelType.PLAIN))
+                .put("home", (home == null) ? "" : home.getName())
+                .put("where", where).put("out", out).end();
+        }
+        j.endArr();
+    }
 
 
     /**
@@ -118,6 +169,7 @@ final class CompanionTribes {
                 .put("you", a == me).end();
         }
         j.endArr();
+        putBraves(j, game, me, tribe);
         j.key("news").arr();
         for (TribeNews.News n : news) {
             final String s = newsText(n, game, me, tribe);

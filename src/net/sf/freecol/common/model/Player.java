@@ -2960,6 +2960,11 @@ public class Player extends FreeColGameObject implements Nameable {
         synchronized (canSeeLock) {
             canSeeValid = false;
         }
+        // A breakaway tribe's protector sees what it sees (mod).
+        if (protector != null && getGame() != null) {
+            final Player p = getGame().getPlayerByNationId(protector);
+            if (p != null && p != this) p.invalidateCanSeeTiles();
+        }
     }
 
     /**
@@ -3020,6 +3025,19 @@ public class Player extends FreeColGameObject implements Nameable {
             for (Settlement s : settlements) tiles.addAll(s.getVisibleTileSet());
             for (Unit u : transform(getUnitSet(), Unit::isOnTile)) {
                 tiles.addAll(u.getVisibleTileSet());
+            }
+            // The breakaway tribes we protect share what they see (mod).
+            if (isEuropean()) {
+                for (Player t : getGame().getLiveNativePlayerList(this)) {
+                    if (!getNationId().equals(t.getProtector())
+                        || getStance(t) != Stance.ALLIANCE) continue;
+                    for (Settlement s : t.getSettlementList()) {
+                        tiles.addAll(s.getVisibleTileSet());
+                    }
+                    for (Unit u : transform(t.getUnitSet(), Unit::isOnTile)) {
+                        tiles.addAll(u.getVisibleTileSet());
+                    }
+                }
             }
             if (isEuropean()
                 && spec.getBoolean(GameOptions.ENHANCED_MISSIONARIES)) {

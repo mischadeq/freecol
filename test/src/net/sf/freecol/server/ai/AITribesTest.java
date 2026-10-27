@@ -606,6 +606,131 @@ public class AITribesTest extends FreeColTestCase {
         assertTrue(remembers(ai(tupi), Memory.Kind.DEAL_BROKEN, DUTCH));
     }
 
+    /** A French colony near the breakaway villages, at war with the Dutch. */
+    net.sf.freecol.common.model.Colony frenchColonyNearby() {
+        dutch.setStance(french, Stance.WAR);
+        french.setStance(dutch, Stance.WAR);
+        return net.sf.freecol.util.test.FreeColTestUtils.getColonyBuilder()
+            .player(french).colonyTile(game.getMap().getTile(14, 12)).build();
+    }
+
+    /** Two braves of a village out on the land next to it. */
+    void bravesOut(Player tribe, IndianSettlement is, int x, int y) {
+        for (int i = 0; i < 2; i++) {
+            final net.sf.freecol.common.model.Unit u
+                = new net.sf.freecol.server.model.ServerUnit(game,
+                    game.getMap().getTile(x, y), tribe,
+                    spec().getDefaultUnitType(tribe));
+            u.changeHomeIndianSettlement(is);
+        }
+    }
+
+    /** The breakaway tribe raids its protector's enemies near it. */
+    public void testBreakawayRaids() {
+        setUpGame();
+        final Player tribe = formBreakaway();
+        final net.sf.freecol.common.model.Colony c = frenchColonyNearby();
+        Player.makeContact(tribe, french);
+        final IndianSettlement v = tribe.getIndianSettlementList().get(1);
+        bravesOut(tribe, v, v.getTile().getX() + 1, v.getTile().getY());
+        nextTurn();
+        plan(tribe);
+        assertEquals("it took up its ally's war", Stance.WAR,
+                     tribe.getStance(french));
+        int raiders = 0;
+        for (net.sf.freecol.common.model.Unit u : tribe.getUnitSet()) {
+            final AIUnit au = aiMain.getAIUnit(u);
+            if (au != null && au.getMission()
+                instanceof net.sf.freecol.server.ai.mission.UnitSeekAndDestroyMission) {
+                raiders++;
+            }
+        }
+        assertTrue("raiders " + raiders, raiders > 0);
+        assertTrue(raiders <= TribePlanner.RAID_PARTY);
+        assertEquals(Integer.valueOf(game.getTurn().getNumber()),
+                     ai(tribe).getCallsHeard().get("raid|last"));
+        assertNotNull(c);
+    }
+
+    /** The protector orders a war party; only he may. */
+    public void testRaidOrder() {
+        setUpGame();
+        final Player tribe = formBreakaway();
+        final net.sf.freecol.common.model.Colony c = frenchColonyNearby();
+        final IndianSettlement v = tribe.getIndianSettlementList().get(1);
+        bravesOut(tribe, v, v.getTile().getX() + 1, v.getTile().getY());
+        final net.sf.freecol.server.ai.diplomacy.TribeEnvoyDesk desk
+            = new net.sf.freecol.server.ai.diplomacy.TribeEnvoyDesk(ai(tribe));
+        // Not a colony of an enemy: no.
+        assertEquals("envoy.error.enemy", desk.send(dutch,
+            net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_RAID, 0,
+            "colony:nonsense", new net.sf.freecol.common.networking.ChangeSet()));
+        assertNull(desk.send(dutch,
+            net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_RAID, 0, c.getId(),
+            new net.sf.freecol.common.networking.ChangeSet()));
+        nextTurn();
+        desk.answerAll(new net.sf.freecol.common.networking.ChangeSet(),
+                       new LogBuilder(64));
+        net.sf.freecol.common.diplomacy.Offer o = null;
+        for (net.sf.freecol.common.diplomacy.Offer x : ai(tribe).getOffers()) {
+            if (x.kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_RAID) o = x;
+        }
+        assertEquals(net.sf.freecol.common.diplomacy.Offer.State.DONE, o.state);
+        assertEquals(Stance.WAR, tribe.getStance(french));
+        int raiders = 0;
+        for (net.sf.freecol.common.model.Unit u : tribe.getUnitSet()) {
+            final AIUnit au = aiMain.getAIUnit(u);
+            if (au != null && au.getMission()
+                instanceof net.sf.freecol.server.ai.mission.UnitSeekAndDestroyMission) {
+                raiders++;
+            }
+        }
+        assertTrue(raiders > 0);
+        // A tribe it does not protect: no order.
+        assertNull(desk.raidTarget(french, c.getId()));
+    }
+
+    /** The protector sees what the breakaway tribe sees. */
+    public void testProtectorSeesWhatTheTribeSees() {
+        setUpGame();
+        final boolean fog = spec().getBoolean(
+            net.sf.freecol.common.option.GameOptions.FOG_OF_WAR);
+        final boolean enhanced = spec().getBoolean(
+            net.sf.freecol.common.option.GameOptions.ENHANCED_MISSIONARIES);
+        spec().setBoolean(net.sf.freecol.common.option.GameOptions.FOG_OF_WAR,
+                          Boolean.TRUE);
+        spec().setBoolean(net.sf.freecol.common.option.GameOptions.ENHANCED_MISSIONARIES,
+                          Boolean.FALSE);
+        try {
+            final Player tribe = formBreakaway();
+            final IndianSettlement v = tribe.getIndianSettlementList().get(1);
+            final net.sf.freecol.common.model.Tile far
+                = game.getMap().getTile(15, 6); // the test map is 20 x 15
+            bravesOut(tribe, v, far.getX(), far.getY());
+            dutch.invalidateCanSeeTiles();
+            assertTrue(dutch.canSee(v.getTile()));
+            assertTrue(dutch.canSee(far));
+            // A brave moves: the protector's sight follows.
+            final net.sf.freecol.common.model.Tile further
+                = game.getMap().getTile(19, 12);
+            assertFalse(dutch.canSee(further));
+            for (net.sf.freecol.common.model.Unit u : far.getUnitList()) {
+                u.setLocation(further);
+            }
+            tribe.invalidateCanSeeTiles();
+            assertTrue(dutch.canSee(further));
+            // Not allied any more: nothing shared.
+            dutch.setStance(tribe, Stance.PEACE);
+            tribe.setStance(dutch, Stance.PEACE);
+            dutch.invalidateCanSeeTiles();
+            assertFalse(dutch.canSee(further));
+        } finally {
+            spec().setBoolean(net.sf.freecol.common.option.GameOptions.FOG_OF_WAR, fog);
+            spec().setBoolean(net.sf.freecol.common.option.GameOptions.ENHANCED_MISSIONARIES,
+                              enhanced);
+        }
+    }
+
     /** At most three breakaway tribes in a game; a new game has none. */
     public void testBreakawaySlots() {
         setUpGame();

@@ -2766,3 +2766,33 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   stays; two and no missions: it goes back); all 820 tests green.
   **Not checked:** the accents on the real map (drawn, not seen).
   **Not done:** computer nations founding breakaway tribes (step 3).
+
+### Breakaway tribes fight with you: raids, war-party orders, shared sight (2026-10-27)
+- **Why (Mischa):** his Praying Sioux declared war on his enemies but
+  only defended their own villages, he could not direct them, and he
+  could not see their braves.
+- **Raids on its own:** every 3 turns, a breakaway tribe allied to you
+  sends up to 3 braves against the nearest colony of one of your
+  enemies (or an enemy soldier it can see) within 8 tiles of its
+  villages, keeping its villages' defenders home. You get a message:
+  "The Praying Sioux send 3 braves against the Russians at
+  Pavlovskaya." `TribePlanner.raid` (uses `sendWarParty`).
+- **Your order:** Report > Send an Envoy > the tribe > "Send a war
+  party against a colony": your enemies' colonies, nearest its villages
+  first. On its next turn it sends up to 5 braves there (going to war
+  with the colony's owner if not yet), and says how many, or that it
+  has none to spare. Only the protector may order it; the envoy wait
+  applies, so not every turn. `Offer.Kind.ENVOY_RAID`,
+  `TribeEnvoyDesk.raidTarget` / `raid`, `InGameController.raidTargets`.
+- **Shared sight:** you see what a breakaway tribe allied to you sees:
+  around its villages and its braves (with fog of war on), so its
+  braves are on your map. `Player.getVisibleTileSet` adds them;
+  `invalidateCanSeeTiles` on the tribe also refreshes its protector's
+  view. Its companion card lists its braves: what, where ("in Pahin",
+  "3 tiles from Pavlovskaya (Russian)"), from which village.
+  `CompanionTribes.putBraves`.
+- **Tested:** `AITribesTest.testBreakawayRaids`, `testRaidOrder`,
+  `testProtectorSeesWhatTheTribeSees`, `MoodsTest.
+  testProtectedTribeListsItsBraves`; all 824 tests green. **Not
+  checked:** in the real game (the envoy dialog, braves showing on the
+  map and their moves); not run on Mischa's save.

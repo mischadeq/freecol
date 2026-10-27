@@ -247,4 +247,25 @@ public class MoodsTest extends FreeColTestCase {
         assertTrue(s, s.contains("\"war\":true"));
         assertTrue(s, s.contains("\"friends\":[]"));
     }
+
+    /** A breakaway tribe under your protection lists its braves. */
+    public void testProtectedTribeListsItsBraves() {
+        Game game = getStandardGame();
+        game.changeMap(getTestMap());
+        Player me = game.getPlayerByNationId(DUTCH);
+        Player tupi = game.getPlayerByNationId("model.nation.tupi");
+        Json j = new Json().obj();
+        CompanionTribes.putBraves(j, game, me, tupi);
+        assertEquals("not ours: nothing", "{}", j.end().toString());
+        tupi.setProtector(DUTCH);
+        new net.sf.freecol.server.model.ServerUnit(game,
+            game.getMap().getTile(5, 5), tupi,
+            spec().getDefaultUnitType(tupi));
+        j = new Json().obj();
+        CompanionTribes.putBraves(j, game, me, tupi);
+        final String s = j.end().toString();
+        assertTrue(s, s.contains("\"braves\":[{"));
+        assertTrue(s, s.contains("\"out\":true"));
+        tupi.setProtector(null);
+    }
 }

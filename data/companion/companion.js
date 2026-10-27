@@ -2485,6 +2485,13 @@
         '" title="Broke off from the tribe and lives under a European\'s protection: free land and fair trade for the ally; its braves fight the ally\'s enemies.">' +
         esc(a.name) + " allied to " + esc(a.ally) + "</span>").join(" ") + "</div>");
     }
+    if (t.braves) {
+      const out = t.braves.filter((b) => b.out).length;
+      rows.push('<div class="mline"><span class="m" title="A tribe under your protection shares what it sees: its braves are on your map.">Braves: ' +
+        t.braves.length + (out ? " (" + out + " out)" : "") + "</span> " +
+        t.braves.map((b) => '<span class="tag ' + (b.out ? "warn" : "info") + '" title="' +
+          esc(b.home ? "From " + b.home : "") + '">' + esc(b.what) + ", " + esc(b.where) + "</span>").join(" ") + "</div>");
+    }
     if (t.news && t.news.length) {
       rows.push('<div class="mline"><span class="m">Lately:</span> ' + t.news.slice(-4).map((n) =>
         '<span class="tag ' + (n.bad ? "alarm" : "info") + '">' + esc(n.year) + " " + esc(n.text) + "</span>").join(" ") + "</div>");

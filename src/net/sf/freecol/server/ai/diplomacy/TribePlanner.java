@@ -141,6 +141,7 @@ public final class TribePlanner {
         defendAllies(lb);
         tribeAlliances(cs, lb);
         allyWars(lb);
+        raid(cs, lb);
         callAllies(cs, lb);
         pontiac(lb);
         unrest(cs, lb);
@@ -942,6 +943,77 @@ public final class TribePlanner {
                 }
             }
         }
+    }
+
+    /** Tiles from a breakaway tribe's villages within which it raids. */
+    public static final int RAID_RADIUS = 8;
+    /** Turns between a breakaway tribe's raids of its own. */
+    public static final int RAID_GAP = 3;
+    /** Braves in a raid at most. */
+    public static final int RAID_PARTY = 3;
+    private static final String LAST_RAID = "raid|last";
+
+    /** The European protecting us, if we are a breakaway tribe allied to him. */
+    Player protector() {
+        final String id = me().getProtector();
+        final Player p = (id == null) ? null : game().getPlayerByNationId(id);
+        return (p == null || p.isDead() || me().getStance(p) != Stance.ALLIANCE)
+            ? null : p;
+    }
+
+    /**
+     * A breakaway tribe raids its protector's enemies near its villages
+     * on its own (mod): every few turns, a small war party against the
+     * nearest enemy colony, or soldier it can see, within reach.
+     */
+    private void raid(net.sf.freecol.common.networking.ChangeSet cs,
+                      LogBuilder lb) {
+        final Player p = protector();
+        if (p == null) return;
+        final Integer last = ai.getCallsHeard().get(LAST_RAID);
+        if (last != null && now() - last < RAID_GAP) return;
+        Player enemy = null;
+        Tile target = null;
+        String place = null;
+        int best = RAID_RADIUS + 1;
+        for (Player e : game().getLivePlayerList(me())) {
+            if (me().getStance(e) != Stance.WAR || p.getStance(e) != Stance.WAR
+                || e == p) continue;
+            for (IndianSettlement v : me().getIndianSettlementList()) {
+                for (Colony c : e.getColonyList()) {
+                    final int d = c.getTile().getDistanceTo(v.getTile());
+                    if (d < best) {
+                        best = d;
+                        enemy = e;
+                        target = c.getTile();
+                        place = c.getName();
+                    }
+                }
+                for (Unit u : (Iterable<Unit>)e.getUnits()::iterator) {
+                    final Tile t = u.getTile();
+                    if (t == null || u.isNaval() || !me().canSee(t)) continue;
+                    final int d = t.getDistanceTo(v.getTile());
+                    if (d < best) {
+                        best = d;
+                        enemy = e;
+                        target = t;
+                        place = v.getName();
+                    }
+                }
+            }
+        }
+        if (enemy == null) return;
+        final int n = ai.sendWarParty(enemy, target, RAID_PARTY);
+        if (n <= 0) return;
+        ai.getCallsHeard().put(LAST_RAID, now());
+        lb.add("\n  Raids ", enemy.getDebugName(), " at ", place, " (", n, ")");
+        cs.addMessage(p, new net.sf.freecol.common.model.ModelMessage(
+            net.sf.freecol.common.model.ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+            "breakaway.raid", me())
+            .addStringTemplate("%nation%", me().getNationLabel())
+            .addStringTemplate("%enemy%", enemy.getNationLabel())
+            .addName("%place%", place)
+            .addAmount("%amount%", n));
     }
 
     /** An allied settlement's braves attack its ally's enemies nearby. */

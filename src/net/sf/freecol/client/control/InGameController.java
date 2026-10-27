@@ -4681,6 +4681,13 @@ public final class InGameController extends FreeColClientHolder {
         }
         kinds.add(new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_GIFT"),
             net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_GIFT));
+        // A breakaway tribe we protect: order a war party (mod).
+        final java.util.List<ChoiceItem<Colony>> raidTargets
+            = raidTargets(player, to);
+        if (!raidTargets.isEmpty()) {
+            kinds.add(0, new ChoiceItem<>(Messages.message("envoy.kind.ENVOY_RAID"),
+                net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_RAID));
+        }
         if (!ready) { // only trade while the envoy waits
             kinds.clear();
         }
@@ -4716,6 +4723,23 @@ public final class InGameController extends FreeColClientHolder {
         default:
             break;
         }
+        if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_RAID) {
+            final Colony c = gui.modalChoiceDialog(StringTemplate
+                .template("envoy.raidTarget")
+                .addStringTemplate("%nation%", to.getNationLabel()),
+                "cancel", raidTargets);
+            if (c == null) return;
+            this.envoyError = null;
+            askServer().envoy(to.getNationId(), kind.name(), 0, c.getId());
+            if (this.envoyError != null) {
+                showInformationPanel(null, StringTemplate.template(this.envoyError)
+                    .addStringTemplate("%nation%", to.getNationLabel()));
+            } else {
+                invokeLater(() -> displayModelMessages(false, false));
+            }
+            updateGUI(null, false);
+            return;
+        }
         Player against = null;
         if (kind == net.sf.freecol.common.diplomacy.Offer.Kind.ENVOY_WAR) {
             against = (enemies.size() == 1) ? enemies.get(0).getObject()
@@ -4748,6 +4772,43 @@ public final class InGameController extends FreeColClientHolder {
             invokeLater(() -> displayModelMessages(false, false));
         }
         updateGUI(null, false);
+    }
+
+    /**
+     * The enemy colonies a breakaway tribe we protect could raid on our
+     * order, nearest its villages first (mod).
+     *
+     * @param player Our {@code Player}.
+     * @param tribe The tribe.
+     * @return The choices, empty if it is not ours to order.
+     */
+    private java.util.List<ChoiceItem<Colony>> raidTargets(Player player,
+                                                          Player tribe) {
+        final java.util.List<ChoiceItem<Colony>> ret = new java.util.ArrayList<>();
+        if (!tribe.isIndian()
+            || !player.getNationId().equals(tribe.getProtector())
+            || player.getStance(tribe) != Stance.ALLIANCE) return ret;
+        final java.util.List<Object[]> found = new java.util.ArrayList<>();
+        for (Player e : getGame().getLivePlayerList()) {
+            if (e == player || e == tribe || player.getStance(e) != Stance.WAR) continue;
+            for (Colony c : e.getColonyList()) {
+                int d = Integer.MAX_VALUE;
+                for (IndianSettlement is : tribe.getIndianSettlementList()) {
+                    d = Math.min(d, is.getTile().getDistanceTo(c.getTile()));
+                }
+                found.add(new Object[] { c, d });
+            }
+        }
+        found.sort(java.util.Comparator.comparingInt(o -> (Integer)o[1]));
+        for (Object[] f : found) {
+            final Colony c = (Colony)f[0];
+            ret.add(new ChoiceItem<>(Messages.message(StringTemplate
+                .template("envoy.raidChoice")
+                .addName("%colony%", c.getName())
+                .addStringTemplate("%nation%", c.getOwner().getNationLabel())
+                .addAmount("%tiles%", (Integer)f[1])), c));
+        }
+        return ret;
     }
 
     /** The last sale terms heard, by colony id (mod). */

@@ -107,6 +107,10 @@ public final class Offer {
         ENVOY_WAR,
         /** The player's envoy: leave the coalition against me (8.2). */
         ENVOY_LEAVE,
+        /** The player's order to a breakaway tribe he protects: a war
+            party against a colony of his enemy ({@code against} the
+            colony id). */
+        ENVOY_RAID,
         /** Our answer to an envoy: we agree for {@code gold} in all;
             {@code goods} holds the envoy's kind. */
         TERMS,
@@ -125,7 +129,7 @@ public final class Offer {
         public boolean envoy() {
             return this == ENVOY_PEACE || this == ENVOY_ALLIANCE
                 || this == ENVOY_GIFT || this == ENVOY_WAR
-                || this == ENVOY_LEAVE;
+                || this == ENVOY_LEAVE || this == ENVOY_RAID;
         }
 
         /** Answered at once, by one nation (not a public notice). */

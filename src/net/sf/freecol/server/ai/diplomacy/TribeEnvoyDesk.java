@@ -94,9 +94,60 @@ public final class TribeEnvoyDesk {
             return stance != Stance.UNCONTACTED;
         case ENVOY_WAR:
             return stance == Stance.PEACE || stance == Stance.ALLIANCE;
+        case ENVOY_RAID:
+            return stance == Stance.ALLIANCE;
         default:
             return false;
         }
+    }
+
+    /** Braves a breakaway tribe sends at its protector's order, at most. */
+    public static final int ORDER_PARTY = 5;
+
+    /**
+     * The colony a raid order is against, if the tribe would go: one of
+     * an enemy of the player (not the tribe, not its ally), and the
+     * player is the tribe's protector.
+     *
+     * @param h The player.
+     * @param colonyId The colony id.
+     * @return The {@code Colony}, or null.
+     */
+    public net.sf.freecol.common.model.Colony raidTarget(Player h, String colonyId) {
+        if (!h.getNationId().equals(me().getProtector())) return null;
+        final net.sf.freecol.common.model.Colony c = (colonyId == null) ? null
+            : ai.getGame().getFreeColGameObject(colonyId,
+                net.sf.freecol.common.model.Colony.class);
+        if (c == null || c.isDisposed() || c.getOwner() == me()
+            || h.getStance(c.getOwner()) != Stance.WAR
+            || me().getStance(c.getOwner()) == Stance.ALLIANCE) return null;
+        return c;
+    }
+
+    /**
+     * Carry out a raid order: a war party against the colony (going to
+     * war with its owner if not yet at war).
+     */
+    private void raid(Offer o, ServerPlayer h, ChangeSet cs, LogBuilder lb) {
+        final net.sf.freecol.common.model.Colony c = raidTarget(h, o.against);
+        if (c == null) {
+            o.state = Offer.State.FAILED;
+            message(cs, h, "envoy.tribe.raidGone", 0, o.placeName);
+            return;
+        }
+        final Player x = c.getOwner();
+        if (me().getStance(x) != Stance.WAR) goToWar(h, x, cs);
+        final int n = ai.sendWarParty(x, c.getTile(), ORDER_PARTY);
+        o.state = Offer.State.DONE;
+        lb.add("\n  Raid order from ", h.getName(), ": ", n, " braves to ",
+               c.getName());
+        cs.addMessage(h, new ModelMessage(
+            ModelMessage.MessageType.FOREIGN_DIPLOMACY,
+            (n > 0) ? "envoy.tribe.raid" : "envoy.tribe.raidNone", me())
+            .addStringTemplate("%nation%", me().getNationLabel())
+            .addAmount("%amount%", n)
+            .addName("%colony%", c.getName())
+            .addStringTemplate("%enemy%", x.getNationLabel()));
     }
 
     /**
@@ -172,14 +223,20 @@ public final class TribeEnvoyDesk {
         if (kind == Offer.Kind.ENVOY_WAR && enemy(human, against) == null) {
             return "envoy.error.enemy";
         }
+        final net.sf.freecol.common.model.Colony raid
+            = (kind == Offer.Kind.ENVOY_RAID) ? raidTarget(human, against) : null;
+        if (kind == Offer.Kind.ENVOY_RAID && raid == null) {
+            return "envoy.error.enemy";
+        }
         if (gold < 0 || gold > human.getGold()
             || (kind == Offer.Kind.ENVOY_GIFT && gold <= 0)) {
             return "envoy.error.gold";
         }
         final Offer o = new Offer("envoy:" + human.getNationId() + ":"
             + me().getNationId() + ":" + now(), kind, human.getNationId(),
-            null, 0, gold, null, "", now(), 0);
-        o.against = (kind == Offer.Kind.ENVOY_WAR) ? against : null;
+            null, 0, gold, null, (raid == null) ? "" : raid.getName(), now(), 0);
+        o.against = (kind == Offer.Kind.ENVOY_WAR
+            || kind == Offer.Kind.ENVOY_RAID) ? against : null;
         o.audience.add(me().getNationId());
         ai.getOffers().add(o);
         gold(human, -gold, cs);
@@ -265,6 +322,10 @@ public final class TribeEnvoyDesk {
 
     private void answer(Offer o, ServerPlayer h, ChangeSet cs,
                         LogBuilder lb) {
+        if (o.kind == Offer.Kind.ENVOY_RAID) {
+            raid(o, h, cs, lb);
+            return;
+        }
         final TribeEnvoyRules.Answer a = (o.kind == Offer.Kind.ENVOY_WAR)
             ? judgeWar(o, h) : TribeEnvoyRules.judge(input(o, h));
         lb.add("\n  Envoy from ", h.getName(), ": ", o, " -> ", a);
