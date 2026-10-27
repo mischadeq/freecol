@@ -199,8 +199,10 @@ Short list of what has not been seen working yet, newest first.
 - Mission villages may break off during a war (half the war shock,
   "content" enough while at war), and two or more together found a new
   tribe you name, allied to you and at war with the tribe they left.
-  Full plan: `claude_docs/plans/breakaway-tribe.md` (three steps; open
-  questions at the end).
+  It keeps its old tribe's colour with hints of yours (border line,
+  label rims); computer nations can do it too; it rejoins its tribe if
+  you abandon it; at most 3 per game. Full plan:
+  `claude_docs/plans/breakaway-tribe.md` (three steps).
 
 ### Local deals (Mischa, 2026-10-26, for later)
 - Notice-board deals and offers now say "fetch at" a nation's colony
