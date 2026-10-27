@@ -195,6 +195,13 @@ Short list of what has not been seen working yet, newest first.
 
 ## Ideas, not started
 
+### Breakaway tribes (Mischa, 2026-10-27, planned)
+- Mission villages may break off during a war (half the war shock,
+  "content" enough while at war), and two or more together found a new
+  tribe you name, allied to you and at war with the tribe they left.
+  Full plan: `claude_docs/plans/breakaway-tribe.md` (three steps; open
+  questions at the end).
+
 ### Local deals (Mischa, 2026-10-26, for later)
 - Notice-board deals and offers now say "fetch at" a nation's colony
   that may be far away (the colony holding the most of the goods, or
