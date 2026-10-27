@@ -2602,6 +2602,10 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   (`image.unit.model.unit.<type>.soldier.dutch`,
   `ImageLibrary.getUnitTypeImageKey`): only resource lines, no code.
   Tried and dropped: wide puffed breeches (didn't fit the figure).
+  White flecks (the old coat's and stockings' brightest highlights and
+  grey shading, too pale for the colour tests) are cleaned up: small
+  pale islands inside recoloured cloth take the cloth's colour
+  (`no_flecks`); stockings and breeches take their grey shading too.
 - **Tested:** `NationArtTest` (every soldier type has the three nation
   pictures and they load; the veteran differs from the colonist); GUI
   tests green. Previews checked big and on a map tile. **Not done:**
