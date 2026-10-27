@@ -2612,4 +2612,25 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   differs from the colonist); all 813 tests green. Previews checked big
   and on a map tile. **Not done:** the attack animation still shows the
   old figure for a moment; the English coat's dark cuffs; the saddle
-  cloth in the nation's colour (an option); the other five nations.
+  cloth in the nation's colour (an option).
+
+### Nation soldiers and dragoons: the other five nations (2026-10-27)
+- **What:** the same rules (militia in own clothes, felt hat and sash;
+  veteran in the nation's kit) for the other five European nations:
+  **Spanish** red-and-gold striped sash; veteran in Spanish black with
+  a steel cabasset and yellow stockings. **Portuguese** green sash;
+  veteran in a buff coat and a dark hat with a green band.
+  **Swedish** blue sash; veteran in the Yellow Regiment's coat, grey
+  hat, boots. **Danish** blue-and-flame-yellow sash (Christian IV);
+  veteran in the 1660 grey coat with red cuffs and buff crossbelts.
+  **Russian** militia in a fur cap, no sash; veteran as a strelets:
+  green kaftan, red cap with fur, red breeches, boots, no white collar.
+- **How:** `nation_art.py` gained a cabasset, wide hats in any colour,
+  a fur cap, two-coloured sashes and cuffs next to the hands; the
+  breeches are now picked on the original picture (so a non-blue coat
+  can't swallow the legs). The first three nations come out
+  pixel-identical.
+- **Tested:** `NationArtTest` for all eight nations; all 813 tests
+  green. **To watch on the map:** the Danish and Swedish militia sashes
+  are both blue (the Danish yellow stripe is thin); the Danish cuffs
+  are small.

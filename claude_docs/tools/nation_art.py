@@ -6,7 +6,7 @@ Works on the large (size2) picture and halves it for the small one.
 Reads the game's own images, writes new ones; run from the repo root.
 
     python claude_docs/tools/nation_art.py
-        data/default/resources/images/units/nation [preview.png]
+        data/default/resources/images/units/nation [preview.png [dutch,...]]
 
 The game picks them through image keys ending in the nation
 ("image.unit.model.unit.<type>.soldier.dutch", see
@@ -47,6 +47,7 @@ FOOT = dict(
     dir='soldier', size=(66, 128), head=(0, 0),
     musket=((12, 84), (60, 4)), stock=(24, 55),
     clear=(46, 12, 10),           # hat area: x below, y below, skin from
+    hands=30,                     # rows below the face
     sash=((20, 24), (45, 60)), knot=(0, 0),
     belts=(((20, 23), (46, 61)), ((39, 23), (19, 60))),
     hose=(86, 112),
@@ -61,6 +62,7 @@ RIDER = dict(
     dir='dragoon', size=(108, 164), head=(20, 6),
     musket=((22, 86), (75, 7)), stock=(36, 60),
     clear=(62, 18, 15),
+    hands=38,
     sash=((34, 33), (55, 66)), knot=(8, 6),
     belts=(((34, 32), (60, 71)), ((55, 31), (31, 68))),
     hose=(88, 116),
@@ -145,11 +147,13 @@ def shade(color, f):
     return tuple(max(0, min(255, int(c * f))) for c in color) + (255,)
 
 
-def recolor(im, test, color, lift=0.0):
-    """Every pixel passing test(p, x, y) to the colour, same lightness."""
+def recolor(im, test, color, lift=0.0, base=None):
+    """Every pixel passing test(p, x, y) to the colour, same lightness
+    (tested on the base picture's pixel, if given)."""
     px = im.load()
+    tx = base.load() if base else px
     pts = [(x, y) for y in range(im.height) for x in range(im.width)
-           if test(px[x, y], x, y)]
+           if test(tx[x, y], x, y)]
     if not pts:
         return
     vs = [hsv(px[x, y])[2] for x, y in pts]
@@ -183,8 +187,9 @@ def drawn(paint, off=(0, 0)):
     return out
 
 
-def band(im, base, color, a, b, width):
-    """A belt or sash along a-b, over cloth only (under musket, hands)."""
+def band(im, base, color, a, b, width, second=None):
+    """A belt or sash along a-b, over cloth only (under musket, hands);
+    with a second colour, its lower half in that colour (striped)."""
     px = im.load()
     (x0, y0), (x1, y1) = a, b
     dx, dy = x1 - x0, y1 - y0
@@ -196,16 +201,20 @@ def band(im, base, color, a, b, width):
                     or on_top(base, x, y)):
                 continue
             t = ((x - x0) * dx + (y - y0) * dy) / (n * n)
-            d = abs((x - x0) * dy - (y - y0) * dx) / n
+            sd = ((x - x0) * dy - (y - y0) * dx) / n
+            d = abs(sd)
             if -0.05 <= t <= 1.05 and d <= width:
                 v = hsv(p)[2]
                 edge = d > width - 0.8
-                px[x, y] = ramp(color, (0.45 + 0.55 * v) * (0.8 if edge else 1))
+                c = second if (second and sd > 0) else color
+                px[x, y] = ramp(c, (0.45 + 0.55 * v) * (0.8 if edge else 1))
 
 
-def knot(im, color):
-    """The sash's knot at the left hip, two short tails hanging."""
+def knot(im, color, second=None):
+    """The sash's knot at the left hip, two short tails hanging (the
+    second in the second colour, if any)."""
     dark = shade(color, 0.45)
+    back = second or tuple(int(c * 0.8) for c in color)
     full = color + (255,)
 
     def paint_knot(d, s):
@@ -216,10 +225,24 @@ def knot(im, color):
         d.polygon([s(43.5, 62), s(45, 62), s(44.2, 70.2), s(43.1, 69.6)],
                   fill=full)
         d.polygon([s(45.2, 62), s(47.4, 61.6), s(48.2, 68), s(46.4, 68.6)],
-                  fill=dark)
+                  fill=shade(back, 0.5))
         d.polygon([s(45.6, 62.2), s(47, 62), s(47.6, 67.4), s(46.6, 67.8)],
-                  fill=shade(color, 0.8))
+                  fill=back + (255,))
     im.alpha_composite(drawn(paint_knot, F['knot']))
+
+
+def cuffs(im, base, color):
+    """Turned-back cuffs: the sleeve's end, the cloth next to the hands."""
+    px = im.load()
+    hands = [(x, y) for y in range(F['hands'], im.height)
+             for x in range(im.width) if skin(base.getpixel((x, y)))]
+    for y in range(F['hands'], im.height):
+        for x in range(im.width):
+            p = base.getpixel((x, y))
+            if not cloth(p, x, y) or on_top(base, x, y):
+                continue
+            if any(abs(x - hx) <= 3 and abs(y - hy) <= 3 for hx, hy in hands):
+                px[x, y] = ramp(color, 0.25 + 0.75 * hsv(p)[2])
 
 
 def crossbelts(im, base, color):
@@ -393,6 +416,77 @@ def felt_hat(d, s):
               fill=felt)
 
 
+def cabasset(d, s):
+    """Spanish cabasset: a tall almond-shaped steel helmet with a narrow
+    flat brim and a little knob on top."""
+    out, dark, mid = (38, 40, 46, 255), (72, 76, 86, 255), (108, 114, 126, 255)
+    light, shine = (142, 148, 160, 255), (172, 178, 190, 255)
+    bowl = [(21.4, 11.5), (21.6, 6.4), (23.4, 2.6), (26.4, 0.9), (29.6, 0.9),
+            (32.6, 2.6), (34.4, 6.4), (34.6, 11.5)]
+    d.polygon([s(*p) for p in bowl], fill=out)
+    d.polygon([s(x + (0.9 if x < 28 else -0.9), y + (0.8 if y < 11 else 0))
+               for x, y in bowl], fill=mid)
+    d.polygon([s(28.6, 1.8), s(31.8, 3.2), s(33.4, 6.6), s(33.6, 11.2),
+               s(29.6, 11.2)], fill=dark)
+    d.polygon([s(23, 10.6), s(23.2, 6.6), s(24.6, 3.6), s(26.4, 2.4),
+               s(25.6, 6), s(25.4, 10.6)], fill=light)
+    d.ellipse(s(24, 3.6, 25.4, 5.4), fill=shine)
+    d.ellipse(s(26.8, -0.4, 29.2, 1.8), fill=out)
+    d.ellipse(s(27.3, 0, 28.7, 1.3), fill=light)
+    # the narrow brim
+    d.ellipse(s(18, 9.4, 38, 14.2), fill=out)
+    d.ellipse(s(18.9, 10, 37.1, 13.4), fill=mid)
+    d.polygon([s(21.4, 11.2), s(34.6, 11.2), s(34.6, 9.6), s(21.4, 9.6)],
+              fill=mid)
+    d.line([s(20, 12.4), s(28, 13.2), s(36, 12.4)], fill=light, width=SS // 2)
+
+
+def wide_hat(felt, band=None, plume=None):
+    """A wide felt hat with a round crown, a band and a plume if given."""
+    edge = shade(felt, 0.35)
+    hi = shade(felt, 1.6)
+
+    def hat(d, s):
+        if plume:
+            d.ellipse(s(10, 3, 25, 10), fill=shade(plume, 0.5))
+            d.ellipse(s(10.6, 3.4, 24.6, 9.4), fill=plume + (255,))
+            d.ellipse(s(8.5, 6, 16, 12), fill=shade(plume, 0.9))
+            d.ellipse(s(13, 1.5, 22, 6.5), fill=shade(plume, 1.1))
+        d.ellipse(s(21.5, 1.5, 35.5, 13), fill=edge)
+        d.ellipse(s(22.3, 2.3, 34.7, 12.5), fill=felt + (255,))
+        d.ellipse(s(23.5, 3, 28, 8), fill=hi)
+        if band:
+            d.rectangle(s(22.4, 8, 34.6, 10), fill=band + (255,))
+        d.polygon([s(11.5, 8.6), s(16, 9.4), s(28, 10.6), s(40, 9.4),
+                   s(45, 10.8), s(41, 14.4), s(28, 15), s(15, 13.6)], fill=edge)
+        d.polygon([s(12.8, 9.2), s(16, 10.2), s(28, 11.3), s(40, 10.2),
+                   s(43.6, 11.3), s(40.4, 13.6), s(28, 14.2), s(15.4, 12.8)],
+                  fill=felt + (255,))
+        d.line([s(15, 10.8), s(28, 12.2), s(41, 11)], fill=hi, width=SS // 2)
+    return hat
+
+
+def fur_cap(cloth_color, fur):
+    """The strelets' cap: a tall rounded crown, a thick fur band."""
+    def cap(d, s):
+        d.rounded_rectangle(s(22.4, 0.4, 34, 11), radius=5 * SS,
+                            fill=shade(cloth_color, 0.4))
+        d.rounded_rectangle(s(23.2, 1.2, 33.2, 11), radius=int(4.4 * SS),
+                            fill=cloth_color + (255,))
+        d.rounded_rectangle(s(24.4, 2.2, 27.4, 9), radius=int(1.4 * SS),
+                            fill=shade(cloth_color, 1.35))
+        d.rounded_rectangle(s(20.2, 7.6, 36.4, 14), radius=3 * SS,
+                            fill=shade(fur, 0.45))
+        d.rounded_rectangle(s(21, 8.3, 35.6, 13.3), radius=int(2.6 * SS),
+                            fill=fur + (255,))
+        rnd = random.Random(7)
+        for _ in range(26):
+            x, y = rnd.uniform(21.5, 35), rnd.uniform(8.6, 12.8)
+            d.ellipse(s(x - 0.5, y - 0.5, x + 0.5, y + 0.5),
+                      fill=shade(fur, rnd.choice((0.6, 1.3))))
+    return cap
+
+
 # coat, breeches, stockings: colours; legs: 'boots' (the veteran
 # picture's) or 'hose' (stockings and shoes, the colonist picture's).
 LOOKS = {
@@ -413,6 +507,45 @@ LOOKS = {
     ('english', 'veteran'): dict(
         legs='hose', coat=(176, 34, 34), breeches=(206, 202, 190),
         belts=(226, 180, 64), hat=round_hat, hair=((70, 46, 28), 13)),
+
+    # Spain: Spanish black, the red sash with gold; a tercio's cabasset.
+    ('spanish', 'colonist'): dict(coat=(92, 80, 64), breeches=(92, 70, 48),
+                                  sash=((182, 32, 30), (214, 168, 40)),
+                                  hat=felt_hat),
+    ('spanish', 'veteran'): dict(
+        legs='hose', coat=(56, 54, 60), breeches=(70, 60, 52),
+        stockings=(206, 172, 64), sash=((182, 32, 30), (214, 168, 40)),
+        hat=cabasset),
+    # Portugal: dressed like Spain until 1640; green sash, buff coat.
+    ('portuguese', 'colonist'): dict(coat=(104, 92, 70), breeches=(92, 70, 48),
+                                     sash=(44, 128, 62), hat=felt_hat),
+    ('portuguese', 'veteran'): dict(
+        legs='hose', coat=(192, 156, 100), breeches=(52, 70, 54),
+        sash=(44, 128, 62), hat=wide_hat((44, 38, 32), band=(44, 128, 62)),
+        hair=((62, 40, 26), 10)),
+    # Sweden: the Yellow Regiment, a blue sash, grey hat, boots.
+    ('swedish', 'colonist'): dict(coat=(90, 90, 86), breeches=(92, 70, 48),
+                                  sash=(56, 120, 200), hat=felt_hat),
+    ('swedish', 'veteran'): dict(
+        legs='boots', coat=(204, 164, 48), breeches=(70, 80, 104),
+        sash=(46, 86, 170), hat=wide_hat((88, 88, 94), band=(46, 86, 170)),
+        hair=((150, 110, 60), 11)),
+    # Denmark: Christian IV's blue and flame-yellow sash for the
+    # militia; the 1660 grey coat with red cuffs for the veteran.
+    ('danish', 'colonist'): dict(coat=(84, 80, 74), breeches=(92, 70, 48),
+                                 sash=((44, 78, 160), (232, 158, 30)),
+                                 hat=felt_hat),
+    ('danish', 'veteran'): dict(
+        legs='hose', coat=(146, 146, 142), cuffs=(176, 36, 36),
+        breeches=(54, 52, 56), belts=(200, 162, 100),
+        hat=wide_hat((30, 28, 30)), hair=((110, 76, 44), 12)),
+    # Russia: the streltsy's long kaftan and fur cap, no sash.
+    ('russian', 'colonist'): dict(coat=(112, 86, 62), breeches=(92, 70, 48),
+                                  collar=False,
+                                  hat=fur_cap((96, 74, 56), (70, 50, 34))),
+    ('russian', 'veteran'): dict(
+        legs='boots', coat=(48, 100, 56), breeches=(132, 40, 40),
+        collar=False, hat=fur_cap((170, 40, 40), (92, 64, 40))),
 }
 
 # Output file names: (figure, rank) -> name, and the game picture used.
@@ -420,6 +553,14 @@ FILES = {(FOOT['dir'], 'colonist'): ('soldier', 'soldier'),
          (FOOT['dir'], 'veteran'): ('veteranSoldier', 'veteranSoldier'),
          (RIDER['dir'], 'colonist'): ('dragoon', 'dragoon'),
          (RIDER['dir'], 'veteran'): ('veteranDragoon', 'veteranSoldier')}
+
+
+def sash_colors(look):
+    """The sash's colour and second colour (for a two-coloured sash)."""
+    c = look.get('sash')
+    if not c:
+        return None, None
+    return (c[0], c[1]) if isinstance(c[0], tuple) else (c, None)
 
 
 def dress(figure, nation, rank):
@@ -435,17 +576,21 @@ def dress(figure, nation, rank):
     recolor(im, cloth, look['coat'])
     if look.get('breeches'):
         recolor(im, F['vet_breeches'] if boots else F['breeches'],
-                look['breeches'])
+                look['breeches'], base=base)
     if look.get('stockings'):
         recolor(im, stockings, look['stockings'], lift=0.15)
-    if look.get('sash'):
-        band(im, base, look['sash'], *F['sash'], 2.4)
+    sash, second = sash_colors(look)
+    if sash:
+        band(im, base, sash, *F['sash'], 2.4, second)
+    if look.get('cuffs'):
+        cuffs(im, base, look['cuffs'])
     if look.get('belts'):
         crossbelts(im, base, look['belts'])
     no_flecks(im, base)
-    collar(im, base)
-    if look.get('sash'):
-        knot(im, look['sash'])
+    if look.get('collar', True):
+        collar(im, base)
+    if sash:
+        knot(im, sash, second)
     clear_hat(im)
     if look.get('hair'):
         hair(im, *look['hair'])
@@ -470,10 +615,12 @@ def main():
             big.save(stem + '.size2.png')
             half(big).save(stem + '.png')
     if len(sys.argv) > 2:
-        preview(out, sys.argv[2])
+        nations = (sys.argv[3].split(',') if len(sys.argv) > 3
+                   else sorted({n for n, _ in LOOKS}))
+        preview(out, sys.argv[2], nations)
 
 
-def preview(out, path):
+def preview(out, path, nations):
     """The game's own, then each nation's colonist and veteran, on foot
     and mounted, big and on a grass tile at map size."""
     from PIL import ImageFont
@@ -485,7 +632,7 @@ def preview(out, path):
     except OSError:
         font = small = ImageFont.load_default()
     cols = [('Game now (1770s)', None)] + [
-        (n.capitalize(), n) for n in ('dutch', 'french', 'english')]
+        (n.capitalize(), n) for n in nations]
     Z, TS = 2, 1.6
     tw, th = int(tile.width * TS), int(tile.height * TS)
     cw = max(2 * 108 * Z + 30, 2 * tw + 30)

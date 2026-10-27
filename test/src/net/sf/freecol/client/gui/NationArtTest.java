@@ -37,7 +37,9 @@ import net.sf.freecol.util.test.FreeColTestCase;
  */
 public class NationArtTest extends FreeColTestCase {
 
-    private static final String[] NATIONS = { "dutch", "french", "english" };
+    private static final String[] NATIONS = {
+        "dutch", "french", "english", "spanish", "portuguese", "swedish",
+        "danish", "russian" };
 
     /** Soldiers with a picture of their own, the same for every nation. */
     private static final Set<String> OWN_PICTURE = Set.of(
