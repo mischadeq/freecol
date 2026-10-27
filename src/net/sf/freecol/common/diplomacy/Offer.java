@@ -73,6 +73,11 @@ public final class Offer {
         /** A native settlement asks to break off from its tribe and
             join us ({@code place} is the settlement). */
         SETTLEMENT_JOINS,
+        /** Several of our settlements ask to break away together and
+            live as a tribe of their own under the player's protection
+            ({@code place} the settlement ids joined by '+',
+            {@code placeName} their names). */
+        BREAKAWAY,
         /** Our terms before war: pay {@code gold} (placeName holds the
             grievance in words). */
         ULTIMATUM,
@@ -123,7 +128,8 @@ public final class Offer {
         public boolean direct() {
             return this == PEACE || this == CALL_TO_ARMS || this == ALLIANCE
                 || this == JOINT_WAR || this == COALITION || this == BUYOUT
-                || this == SETTLEMENT_JOINS || this == ULTIMATUM
+                || this == SETTLEMENT_JOINS || this == BREAKAWAY
+                || this == ULTIMATUM
                 || this == DEFEND_SETTLEMENT || this == AGREEMENT
                 || this == SALE || this == TERMS || this == LOAN
                 || this == LOAN_DEFAULT;

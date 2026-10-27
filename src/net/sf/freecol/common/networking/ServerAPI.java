@@ -552,6 +552,19 @@ public abstract class ServerAPI {
     }
 
     /**
+     * Answer an offer with a name (mod: a breakaway tribe the player
+     * names).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @param name The name.
+     * @return True if the message was sent.
+     */
+    public boolean answerOffer(String offerId, boolean accept, String name) {
+        return ask(new OfferMessage(offerId, accept, name));
+    }
+
+    /**
      * Post an offer on the notice board (mod).
      *
      * @param offer The {@code Offer}.

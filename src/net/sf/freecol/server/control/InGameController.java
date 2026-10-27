@@ -2079,6 +2079,22 @@ public final class InGameController extends Controller {
      */
     public ChangeSet answerOffer(ServerPlayer serverPlayer, String id,
                                  boolean accept, int amount) {
+        return answerOffer(serverPlayer, id, accept, amount, null);
+    }
+
+    /**
+     * A player answers an offer, with an amount or a name (mod: the
+     * name of a breakaway tribe).
+     *
+     * @param serverPlayer The {@code ServerPlayer} answering.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @param amount The amount, -1 if not asked.
+     * @param name The name, or null if not asked.
+     * @return A {@code ChangeSet} encapsulating this action.
+     */
+    public ChangeSet answerOffer(ServerPlayer serverPlayer, String id,
+                                 boolean accept, int amount, String name) {
         final ChangeSet cs = new ChangeSet();
         final net.sf.freecol.server.ai.AIMain aiMain
             = getFreeColServer().getAIMain();
@@ -2098,7 +2114,7 @@ public final class InGameController extends Controller {
             if (ai instanceof net.sf.freecol.server.ai.NativeAIPlayer
                 && new net.sf.freecol.server.ai.diplomacy.TribePlanner(
                     (net.sf.freecol.server.ai.NativeAIPlayer)ai)
-                .answer(serverPlayer, id, accept, cs)) {
+                .answer(serverPlayer, id, accept, name, cs)) {
                 getGame().sendToOthers(serverPlayer, cs);
                 return cs;
             }

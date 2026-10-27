@@ -1518,7 +1518,7 @@ public class Game extends FreeColGameObject {
             if (nation.isUnknownEnemy()) {
                 continue;
             }
-            if (nation.getType().isREF()) {
+            if (nation.getType().isREF() || nation.isBreakaway()) {
                 continue;
             }
             final String nationAreaId = Area.PREFIX_PLAYER_STARTING_POSITION + nation.getId();

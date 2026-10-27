@@ -442,6 +442,104 @@ public class AITribesTest extends FreeColTestCase {
         assertSame(dutch, new TribePlanner(ai(tupi)).breaksOffTo(camp));
     }
 
+    /**
+     * Two mission villages in a war: one offer for both; accepted, they
+     * found a tribe of their own (a spare nation, the player's name),
+     * with their braves and land, allied to the player, at war with the
+     * tribe they left (plans/breakaway-tribe.md, step 2).
+     */
+    public void testVillagesBreakAwayTogether() throws Exception {
+        setUpGame();
+        dutch.setAI(false);
+        // A third Tupi village, so the tribe is not weak: the war counts.
+        settlement(tupi, 9, 12, false);
+        final IndianSettlement a = tupi.getIndianSettlementList().get(1);
+        final IndianSettlement b = tupi.getIndianSettlementList().get(2);
+        mission(a, dutch, 25);
+        mission(b, dutch, 25);
+        tupi.setStance(dutch, Stance.WAR);
+        dutch.setStance(tupi, Stance.WAR);
+        nextTurn();
+        plan(tupi);
+        assertNull("not one by one", offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
+        final net.sf.freecol.common.diplomacy.Offer o = offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.BREAKAWAY);
+        assertNotNull(o);
+        assertEquals(2, o.amount);
+        final int braves = a.getOwnedUnitList().size()
+            + b.getOwnedUnitList().size();
+        assertTrue(braves > 0);
+
+        assertTrue(new TribePlanner(ai(tupi)).answer(dutch, o.id, true,
+            "Praying Tupi", new net.sf.freecol.common.networking.ChangeSet()));
+        final Player tribe = a.getOwner();
+        assertNotSame(tupi, tribe);
+        assertSame(tribe, b.getOwner());
+        assertTrue(tribe.getNation().isBreakaway());
+        assertTrue(tribe.isIndian());
+        assertEquals("Praying Tupi", net.sf.freecol.common.i18n.Messages
+            .message(tribe.getNationLabel()));
+        assertSame(tupi.getNationType(), tribe.getNationType());
+        assertEquals(TUPI, tribe.getBreakawayFrom());
+        assertEquals(DUTCH, tribe.getProtector());
+        assertEquals(Stance.ALLIANCE, tribe.getStance(dutch));
+        assertEquals(Stance.ALLIANCE, dutch.getStance(tribe));
+        assertEquals(Stance.WAR, tribe.getStance(tupi));
+        assertEquals(1, tupi.getIndianSettlementList().size());
+        for (net.sf.freecol.common.model.Unit u : a.getOwnedUnitList()) {
+            assertSame(tribe, u.getOwner());
+        }
+        assertEquals(braves, a.getOwnedUnitList().size()
+            + b.getOwnedUnitList().size());
+        for (net.sf.freecol.common.model.Tile t : a.getOwnedTiles()) {
+            assertSame(tribe, t.getOwner());
+        }
+        assertSame("the mission stays", dutch, a.getMissionary().getOwner());
+        // The old tribe's colour, lighter, with the Dutch as accent.
+        assertFalse(tupi.getNationColor().equals(tribe.getNationColor()));
+        assertEquals(dutch.getNationColor(), tribe.getAccentColor());
+        // Its AI is a tribe's, with the old tribe as its rival.
+        assertTrue(aiMain.getAIPlayer(tribe) instanceof NativeAIPlayer);
+        assertEquals(TUPI, ai(tribe).getRival());
+
+        // It takes on its ally's wars on its own turn.
+        dutch.setStance(french, Stance.WAR);
+        french.setStance(dutch, Stance.WAR);
+        Player.makeContact(tribe, french);
+        plan(tribe);
+        assertEquals(Stance.WAR, tribe.getStance(french));
+
+        // Saved and loaded: its name, parent and protector.
+        java.io.File file = java.io.File.createTempFile("breakaway", ".fsg");
+        file.deleteOnExit();
+        ServerTestHelper.getServer().saveGame(file, null, null);
+        net.sf.freecol.server.FreeColServer loaded
+            = ServerTestHelper.startServer(file, false, true);
+        final Player t2 = loaded.getGame().getPlayerByNationId(tribe.getNationId());
+        assertEquals("Praying Tupi", t2.getIndependentNationName());
+        assertEquals(TUPI, t2.getBreakawayFrom());
+        assertEquals(DUTCH, t2.getProtector());
+        assertEquals(tupi.getNationType().getId(), t2.getNationType().getId());
+    }
+
+    /** At most three breakaway tribes in a game; a new game has none. */
+    public void testBreakawaySlots() {
+        setUpGame();
+        for (Player p : game.getLivePlayerList()) {
+            assertFalse(p.getNation().isBreakaway());
+        }
+        assertNotNull(net.sf.freecol.server.model.Breakaway.freeSlot(game));
+        int n = 0;
+        for (net.sf.freecol.common.model.Nation x : spec().getNations()) {
+            if (x.isBreakaway()) n++;
+        }
+        assertEquals(3, n);
+        assertFalse(new net.sf.freecol.common.model.NationOptions(spec())
+            .getNations().keySet().stream()
+            .anyMatch(x -> x.isBreakaway()));
+    }
+
     public void testWholeTribeJoins() {
         setUpGame();
         dutch.setAI(false);

@@ -3397,6 +3397,14 @@
             nation-type="model.nationType.apache"/>
     <nation id="model.nation.tupi" color="0x045c04"
             nation-type="model.nationType.tupi"/>
+    <!-- Mod: spare nations for breakaway tribes (never at the start;
+         the tribe takes its parent's type and a lighter parent colour). -->
+    <nation id="model.nation.breakaway1" color="0xe0d4b8"
+            nation-type="model.nationType.sioux"/>
+    <nation id="model.nation.breakaway2" color="0xd8e0c0"
+            nation-type="model.nationType.sioux"/>
+    <nation id="model.nation.breakaway3" color="0xe0c8d0"
+            nation-type="model.nationType.sioux"/>
     <nation id="model.nation.dutchREF" color="0xffffff"
             nation-type="model.nationType.ref"/>
     <nation id="model.nation.frenchREF" color="0xffffff"

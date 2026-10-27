@@ -676,12 +676,66 @@ public final class TribePlanner {
         return false;
     }
 
+    /** Villages that may found a breakaway tribe together (mod). */
+    public static final int BREAKAWAY_VILLAGES = 2;
+
+    /**
+     * The villages that would break away together to a European: those
+     * that would break off to it now, and those already allied to it.
+     *
+     * @param p The European.
+     * @return The villages, perhaps empty.
+     */
+    public List<IndianSettlement> breakawayVillages(Player p) {
+        final List<IndianSettlement> ret = new ArrayList<>();
+        int asking = 0;
+        for (IndianSettlement is : me().getIndianSettlementList()) {
+            if (is.getAlliedPlayer() == p) {
+                ret.add(is);
+            } else if (breaksOffTo(is) == p) {
+                ret.add(is);
+                asking++;
+            }
+        }
+        return (asking > 0 && ret.size() >= BREAKAWAY_VILLAGES) ? ret
+            : new ArrayList<>();
+    }
+
+    /** A breakaway tribe can not break away again. */
+    private boolean mayBreakAway(Player p) {
+        return me().getBreakawayFrom() == null && !p.isAI()
+            && net.sf.freecol.server.model.Breakaway.freeSlot(game()) != null;
+    }
+
     private void settlementsBreakOff(net.sf.freecol.common.networking.ChangeSet cs,
                                      LogBuilder lb) {
+        // Two or more together: a tribe of their own (mod, step 2).
+        final Set<Player> together = new HashSet<>();
+        for (Player p : game().getLiveEuropeanPlayerList()) {
+            if (!mayBreakAway(p)) continue;
+            final List<IndianSettlement> vs = breakawayVillages(p);
+            if (vs.isEmpty()) continue;
+            together.add(p);
+            if (askedLately(Offer.Kind.BREAKAWAY, null, p.getNationId())) continue;
+            final List<String> ids = new ArrayList<>(), names = new ArrayList<>();
+            for (IndianSettlement is : vs) {
+                ids.add(is.getId());
+                names.add(is.getName());
+            }
+            lb.add("\n  ", String.join(", ", names), " break away to ",
+                   p.getDebugName());
+            final Offer o = new Offer("breakaway:" + me().getNationId() + ":"
+                + now(), Offer.Kind.BREAKAWAY, me().getNationId(), null,
+                vs.size(), 0, String.join("+", ids), String.join(", ", names),
+                now(), 0);
+            o.audience.add(p.getNationId());
+            ai.getOffers().add(o);
+        }
         for (IndianSettlement is : me().getIndianSettlementList()) {
             final Player p = breaksOffTo(is);
-            if (p == null || askedLately(Offer.Kind.SETTLEMENT_JOINS,
-                                         is.getId(), p.getNationId())) continue;
+            if (p == null || together.contains(p)
+                || askedLately(Offer.Kind.SETTLEMENT_JOINS,
+                               is.getId(), p.getNationId())) continue;
             lb.add("\n  ", is.getName(), " breaks off to ", p.getDebugName());
             if (p.isAI()) {
                 ally(is, p, cs);
@@ -719,6 +773,53 @@ public final class TribePlanner {
                 .addName("%settlement%", is.getName())
                 .addStringTemplate("%nation%", me().getNationLabel()));
         }
+    }
+
+    /**
+     * The name offered when the player gives none: "<tribe> of
+     * <first village>".
+     *
+     * @param vs The villages.
+     * @return The name.
+     */
+    String suggestedName(List<IndianSettlement> vs) {
+        return net.sf.freecol.common.i18n.Messages.message(me().getNationLabel())
+            + " of " + vs.get(0).getName();
+    }
+
+    /**
+     * Villages break away and found a tribe under a European (mod,
+     * step 2): a new player in a spare nation, allied to him, at war
+     * with us; it takes the villages, their braves and their land.
+     *
+     * @param vs The villages.
+     * @param p The European.
+     * @param name The new tribe's name.
+     * @param cs A {@code ChangeSet} to update.
+     * @return The new tribe, or null if none could be made.
+     */
+    public net.sf.freecol.server.model.ServerPlayer breakAway(
+            List<IndianSettlement> vs, Player p, String name,
+            net.sf.freecol.common.networking.ChangeSet cs) {
+        final net.sf.freecol.server.model.ServerPlayer tribe
+            = net.sf.freecol.server.model.Breakaway.found(
+                ai.getAIMain().getFreeColServer(),
+                (net.sf.freecol.server.model.ServerPlayer)me(),
+                (net.sf.freecol.server.model.ServerPlayer)p, vs, name, cs);
+        if (tribe == null) return null;
+        // The old tribe is its rival now; it remembers who protected it.
+        final net.sf.freecol.server.ai.AIPlayer a
+            = ai.getAIMain().getAIPlayer(tribe);
+        if (a instanceof NativeAIPlayer) {
+            final NativeAIPlayer na = (NativeAIPlayer)a;
+            na.setRival(me().getNationId());
+            na.getMemories().add(new Memory(Memory.Kind.TREATY,
+                p.getNationId(), now(), 1));
+        }
+        ai.setRival(tribe.getNationId());
+        ai.getMemories().add(new Memory(Memory.Kind.SETTLEMENT_DESTROYED,
+            p.getNationId(), now(), 1));
+        return tribe;
     }
 
     /** An allied settlement is resented by its tribe and neighbours. */
@@ -953,6 +1054,7 @@ public final class TribePlanner {
     private static String postedKey(Offer o) {
         switch (o.kind) {
         case SETTLEMENT_JOINS: return "offer.postedSettlementJoins";
+        case BREAKAWAY: return "offer.postedBreakaway";
         case DEFEND_SETTLEMENT: return "offer.postedDefendSettlement";
         case CALL_TO_ARMS: return "offer.postedTribeCall";
         case TERMS: return "offer.postedTribeTerms";
@@ -1005,12 +1107,46 @@ public final class TribePlanner {
     public boolean answer(net.sf.freecol.server.model.ServerPlayer human,
                           String id, boolean accept,
                           net.sf.freecol.common.networking.ChangeSet cs) {
+        return answer(human, id, accept, null, cs);
+    }
+
+    /**
+     * A player answers one of our offers, with a name (mod: the name he
+     * gives a breakaway tribe).
+     *
+     * @param human The player.
+     * @param id The offer id.
+     * @param accept True to accept.
+     * @param name The name, or null.
+     * @param cs A {@code ChangeSet} to update.
+     * @return True if the offer was ours and open to this player.
+     */
+    public boolean answer(net.sf.freecol.server.model.ServerPlayer human,
+                          String id, boolean accept, String name,
+                          net.sf.freecol.common.networking.ChangeSet cs) {
         Offer o = null;
         for (Offer x : ai.getOffers()) if (x.id.equals(id)) o = x;
         if (o == null || !o.visibleTo(human.getNationId(), now())) return false;
         switch (o.kind) {
         case TERMS:
             return new TribeEnvoyDesk(ai).answerTerms(o, human, accept, cs);
+        case BREAKAWAY:
+            if (!accept) {
+                o.state = Offer.State.DECLINED;
+                return true;
+            }
+            final List<IndianSettlement> vs = new ArrayList<>();
+            for (String sid : o.place.split("\\+")) {
+                final IndianSettlement v = game().getFreeColGameObject(sid,
+                    IndianSettlement.class);
+                if (v != null && v.getOwner() == me()) vs.add(v);
+            }
+            final net.sf.freecol.server.model.ServerPlayer tribe
+                = (vs.isEmpty()) ? null : breakAway(vs, human,
+                    (name == null || name.trim().isEmpty())
+                        ? suggestedName(vs) : name.trim(), cs);
+            o.state = (tribe == null) ? Offer.State.EXPIRED : Offer.State.DONE;
+            return true;
         case SETTLEMENT_JOINS:
             final IndianSettlement is = game().getFreeColGameObject(o.place,
                 IndianSettlement.class);

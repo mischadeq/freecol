@@ -2688,3 +2688,52 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   816 tests green. **Not changed:** tribes may still turn a war with
   you into a cease-fire on their own (the Sioux did); say if that
   should go the same way.
+
+### Breakaway tribes: villages found a tribe of their own (2026-10-27)
+- **Why (Mischa):** his four Sioux mission villages broke off one by
+  one as allied villages that only defend near themselves; he wanted
+  them to become one new tribe, named by him, fighting his wars. Step 2
+  of `plans/breakaway-tribe.md` (the core).
+- **What:** when two or more villages of one tribe would break off to
+  you (with your missions, see the trigger above), or one would while
+  others are already allied to you, they ask **together**: "These 4
+  villages ask to leave their tribe and live as a people of their own,
+  allied to you". Accepting asks for **a name** ("Praying Sioux"
+  filled in). They become a **new tribe**: a spare nation
+  (`model.nation.breakaway1..3`, at most three per game, never at the
+  start of a game), the old tribe's type, its colour a touch lighter;
+  their braves, land and goods go with them; your missions stay. It is
+  **allied to you** and **at war with the tribe it left** (each is the
+  other's rival), and on its own turn it **joins your wars** (a tribe
+  allied to a European takes on its wars, `TribePlanner.allyWars`).
+  News on the companion's tribe cards; a message to you.
+- **How:** `server/model/Breakaway` (finds a spare nation, makes the
+  player like the King's army is made, moves villages and braves,
+  stances), `Offer.Kind.BREAKAWAY`, `TribePlanner.breakawayVillages` /
+  `breakAway`, the name travels in `OfferMessage` (`NAME_TAG`); on
+  `Player`: `breakawayFrom`, `protector`, the name in
+  `independentNationName` (used by `getNationLabel` for such a tribe),
+  `getNationColor` (lighter parent), `getAccentColor` (the protector's,
+  not drawn yet). Saves carry their rules, so older games get the spare
+  nations on load (`Specification.fixBreakawayNations`). The spares are
+  kept out of `getIndianNations` (Colopedia, map editor) and out of the
+  nation options (new games).
+- **Tested:** `AITribesTest.testVillagesBreakAwayTogether` (one offer
+  for two villages; the tribe with name, type, braves, land, alliance,
+  war, rival, joining its ally's war; saved and loaded),
+  `testBreakawaySlots`; all 818 tests green. **Run on Mischa's
+  `_war` save** (turn 232, headless): the four villages (alarm
+  112-192, Sioux in a cease-fire) made one offer; accepted as "Praying
+  Sioux": 4 villages, 8 braves, allied to the Dutch, at war with the
+  Sioux, at war with Russia after its first turn; saved and reloaded.
+  **Not checked:** the dialogs and the map in the real game (colour,
+  labels), the companion page with a player appearing mid-game.
+  **Not done (step 2b/3):** your colour as accents on its border and
+  labels; later villages joining it; rejoining its tribe if abandoned;
+  computer nations doing the same.
+- **Why France and Sweden stayed out:** the war with Denmark (turn
+  233) was declared by **Mischa's own King** (FreeCol's random "the
+  Crown declares war" event); Russia's (turn 232) by Russia's King. By
+  Mischa's decision of 2026-10-14 (`step5-step7.md`, decision 2), a
+  King's war does not call allies to arms. He can ask them with an
+  envoy (Report > Send an Envoy, "join me in my war").

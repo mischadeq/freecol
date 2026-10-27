@@ -101,6 +101,20 @@ public class Nation extends FreeColSpecObjectType {
         return UNKNOWN_NATION_ID.equals(getId());
     }
 
+    /** The spare nations a breakaway tribe takes (mod). */
+    public static final String BREAKAWAY_PREFIX = "model.nation.breakaway";
+
+    /**
+     * Is this one of the spare nations for breakaway tribes (mod)?
+     * They never start a game; a tribe's mission villages found one
+     * when they break away together.
+     *
+     * @return True if so.
+     */
+    public final boolean isBreakaway() {
+        return getId().startsWith(BREAKAWAY_PREFIX);
+    }
+
     /**
      * Get the nation type.
      *

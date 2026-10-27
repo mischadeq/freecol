@@ -42,6 +42,7 @@ public class OfferMessage extends AttributeMessage {
     private static final String ANSWER_TAG = "answer";
     private static final String POST_TAG = "post";
     private static final String AMOUNT_TAG = "amount";
+    private static final String NAME_TAG = "name";
 
 
     /**
@@ -76,6 +77,18 @@ public class OfferMessage extends AttributeMessage {
     }
 
     /**
+     * The player's answer with a name (a breakaway tribe he names, mod).
+     *
+     * @param offerId The offer id.
+     * @param accept True to accept.
+     * @param name The name.
+     */
+    public OfferMessage(String offerId, boolean accept, String name) {
+        super(TAG, OFFER_TAG, offerId, ANSWER_TAG, String.valueOf(accept),
+              NAME_TAG, name);
+    }
+
+    /**
      * The player posts an offer of his own on the notice board.
      *
      * @param offer The {@code Offer} (its id and turn are set by the
@@ -95,7 +108,7 @@ public class OfferMessage extends AttributeMessage {
      */
     public OfferMessage(Game game, FreeColXMLReader xr)
         throws XMLStreamException {
-        super(TAG, xr, OFFER_TAG, ANSWER_TAG, POST_TAG, AMOUNT_TAG);
+        super(TAG, xr, OFFER_TAG, ANSWER_TAG, POST_TAG, AMOUNT_TAG, NAME_TAG);
     }
 
 
@@ -149,6 +162,6 @@ public class OfferMessage extends AttributeMessage {
             return serverPlayer.clientError("Bad offer answer: " + id);
         }
         return igc(freeColServer).answerOffer(serverPlayer, id, accept,
-            getIntegerAttribute(AMOUNT_TAG, -1));
+            getIntegerAttribute(AMOUNT_TAG, -1), getStringAttribute(NAME_TAG));
     }
 }

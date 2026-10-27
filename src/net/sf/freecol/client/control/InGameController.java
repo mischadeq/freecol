@@ -3806,6 +3806,24 @@ public final class InGameController extends FreeColClientHolder {
                 final Integer c = gui.modalChoiceDialog(t, "loan.choice.wait",
                                                         choices);
                 askServer().answerOffer(o.id, true, (c == null) ? 2 : c);
+            } else if (o.kind
+                       == net.sf.freecol.common.diplomacy.Offer.Kind.BREAKAWAY) {
+                // Villages breaking away together: yes, then their name
+                // (mod, breakaway tribes).
+                if (!gui.modalConfirmDialog(t, "offer.accept", "offer.decline")) {
+                    askServer().answerOffer(o.id, false);
+                } else {
+                    final Player from = getGame().getPlayerByNationId(o.from);
+                    final String suggest = Messages.message(StringTemplate
+                        .template("breakaway.suggest")
+                        .addStringTemplate("%nation%", from.getNationLabel()));
+                    final String name = gui.modalInputDialog(null,
+                        StringTemplate.template("breakaway.name"), suggest,
+                        "ok", "cancel");
+                    askServer().answerOffer(o.id, true,
+                        (name == null || name.trim().isEmpty()) ? suggest
+                        : name.trim());
+                }
             } else if (o.kind == net.sf.freecol.common.diplomacy.Offer.Kind.SALE) {
                 // How many to sell under a price agreement (step 4).
                 final String a = gui.modalInputDialog(null, t,
@@ -4103,6 +4121,9 @@ public final class InGameController extends FreeColClientHolder {
             break;
         case SETTLEMENT_JOINS:
             key = "offer.settlementJoins";
+            break;
+        case BREAKAWAY:
+            key = "offer.breakaway";
             break;
         case ULTIMATUM:
             key = "offer.ultimatum";

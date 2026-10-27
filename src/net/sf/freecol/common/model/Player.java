@@ -187,6 +187,12 @@ public class Player extends FreeColGameObject implements Nameable {
     /** The name of this player as an independent nation. */
     protected String independentNationName;
 
+    /** A breakaway tribe (mod): the nation id of the tribe it left. */
+    protected String breakawayFrom;
+
+    /** A breakaway tribe (mod): the European nation id that protects it. */
+    protected String protector;
+
     /** The type of player. */
     protected PlayerType playerType;
 
@@ -441,6 +447,42 @@ public class Player extends FreeColGameObject implements Nameable {
     }
 
     /**
+     * The tribe a breakaway tribe left (mod).
+     *
+     * @return The parent's nation id, or null if not a breakaway.
+     */
+    public final String getBreakawayFrom() {
+        return breakawayFrom;
+    }
+
+    /**
+     * Set the tribe a breakaway tribe left (mod).
+     *
+     * @param nationId The parent's nation id.
+     */
+    public final void setBreakawayFrom(String nationId) {
+        this.breakawayFrom = nationId;
+    }
+
+    /**
+     * The European protecting a breakaway tribe (mod).
+     *
+     * @return The protector's nation id, or null.
+     */
+    public final String getProtector() {
+        return protector;
+    }
+
+    /**
+     * Set the European protecting a breakaway tribe (mod).
+     *
+     * @param nationId The protector's nation id, or null.
+     */
+    public final void setProtector(String nationId) {
+        this.protector = nationId;
+    }
+
+    /**
      * Gets the name this player has chosen for the new world.
      *
      * @return The name of the new world as chosen by the {@code Player},
@@ -502,7 +544,9 @@ public class Player extends FreeColGameObject implements Nameable {
      */
     public StringTemplate getNationLabel() {
         return (playerType == PlayerType.REBEL
-                || playerType == PlayerType.INDEPENDENT)
+                || playerType == PlayerType.INDEPENDENT
+                // A breakaway tribe's own name (mod).
+                || (breakawayFrom != null && independentNationName != null))
             ? StringTemplate.name(independentNationName)
             : StringTemplate.key(Messages.nameKey(nationId));
     }
@@ -1061,8 +1105,34 @@ public class Player extends FreeColGameObject implements Nameable {
      * @return The {@code Color}.
      */
     public Color getNationColor() {
+        // A breakaway tribe keeps its old tribe's colour, a touch
+        // lighter (mod).
+        if (breakawayFrom != null) {
+            final Nation parent = getSpecification().getNation(breakawayFrom);
+            if (parent != null && parent.getColor() != null) {
+                final Color c = parent.getColor();
+                return new Color(lighter(c.getRed()), lighter(c.getGreen()),
+                                 lighter(c.getBlue()));
+            }
+        }
         final Nation nation = getNation();
         return (nation == null) ? null : nation.getColor();
+    }
+
+    private static int lighter(int c) {
+        return c + (255 - c) * 2 / 5;
+    }
+
+    /**
+     * The colour of the European protecting this breakaway tribe, for
+     * accents on the map (mod).
+     *
+     * @return The protector's colour, or null.
+     */
+    public Color getAccentColor() {
+        if (protector == null) return null;
+        final Nation n = getSpecification().getNation(protector);
+        return (n == null) ? null : n.getColor();
     }
 
     /**
@@ -4126,6 +4196,8 @@ public class Player extends FreeColGameObject implements Nameable {
         final Game game = getGame();
         this.name = o.getName();
         this.independentNationName = o.getIndependentNationName();
+        this.breakawayFrom = o.getBreakawayFrom();
+        this.protector = o.getProtector();
         this.playerType = o.getPlayerType();
         this.changeNationType(o.getNationType());
         this.nationId = o.getNationId();
@@ -4192,6 +4264,8 @@ public class Player extends FreeColGameObject implements Nameable {
     private static final String IMMIGRATION_REQUIRED_TAG = "immigrationRequired";
     private static final String LIBERTY_TAG = "liberty";
     private static final String INDEPENDENT_NATION_NAME_TAG = "independentNationName";
+    private static final String BREAKAWAY_FROM_TAG = "breakawayFrom";
+    private static final String PROTECTOR_TAG = "protector";
     private static final String INTERVENTION_BELLS_TAG = "interventionBells";
     private static final String NATION_ID_TAG = "nationId";
     private static final String NATION_TYPE_TAG = "nationType";
@@ -4270,6 +4344,14 @@ public class Player extends FreeColGameObject implements Nameable {
 
         if (independentNationName != null) {
             xw.writeAttribute(INDEPENDENT_NATION_NAME_TAG, independentNationName);
+        }
+
+        if (breakawayFrom != null) {
+            xw.writeAttribute(BREAKAWAY_FROM_TAG, breakawayFrom);
+        }
+
+        if (protector != null) {
+            xw.writeAttribute(PROTECTOR_TAG, protector);
         }
     }
 
@@ -4443,6 +4525,10 @@ public class Player extends FreeColGameObject implements Nameable {
 
         independentNationName = xr.getAttribute(INDEPENDENT_NATION_NAME_TAG,
                                                 (String)null);
+
+        breakawayFrom = xr.getAttribute(BREAKAWAY_FROM_TAG, (String)null);
+
+        protector = xr.getAttribute(PROTECTOR_TAG, (String)null);
 
         attackedByPrivateers = xr.getAttribute(ATTACKED_BY_PRIVATEERS_TAG,
                                                false);

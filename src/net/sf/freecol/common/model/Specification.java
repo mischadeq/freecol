@@ -733,7 +733,9 @@ public final class Specification implements OptionContainer {
         europeanNations.clear();
         indianNations.clear();
         for (Nation nation : nations) {
-            if (nation.isUnknownEnemy()) continue;
+            // The breakaway spares are no tribe of their own (mod): not
+            // in the Colopedia or the map editor, only in getNations().
+            if (nation.isUnknownEnemy() || nation.isBreakaway()) continue;
             if (nation.getType().isEuropean()) {
                 if (nation.getType().isREF()) {
                     REFNations.add(nation);
@@ -2504,6 +2506,32 @@ public final class Specification implements OptionContainer {
         // end @compat 0.11.6
 
         ret |= fixArmedConverts();
+        ret |= fixBreakawayNations();
+        return ret;
+    }
+
+    /**
+     * The spare nations for breakaway tribes (mod): saves carry their
+     * rules, so a game begun before them gets them on load, as in the
+     * rules file.
+     *
+     * @return True if a fix was made.
+     */
+    private boolean fixBreakawayNations() {
+        final NationType type = getNationType("model.nationType.sioux");
+        if (type == null) return false;
+        final int[] colors = { 0xe0d4b8, 0xd8e0c0, 0xe0c8d0 };
+        boolean ret = false;
+        for (int i = 0; i < colors.length; i++) {
+            final String id = Nation.BREAKAWAY_PREFIX + (i + 1);
+            if (getAlreadyInitializedType(id, Nation.class) != null) continue;
+            final Nation n = new Nation(id, this);
+            n.setType(type);
+            n.setColor(new java.awt.Color(colors[i]));
+            addType(id, n);
+            nations.add(n);
+            ret = true;
+        }
         return ret;
     }
 
