@@ -613,6 +613,19 @@ public final class TribePlanner {
     }
 
     /**
+     * Calm enough to break off to a European: happy, or, while its
+     * tribe is at war with the European, content (a village with a
+     * mission takes only half the war's shock, see
+     * {@code ServerPlayer.missionShock}).
+     */
+    private boolean calm(IndianSettlement is, Player p) {
+        if (happy(is, p)) return true;
+        final Tension t = is.getAlarm(p);
+        return t != null && me().getStance(p) == Stance.WAR
+            && t.getLevel().compareTo(Tension.Level.CONTENT) <= 0;
+    }
+
+    /**
      * Our tribe is weak, or angry with the European: at war with it,
      * lost a settlement to it, lost its capital, or down to two
      * settlements.
@@ -642,7 +655,7 @@ public final class TribePlanner {
         if (is.getAlliedPlayer() != null || is.getMissionary() == null) return null;
         final Player p = is.getMissionary().getOwner();
         if (!p.isEuropean() || p.isREF()) return null;
-        return (missionTurns(is, p) >= MISSION_TURNS && happy(is, p)
+        return (missionTurns(is, p) >= MISSION_TURNS && calm(is, p)
                 && weakOrAngry(p)) ? p : null;
     }
 

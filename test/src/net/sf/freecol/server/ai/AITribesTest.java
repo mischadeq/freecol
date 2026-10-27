@@ -388,6 +388,55 @@ public class AITribesTest extends FreeColTestCase {
         assertTrue(tupi.getTension(dutch).getValue() > 500);
     }
 
+    public void testMissionTakesHalfTheWarShock() {
+        setUpGame();
+        final IndianSettlement capital = tupi.getIndianSettlementList().get(0);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        mission(camp, dutch, 25);
+        capital.setAlarm(dutch, new net.sf.freecol.common.model.Tension(0));
+        capital.setContacted(dutch);
+        camp.setContacted(dutch);
+        tupi.setStance(dutch, Stance.PEACE);
+        dutch.setStance(tupi, Stance.PEACE);
+        tupi.csChangeStance(Stance.WAR, dutch, true,
+            new net.sf.freecol.common.networking.ChangeSet());
+        assertEquals(net.sf.freecol.common.model.Tension.WAR_MODIFIER,
+                     capital.getAlarm(dutch).getValue());
+        assertEquals("the mission village takes half",
+                     net.sf.freecol.common.model.Tension.WAR_MODIFIER / 2,
+                     camp.getAlarm(dutch).getValue());
+        // Only the mission's own nation: a French war hits it fully.
+        camp.setAlarm(french, new net.sf.freecol.common.model.Tension(0));
+        camp.setContacted(french);
+        tupi.setStance(french, Stance.PEACE);
+        french.setStance(tupi, Stance.PEACE);
+        tupi.csChangeStance(Stance.WAR, french, true,
+            new net.sf.freecol.common.networking.ChangeSet());
+        assertEquals(net.sf.freecol.common.model.Tension.WAR_MODIFIER,
+                     camp.getAlarm(french).getValue());
+    }
+
+    public void testBreaksOffInWarWhenContent() {
+        setUpGame();
+        dutch.setAI(false);
+        final IndianSettlement camp = tupi.getIndianSettlementList().get(1);
+        mission(camp, dutch, 25);
+        // Content but not happy, in peace: stays (the tribe is weak).
+        camp.setAlarm(dutch, new net.sf.freecol.common.model.Tension(500));
+        assertNull(new TribePlanner(ai(tupi)).breaksOffTo(camp));
+        // At war: content is enough.
+        tupi.setStance(dutch, Stance.WAR);
+        dutch.setStance(tupi, Stance.WAR);
+        assertSame(dutch, new TribePlanner(ai(tupi)).breaksOffTo(camp));
+        nextTurn();
+        plan(tupi);
+        assertNotNull(offer(ai(tupi),
+            net.sf.freecol.common.diplomacy.Offer.Kind.SETTLEMENT_JOINS));
+        // Angry, even at war: no.
+        camp.setAlarm(dutch, new net.sf.freecol.common.model.Tension(800));
+        assertNull(new TribePlanner(ai(tupi)).breaksOffTo(camp));
+    }
+
     public void testWholeTribeJoins() {
         setUpGame();
         dutch.setAI(false);

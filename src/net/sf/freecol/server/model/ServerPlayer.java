@@ -1443,6 +1443,23 @@ public class ServerPlayer extends Player implements TurnTaker {
     }
 
     /**
+     * A village with this European's mission takes only half the shock
+     * of a war with it (mod: breakaway tribes), so it can still break
+     * off while its tribe fights.
+     *
+     * @param is The {@code IndianSettlement}.
+     * @param player The European.
+     * @param add The tension change spread to the tribe's villages.
+     * @return The alarm change for this village.
+     */
+    public static int missionShock(IndianSettlement is, Player player,
+                                   int add) {
+        final Unit m = is.getMissionary();
+        return (add >= Tension.RESUME_WAR_MODIFIER && m != null
+                && m.getOwner() == player) ? add / 2 : add;
+    }
+
+    /**
      * Modifies the hostility against the given player.
      *
      * +til: Handles tile modifications.
@@ -1466,8 +1483,8 @@ public class ServerPlayer extends Player implements TurnTaker {
         if (isIndian()) {
             for (IndianSettlement is : transform(getIndianSettlements(),
                     i -> i != origin && i.hasContacted(player))) {
-                ((ServerIndianSettlement)is).csModifyAlarm(player, add,
-                                                           false, cs);//+til
+                ((ServerIndianSettlement)is).csModifyAlarm(player,
+                    missionShock(is, player, add), false, cs);//+til
             }
         }
     }

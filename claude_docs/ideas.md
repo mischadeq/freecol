@@ -2643,3 +2643,26 @@ sales payout multiplied (4x on Medium at turn 1, down to 1x at turn 150).
   green. **To watch on the map:** the Danish and Swedish militia sashes
   are both blue (the Danish yellow stripe is thin); the Danish cuffs
   are small.
+
+### Mission villages can break off during a war (2026-10-27)
+- **Why (Mischa):** four Sioux villages with his missions for about 100
+  turns never broke off. In peace they were happy but the tribe wasn't
+  angry; when war came, every village's alarm jumped to the maximum
+  (1000), so the "happy" condition could not be met during the war.
+  Step 1 of `plans/breakaway-tribe.md`.
+- **What:** a village with your mission takes **half** the shock when
+  its tribe goes to war with you (+500 alarm instead of +1000; also
+  when war resumes after a cease-fire). And **while its tribe is at war
+  with you, "content" (alarm 600 or less) is enough** to break off; in
+  peace it must still be happy. The other conditions stay: your mission
+  20+ turns, the tribe weak or angry with you (a war counts).
+  `ServerPlayer.missionShock`, `TribePlanner.calm`.
+- **In Mischa's game** (turn 221, alarm 858-883, falling about 45 a
+  turn): the four villages should ask to join you in about 6-7 turns.
+  Each asks on its own for now (allied villages, 7d); once step 2 is
+  built, allied villages of the same tribe fold into the new tribe.
+- **Tested:** `AITribesTest.testMissionTakesHalfTheWarShock` (half for
+  your mission village, full for others and for another nation's war),
+  `testBreaksOffInWarWhenContent` (content: no in peace, yes in war;
+  angry: no); all 815 tests green. **Not checked:** a live run on his
+  save (the 6-7 turns are worked out from the save's numbers).
